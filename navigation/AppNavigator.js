@@ -1,0 +1,198 @@
+import React from "react";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@react-navigation/native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
+
+import HomeScreen from "../screens/HomeScreen";
+import SearchScreen from "../screens/SearchScreen";
+import DetailsScreen from "../screens/DetailsScreen";
+import FavoritesScreen from "../screens/FavoritesScreen";
+import SettingsScreen from "../screens/SettingsScreen";
+import { useCustomTheme } from "../contexts/ThemeContext";
+
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+const HomeStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen
+      name="Home"
+      component={HomeScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen name="Details" component={DetailsScreen} />
+  </Stack.Navigator>
+);
+
+const SearchStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen
+      name="Search"
+      component={SearchScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen name="Details" component={DetailsScreen} />
+  </Stack.Navigator>
+);
+
+const FavoritesStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen
+      name="Favorites"
+      component={FavoritesScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen name="Details" component={DetailsScreen} />
+  </Stack.Navigator>
+);
+
+const SettingsStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen
+      name="Settings"
+      component={SettingsScreen}
+      options={{ headerShown: false }}
+    />
+  </Stack.Navigator>
+);
+
+const CustomTabBar = ({ state, descriptors, navigation }) => {
+  const { colors } = useTheme();
+  const { theme } = useCustomTheme();
+
+  return (
+    <View
+      style={[
+        styles.tabBar,
+        {
+          backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff",
+          borderTopColor: theme === "dark" ? "#333" : "#ddd",
+        },
+      ]}
+    >
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        const iconName = {
+          Home: isFocused ? "home" : "home-outline",
+          Search: isFocused ? "search-sharp" : "search-outline",
+          Favorites: isFocused ? "heart" : "heart-outline",
+          Settings: isFocused ? "settings" : "settings-outline",
+        }[route.name];
+
+        const scale = useSharedValue(1);
+        const animatedStyle = useAnimatedStyle(() => ({
+          transform: [{ scale: scale.value }],
+        }));
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            onPress={onPress}
+            onPressIn={() => (scale.value = withSpring(0.95))}
+            onPressOut={() => (scale.value = withSpring(1))}
+            style={styles.tabItem}
+            activeOpacity={0.7}
+          >
+            <Animated.View style={[styles.tabContent, animatedStyle]}>
+              <Ionicons
+                name={iconName}
+                size={28}
+                color={isFocused ? colors.primary : colors.text}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  {
+                    color: isFocused ? colors.primary : colors.text,
+                    fontWeight: isFocused ? "bold" : "normal",
+                  },
+                ]}
+              >
+                {route.name}
+              </Text>
+            </Animated.View>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
+const AppNavigator = () => {
+  return (
+    <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          position: "absolute", // Fix at bottom
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 80,
+          borderTopWidth: 1,
+          elevation: 10,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 4,
+          zIndex: 1000,
+        },
+      }}
+    >
+      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Search" component={SearchStack} />
+      <Tab.Screen name="Favorites" component={FavoritesStack} />
+      <Tab.Screen name="Settings" component={SettingsStack} />
+    </Tab.Navigator>
+  );
+};
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: "row",
+    height: 60,
+    borderTopWidth: 1,
+    elevation: 10,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    zIndex: 1000,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+  },
+  tabLabel: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+});
+
+export default AppNavigator;

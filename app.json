@@ -19,10 +19,32 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.josmon2004.CineLink",
+      "permissions": []
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7892f2fc-684a-4de4-a501-6214b9fafb05"
+      }
+    },
+    "expo": {
+      "updates": {
+        "enabled": true,
+        "fallbackToCacheTimeout": 0
+      }
+    },
+    "plugins": [
+      "react-native-video"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7892f2fc-684a-4de4-a501-6214b9fafb05"
     }
   }
 }
