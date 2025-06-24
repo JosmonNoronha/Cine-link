@@ -8,6 +8,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Dimensions,
+  Modal,
+  FlatList,
+  TextInput,
+  Alert,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -22,6 +26,10 @@ import {
   isFavorite,
   saveSeriesDetails,
   getSeriesDetails,
+  getWatchlists,
+  addToWatchlist,
+  removeFromWatchlist,
+  isInWatchlist,
 } from "../utils/storage";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,6 +59,10 @@ const DetailsScreen = ({ route, navigation }) => {
   const [seriesDetails, setSeriesDetails] = useState(null);
   const [expandedSeasons, setExpandedSeasons] = useState({});
   const [loadingEpisodes, setLoadingEpisodes] = useState({});
+  const [watchlists, setWatchlists] = useState({});
+  const [showWatchlistModal, setShowWatchlistModal] = useState(false);
+  const [selectedWatchlist, setSelectedWatchlist] = useState(null);
+  const [inWatchlist, setInWatchlist] = useState(false);
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
@@ -83,7 +95,7 @@ const DetailsScreen = ({ route, navigation }) => {
         setMovie(data);
         const favStatus = await isFavorite(imdbID);
         setFavorite(favStatus);
-
+        await checkInAnyWatchlist();
         if (data.Type === "series" && data.totalSeasons) {
           await fetchSeriesDetails(imdbID, parseInt(data.totalSeasons));
         }
@@ -93,6 +105,7 @@ const DetailsScreen = ({ route, navigation }) => {
       }
     };
     fetchDetails();
+    fetchWatchlists();
   }, [imdbID]);
 
   const fetchSeriesDetails = async (imdbID, totalSeasons) => {
@@ -210,6 +223,25 @@ const DetailsScreen = ({ route, navigation }) => {
     setFavorite(!favorite);
   };
 
+  const handleWatchlistButton = () => {
+    fetchWatchlists();
+    setShowWatchlistModal(true);
+  };
+
+  const handleSelectWatchlist = async (name) => {
+    const alreadyIn = await isInWatchlist(name, imdbID);
+    if (alreadyIn) {
+      await removeFromWatchlist(name, imdbID);
+      Alert.alert("Removed", `Removed from '${name}' watchlist.`);
+    } else {
+      await addToWatchlist(name, movie);
+      Alert.alert("Added", `Added to '${name}' watchlist.`);
+    }
+    setShowWatchlistModal(false);
+    setSelectedWatchlist(null);
+    checkInAnyWatchlist();
+  };
+
   const handleWatchTrailer = () => {
     if (!videoId && movie?.Title) {
       fetchTrailer(movie.Title);
@@ -324,6 +356,26 @@ const DetailsScreen = ({ route, navigation }) => {
         </Animated.Text>
       </Animated.View>
     );
+  };
+
+  // Fetch all watchlists for modal
+  const fetchWatchlists = async () => {
+    const data = await getWatchlists();
+    setWatchlists(data);
+  };
+
+  // Check if movie is in any watchlist (for button state)
+  const checkInAnyWatchlist = async () => {
+    const lists = await getWatchlists();
+    setWatchlists(lists);
+    let found = false;
+    for (const name of Object.keys(lists)) {
+      if (lists[name].some((m) => m.imdbID === imdbID)) {
+        found = true;
+        break;
+      }
+    }
+    setInWatchlist(found);
   };
 
   if (!movie) {
@@ -443,6 +495,106 @@ const DetailsScreen = ({ route, navigation }) => {
             {favorite ? "❤️ Remove from Favorites" : "🤍 Add to Favorites"}
           </Text>
         </TouchableOpacity>
+        {/* Watchlist Button */}
+        <TouchableOpacity
+          style={[
+            styles.favoriteButton,
+            {
+              backgroundColor: inWatchlist
+                ? theme === "dark"
+                  ? "#1976d2"
+                  : "#bbdefb"
+                : theme === "dark"
+                ? "#444"
+                : "#f0f0f0",
+              borderColor: colors.border,
+              marginTop: 10,
+            },
+          ]}
+          onPress={handleWatchlistButton}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={[
+              styles.buttonText,
+              {
+                color: inWatchlist
+                  ? theme === "dark"
+                    ? "#fff"
+                    : "#1976d2"
+                  : colors.text,
+              },
+            ]}
+          >
+            {inWatchlist ? "✔️ In Watchlist(s)" : "➕ Add to Watchlist"}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Watchlist Selection Modal */}
+        <Modal
+          visible={showWatchlistModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowWatchlistModal(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#0008",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderRadius: 12,
+                padding: 20,
+                width: "80%",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  marginBottom: 10,
+                  color: colors.text,
+                }}
+              >
+                Select Watchlist
+              </Text>
+              <FlatList
+                data={Object.keys(watchlists)}
+                keyExtractor={(name) => name}
+                renderItem={({ item: name }) => (
+                  <TouchableOpacity
+                    style={{
+                      padding: 12,
+                      borderBottomWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                    onPress={() => handleSelectWatchlist(name)}
+                  >
+                    <Text style={{ color: colors.text }}>{name}</Text>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <Text style={{ color: colors.text }}>
+                    No watchlists. Create one in the Watchlists tab.
+                  </Text>
+                }
+              />
+              <TouchableOpacity
+                style={{ marginTop: 16, alignSelf: "flex-end" }}
+                onPress={() => setShowWatchlistModal(false)}
+              >
+                <Text style={{ color: colors.primary, fontWeight: "bold" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
 
       {/* Trailer Card */}

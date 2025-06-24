@@ -6,12 +6,16 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  collection,
+  getDocs,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
 console.log("Storage.js loaded - auth:", auth, "db:", db); // Debug log
 
 const FAVORITES_FIELD = "userFavorites"; // Field name inside the user document
+const WATCHLIST_FIELD = "userWatchlist"; // Field name inside the user document
 
 export const getFavorites = async () => {
   if (!auth) throw new Error("Authentication not initialized");
@@ -36,7 +40,11 @@ export const saveFavorite = async (movie) => {
   if (!db) throw new Error("Firestore not initialized");
 
   const docRef = doc(db, "users", user.uid);
-  await setDoc(docRef, { [FAVORITES_FIELD]: arrayUnion(movie) }, { merge: true });
+  await setDoc(
+    docRef,
+    { [FAVORITES_FIELD]: arrayUnion(movie) },
+    { merge: true }
+  );
 };
 
 export const removeFavorite = async (imdbID) => {
@@ -87,4 +95,79 @@ export const getSeriesDetails = async (imdbID) => {
     console.error("Error getting series details:", error);
     return null;
   }
+};
+
+export const getWatchlists = async () => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return {};
+  if (!db) throw new Error("Firestore not initialized");
+
+  const watchlistsRef = collection(db, `users/${user.uid}/watchlists`);
+  const snapshot = await getDocs(watchlistsRef);
+  const result = {};
+  snapshot.forEach((docSnap) => {
+    result[docSnap.id] = docSnap.data().movies || [];
+  });
+  return result;
+};
+
+export const addWatchlist = async (name) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
+  await setDoc(watchlistRef, { movies: [] }, { merge: true });
+};
+
+export const removeWatchlist = async (name) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
+  await deleteDoc(watchlistRef);
+};
+
+export const addToWatchlist = async (name, movie) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
+  await setDoc(watchlistRef, { movies: arrayUnion(movie) }, { merge: true });
+};
+
+export const removeFromWatchlist = async (name, imdbID) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
+  const docSnap = await getDoc(watchlistRef);
+  if (docSnap.exists()) {
+    const movies = docSnap.data().movies || [];
+    const movieToRemove = movies.find((m) => m.imdbID === imdbID);
+    if (movieToRemove) {
+      await updateDoc(watchlistRef, { movies: arrayRemove(movieToRemove) });
+    }
+  }
+};
+
+export const isInWatchlist = async (name, imdbID) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return false;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
+  const docSnap = await getDoc(watchlistRef);
+  if (!docSnap.exists()) return false;
+  const movies = docSnap.data().movies || [];
+  return movies.some((m) => m.imdbID === imdbID);
 };

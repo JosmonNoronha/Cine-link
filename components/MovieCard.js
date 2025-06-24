@@ -3,16 +3,26 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { saveFavorite, removeFavorite, isFavorite } from "../utils/storage";
+import {
+  saveFavorite,
+  removeFavorite,
+  isFavorite,
+  saveWatchlist,
+  removeWatchlist,
+  isInWatchlist,
+} from "../utils/storage";
 
 const MovieCard = ({ movie, onPress, style }) => {
   const { colors } = useTheme();
   const [isFav, setIsFav] = useState(false);
+  const [inWatchlist, setInWatchlist] = useState(false);
 
   useEffect(() => {
     const checkFavorite = async () => {
       const favStatus = await isFavorite(movie.imdbID);
       setIsFav(favStatus);
+      const watchlistStatus = await isInWatchlist(movie.imdbID);
+      setInWatchlist(watchlistStatus);
     };
     checkFavorite();
   }, [movie.imdbID]);
@@ -24,6 +34,15 @@ const MovieCard = ({ movie, onPress, style }) => {
       await saveFavorite(movie);
     }
     setIsFav(!isFav);
+  };
+
+  const toggleWatchlist = async () => {
+    if (inWatchlist) {
+      await removeWatchlist(movie.imdbID);
+    } else {
+      await saveWatchlist(movie);
+    }
+    setInWatchlist(!inWatchlist);
   };
 
   return (
@@ -73,7 +92,16 @@ const MovieCard = ({ movie, onPress, style }) => {
           {movie.Year} •{" "}
           {movie.Type.charAt(0).toUpperCase() + movie.Type.slice(1)}
         </Text>
-        <View style={styles.actionRow}></View>
+        <View style={styles.actionRow}>
+          <TouchableOpacity onPress={toggleFavorite} style={styles.favButton}>
+            <Ionicons
+              name={isFav ? "heart" : "heart-outline"}
+              size={22}
+              color={isFav ? "#d32f2f" : colors.text}
+            />
+          </TouchableOpacity>
+          
+        </View>
       </View>
     </TouchableOpacity>
   );

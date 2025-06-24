@@ -14,6 +14,10 @@ import HomeScreen from "../screens/HomeScreen";
 import SearchScreen from "../screens/SearchScreen";
 import DetailsScreen from "../screens/DetailsScreen";
 import FavoritesScreen from "../screens/FavoritesScreen";
+import {
+  WatchlistsScreen,
+  WatchlistContentScreen,
+} from "../screens/WatchlistScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import AuthScreen from "../screens/AuthScreen";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -55,6 +59,22 @@ const FavoritesStack = () => (
   </Stack.Navigator>
 );
 
+const WatchlistStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen
+      name="Watchlists"
+      component={WatchlistsScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="WatchlistContent"
+      component={WatchlistContentScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen name="Details" component={DetailsScreen} />
+  </Stack.Navigator>
+);
+
 const SettingsStack = () => (
   <Stack.Navigator>
     <Stack.Screen
@@ -75,13 +95,14 @@ const AuthStack = () => (
   </Stack.Navigator>
 );
 
-const TAB_COUNT = 4; // Home, Search, Favorites, Settings
+const TAB_COUNT = 5; // Home, Search, Favorites, Watchlist, Settings
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
-  // Always initialize 4 shared values and animated styles
+  // Always initialize 5 shared values and animated styles
   const scalesRef = React.useRef([
+    useSharedValue(1),
     useSharedValue(1),
     useSharedValue(1),
     useSharedValue(1),
@@ -99,6 +120,9 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
     })),
     useAnimatedStyle(() => ({
       transform: [{ scale: scalesRef.current[3].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[4].value }],
     })),
   ]);
 
@@ -132,6 +156,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           Home: isFocused ? "home" : "home-outline",
           Search: isFocused ? "search-sharp" : "search-outline",
           Favorites: isFocused ? "heart" : "heart-outline",
+          Watchlist: isFocused ? "bookmark" : "bookmark-outline",
           Settings: isFocused ? "settings" : "settings-outline",
           Auth: isFocused ? "lock-closed" : "lock-closed-outline", // Will be updated below
         }[route.name];
@@ -209,6 +234,7 @@ const AppNavigator = () => {
           <Tab.Screen name="Home" component={HomeStack} />
           <Tab.Screen name="Search" component={SearchStack} />
           <Tab.Screen name="Favorites" component={FavoritesStack} />
+          <Tab.Screen name="Watchlist" component={WatchlistStack} />
           <Tab.Screen name="Settings" component={SettingsStack} />
         </>
       ) : (
