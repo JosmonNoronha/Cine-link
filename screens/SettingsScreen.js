@@ -15,17 +15,19 @@ import NetInfo from "@react-native-community/netinfo";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
+import { auth } from "../firebaseConfig";
+// Removed modular import: import { signOut } from "firebase/auth";
 
-const SettingsScreen = () => {
+const SettingsScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { theme, toggleTheme } = useCustomTheme();
   const [updateOverWifi, setUpdateOverWifi] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isExpoGo, setIsExpoGo] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current; // Animation for theme card
+  const [user, setUser] = useState(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Check if running in Expo Go
     setIsExpoGo(Constants.appOwnership === "expo");
     if (!isExpoGo) {
       checkForUpdates();
@@ -35,6 +37,11 @@ const SettingsScreen = () => {
       duration: 500,
       useNativeDriver: true,
     }).start();
+
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+    });
+    return unsubscribe;
   }, []);
 
   const checkForUpdates = async () => {
@@ -89,24 +96,48 @@ const SettingsScreen = () => {
     }
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff" }]}>
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>App Updates</Text>
+  const handleSignOut = async () => {
+    try {
+      await auth.signOut(); // Namespace-based signOut
+      navigation.replace("Auth");
+    } catch (error) {
+      console.log("Sign Out Error", error.message);
+    }
+  };
 
+  return (
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff" },
+      ]}
+    >
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          App Updates
+        </Text>
         {isExpoGo ? (
           <View style={styles.expoGoMessage}>
-            <Ionicons name="information-circle-outline" size={24} color={colors.text} />
+            <Ionicons
+              name="information-circle-outline"
+              size={24}
+              color={colors.text}
+            />
             <Text style={[styles.expoGoText, { color: colors.text }]}>
-              Update functionality is not available in Expo Go. Please build a development version of the app to test updates.
+              Update functionality is not available in Expo Go. Please build a
+              development version of the app to test updates.
             </Text>
           </View>
         ) : (
           <>
             <View style={styles.settingItem}>
               <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Update over WiFi only</Text>
-                <Text style={[styles.settingDescription, { color: colors.text }]}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>
+                  Update over WiFi only
+                </Text>
+                <Text
+                  style={[styles.settingDescription, { color: colors.text }]}
+                >
                   Only download updates when connected to WiFi
                 </Text>
               </View>
@@ -117,7 +148,6 @@ const SettingsScreen = () => {
                 thumbColor={updateOverWifi ? colors.primary : "#f4f3f4"}
               />
             </View>
-
             <TouchableOpacity
               style={[styles.updateButton, { backgroundColor: colors.primary }]}
               onPress={handleUpdate}
@@ -132,7 +162,9 @@ const SettingsScreen = () => {
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Appearance
+        </Text>
         <Animated.View
           style={[
             styles.themeCard,
@@ -144,9 +176,7 @@ const SettingsScreen = () => {
         >
           <LinearGradient
             colors={
-              theme === "dark"
-                ? ["#1e88e5", "#1976d2"]
-                : ["#1976d2", "#1e88e5"]
+              theme === "dark" ? ["#1e88e5", "#1976d2"] : ["#1976d2", "#1e88e5"]
             }
             style={styles.gradientOverlay}
           />
@@ -159,7 +189,9 @@ const SettingsScreen = () => {
               />
             </View>
             <View style={styles.themeTextContainer}>
-              <Text style={[styles.themeLabel, { color: colors.text }]}>Dark Theme</Text>
+              <Text style={[styles.themeLabel, { color: colors.text }]}>
+                Dark Theme
+              </Text>
               <Text style={[styles.themeDescription, { color: colors.text }]}>
                 Switch between light and dark modes
               </Text>
@@ -167,12 +199,65 @@ const SettingsScreen = () => {
             <Switch
               value={theme === "dark"}
               onValueChange={toggleTheme}
-              trackColor={{ false: "#d3d3d3", true: theme === "dark" ? "#1e88e5" : "#1976d2" }}
+              trackColor={{
+                false: "#d3d3d3",
+                true: theme === "dark" ? "#1e88e5" : "#1976d2",
+              }}
               thumbColor={theme === "dark" ? "#fff" : "#333"}
               style={styles.themeSwitch}
             />
           </View>
         </Animated.View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Account
+        </Text>
+        {user ? (
+          <>
+            <View style={styles.settingItem}>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>
+                  Email
+                </Text>
+                <Text
+                  style={[styles.settingDescription, { color: colors.text }]}
+                >
+                  {user.email}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.settingItem}>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>
+                  User ID
+                </Text>
+                <Text
+                  style={[styles.settingDescription, { color: colors.text }]}
+                >
+                  {user.uid}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.updateButton, { backgroundColor: "#ff4444" }]}
+              onPress={handleSignOut}
+            >
+              <Ionicons name="log-out-outline" size={24} color="white" />
+              <Text style={styles.updateButtonText}>Sign Out</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: colors.text, textAlign: "center" },
+            ]}
+          >
+            Not logged in. Please log in from the Auth screen.
+          </Text>
+        )}
       </View>
     </View>
   );

@@ -1,0 +1,822 @@
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Dimensions,
+} from "react-native";
+import { useTheme } from "@react-navigation/native";
+import { useCustomTheme } from "../contexts/ThemeContext";
+import {
+  getMovieDetails,
+  getSeasonDetails,
+  getEpisodeDetails,
+} from "../services/api";
+import {
+  saveFavorite,
+  removeFavorite,
+  isFavorite,
+  saveSeriesDetails,
+  getSeriesDetails,
+} from "../utils/storage";
+import YoutubePlayer from "react-native-youtube-iframe";
+import { Ionicons } from "@expo/vector-icons";
+import { YOUTUBE_API_KEY } from "@env";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  FadeInDown,
+  useSharedValue,
+  withTiming,
+  withSequence,
+  withRepeat,
+  useAnimatedStyle,
+} from "react-native-reanimated";
+import ShimmerPlaceholder from "react-native-shimmer-placeholder";
+import { LinearGradient } from "expo-linear-gradient";
+import { auth } from "../firebaseConfig";
+
+const DetailsScreen = ({ route, navigation }) => {
+  const { imdbID } = route.params;
+  const [movie, setMovie] = useState(null);
+  const [favorite, setFavorite] = useState(false);
+  const [videoId, setVideoId] = useState(null);
+  const [isTrailerLoading, setTrailerLoading] = useState(false);
+  const [trailerError, setTrailerError] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [seriesDetails, setSeriesDetails] = useState(null);
+  const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [loadingEpisodes, setLoadingEpisodes] = useState({});
+  const [isFetchingSeries, setIsFetchingSeries] = useState(false);
+  const { colors } = useTheme();
+  const { theme } = useCustomTheme();
+
+  const loadingOpacity = useSharedValue(1);
+
+  useEffect(() => {
+    if (Object.values(loadingEpisodes).some((isLoading) => isLoading)) {
+      loadingOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.4, { duration: 800 }),
+          withTiming(1, { duration: 800 })
+        ),
+        -1, // Infinite loop
+        true // Reverse
+      );
+    } else {
+      loadingOpacity.value = withTiming(1); // Reset to full opacity
+    }
+  }, [loadingEpisodes]);
+
+  const animatedTextStyle = useAnimatedStyle(() => ({
+    opacity: loadingOpacity.value,
+    color: theme === "dark" ? "#7e57c2" : "#5e35b1", // Change color based on theme
+  }));
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        console.log(
+          "Starting fetchDetails for imdbID:",
+          imdbID,
+          "User:",
+          auth?.currentUser?.uid
+        );
+        const data = await getMovieDetails(imdbID);
+        console.log("Movie data fetched:", data);
+        setMovie(data);
+        const favStatus = await isFavorite(imdbID);
+        console.log(
+          "Favorite status for imdbID:",
+          imdbID,
+          "is:",
+          favStatus,
+          "Path checked:",
+          `users/${auth?.currentUser?.uid}/userFavorites`
+        );
+        setFavorite(favStatus);
+
+        if (data.Type === "series" && data.totalSeasons) {
+          console.log(
+            "Fetching series details for:",
+            imdbID,
+            "Seasons:",
+            data.totalSeasons
+          );
+          await fetchSeriesDetails(imdbID, parseInt(data.totalSeasons));
+        }
+      } catch (error) {
+        console.error(
+          "Failed to load movie details:",
+          error,
+          "Stack:",
+          error.stack,
+          "User:",
+          auth?.currentUser?.uid
+        );
+        setMovie(null);
+      }
+    };
+    fetchDetails();
+  }, [imdbID]);
+
+  const fetchSeriesDetails = async (imdbID, totalSeasons) => {
+    // Prevent multiple simultaneous fetches
+    if (isFetchingSeries) {
+      console.log("Series fetch already in progress, skipping...");
+      return;
+    }
+
+    setIsFetchingSeries(true);
+    try {
+      const cached = await getSeriesDetails(imdbID);
+      if (
+        cached &&
+        cached.seasons?.length > 0 &&
+        cached.seasons[0]?.episodes?.every((ep) => ep.runtime && ep.rating)
+      ) {
+        console.log("Loaded series from cache:", cached);
+        setSeriesDetails(cached);
+        setLoadingEpisodes({});
+        return;
+      }
+
+      const seasons = [];
+      for (let season = 1; season <= totalSeasons; season++) {
+        console.log(`Fetching season ${season}`);
+        setLoadingEpisodes((prev) => ({ ...prev, [season]: true }));
+        try {
+          const seasonData = await getSeasonDetails(imdbID, season);
+          if (seasonData && seasonData.Episodes) {
+            const airYear = seasonData.Episodes[0]?.Released
+              ? new Date(seasonData.Episodes[0].Released).getFullYear()
+              : "N/A";
+            const episodes = await Promise.all(
+              seasonData.Episodes.map(async (ep) => {
+                const episodeNumber = parseInt(ep.Episode, 10);
+                if (isNaN(episodeNumber)) {
+                  console.warn(
+                    `Invalid episode number for ${ep.Title}: ${ep.Episode}`
+                  );
+                  return {
+                    title: ep.Title,
+                    episodeNumber: ep.Episode,
+                    runtime: "N/A",
+                    rating: "N/A",
+                  };
+                }
+                const episodeData = await getEpisodeDetails(
+                  imdbID,
+                  season,
+                  episodeNumber
+                );
+                console.log(
+                  `Episode ${season}-${episodeNumber} data:`,
+                  episodeData
+                );
+                return {
+                  title: ep.Title,
+                  episodeNumber: ep.Episode,
+                  runtime: episodeData?.Runtime || "N/A",
+                  rating: episodeData?.imdbRating || "N/A",
+                };
+              })
+            );
+            seasons.push({
+              seasonNumber: season,
+              episodeCount: seasonData.Episodes.length,
+              airYear,
+              episodes,
+            });
+          } else {
+            throw new Error("No episodes found for season");
+          }
+        } catch (error) {
+          console.error(`Error fetching season ${season}:`, error);
+          // Add empty season data to prevent infinite retries
+          seasons.push({
+            seasonNumber: season,
+            episodeCount: 0,
+            airYear: "N/A",
+            episodes: [],
+          });
+        } finally {
+          setLoadingEpisodes((prev) => {
+            console.log(`Clearing loading for season ${season}`);
+            return { ...prev, [season]: false };
+          });
+        }
+      }
+
+      const seriesData = { seasons, fallback: seasons.length === 0 };
+      console.log("Saving series data:", seriesData);
+      await saveSeriesDetails(imdbID, seriesData);
+      setSeriesDetails(seriesData);
+    } catch (error) {
+      console.error("Error fetching series details:", error);
+      setSeriesDetails({ seasons: [], fallback: true });
+      setLoadingEpisodes({});
+    } finally {
+      setIsFetchingSeries(false);
+    }
+  };
+
+  const fetchTrailer = async (title) => {
+    setTrailerLoading(true);
+    setTrailerError(null);
+    try {
+      const query = encodeURIComponent(`${title} official trailer`);
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&maxResults=1&key=${YOUTUBE_API_KEY}`
+      );
+      const data = await response.json();
+      if (data.items && data.items.length > 0) {
+        const videoId = data.items[0].id.videoId;
+        setVideoId(videoId);
+      } else {
+        setTrailerError("No trailer found for this title.");
+      }
+    } catch (err) {
+      setTrailerError("Failed to load trailer. Please try again.");
+    } finally {
+      setTrailerLoading(false);
+    }
+  };
+
+  const toggleFavorite = async () => {
+    if (favorite) {
+      await removeFavorite(imdbID);
+    } else {
+      await saveFavorite(movie);
+    }
+    setFavorite(!favorite);
+  };
+
+  const handleWatchTrailer = () => {
+    if (!videoId && movie?.Title) {
+      fetchTrailer(movie.Title);
+    }
+    setIsPlaying(true);
+  };
+
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
+  };
+
+  const exitFullScreen = () => {
+    setIsFullScreen(false);
+  };
+
+  const toggleSeason = (seasonNumber) => {
+    console.log(
+      `Toggling season ${seasonNumber}, loadingEpisodes:`,
+      loadingEpisodes
+    );
+    setExpandedSeasons((prev) => ({
+      ...prev,
+      [seasonNumber]: !prev[seasonNumber],
+    }));
+
+    // Only fetch if we don't have data for this season and we're not already fetching
+    if (
+      !seriesDetails?.seasons?.find((s) => s.seasonNumber === seasonNumber) &&
+      !isFetchingSeries
+    ) {
+      console.log(`No data for season ${seasonNumber}, fetching...`);
+      setLoadingEpisodes((prev) => ({ ...prev, [seasonNumber]: true }));
+      fetchSeriesDetails(imdbID, movie.totalSeasons);
+    }
+  };
+
+  const renderSeasonEpisodes = (season) => {
+    const isExpanded = expandedSeasons[season.seasonNumber];
+    const isLoading = loadingEpisodes[season.seasonNumber];
+
+    return (
+      <View key={season.seasonNumber} style={styles.seasonContainer}>
+        <TouchableOpacity
+          style={styles.seasonHeader}
+          onPress={() => toggleSeason(season.seasonNumber)}
+        >
+          <View style={styles.seasonHeaderContent}>
+            <Text style={[styles.seasonTitle, { color: colors.text }]}>
+              Season {season.seasonNumber}
+            </Text>
+            <Text style={[styles.seasonInfo, { color: colors.text }]}>
+              {season.episodeCount} Episodes • {season.airYear}
+            </Text>
+          </View>
+          <Ionicons
+            name={isExpanded ? "chevron-down" : "chevron-forward"}
+            size={24}
+            color={colors.text}
+          />
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.episodesContainer}>
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.text }]}>
+                  Loading Episodes...
+                </Text>
+              </View>
+            ) : (
+              season.episodes.map((episode, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.episodeItem,
+                    { borderBottomColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.episodeTitle, { color: colors.text }]}>
+                    {episode.episodeNumber}. {episode.title}
+                  </Text>
+                  <View style={styles.episodeInfo}>
+                    <Text
+                      style={[styles.episodeRuntime, { color: colors.text }]}
+                    >
+                      {episode.runtime}
+                    </Text>
+                    <Text
+                      style={[styles.episodeRating, { color: colors.text }]}
+                    >
+                      ⭐ {episode.rating}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderLoadingState = () => {
+    const isLoading = Object.values(loadingEpisodes).some(
+      (isLoading) => isLoading
+    );
+    if (!isLoading) return null;
+
+    return (
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        style={[styles.loadingContainer, { backgroundColor: colors.card }]}
+      >
+        <Animated.Text style={[styles.loadingText, animatedTextStyle]}>
+          Loading Episodes...
+        </Animated.Text>
+      </Animated.View>
+    );
+  };
+
+  if (!movie) {
+    return (
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.text} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={[
+        styles.container,
+        { backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff" },
+      ]}
+    >
+      {/* Poster */}
+      <View style={styles.posterContainer}>
+        {movie.Poster !== "N/A" ? (
+          <Image source={{ uri: movie.Poster }} style={styles.poster} />
+        ) : (
+          <View
+            style={[styles.posterPlaceholder, { backgroundColor: colors.card }]}
+          >
+            <Text style={[styles.placeholderText, { color: colors.text }]}>
+              No Poster Available
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Movie/Series Details */}
+      <View
+        style={[
+          styles.infoCard,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.title, { color: colors.text }]}>
+          {movie.Title}
+        </Text>
+        <View style={styles.metaContainer}>
+          <View style={styles.metaLeft}>
+            <Text style={[styles.metaText, { color: colors.text }]}>
+              {movie.Type === "series"
+                ? movie.Year
+                : `${movie.Year} • ${movie.Runtime}`}
+            </Text>
+            <Text style={[styles.metaText, { color: colors.text }]}>
+              {movie.Genre}
+            </Text>
+            {movie.Type === "series" && (
+              <Text style={[styles.metaText, { color: colors.text }]}>
+                {seriesDetails && !seriesDetails.fallback
+                  ? `${seriesDetails.seasons.length} Season${
+                      seriesDetails.seasons.length > 1 ? "s" : ""
+                    }`
+                  : `Seasons: ${movie.totalSeasons || "N/A"}`}
+              </Text>
+            )}
+          </View>
+          <View style={styles.ratingBadge}>
+            <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
+          </View>
+        </View>
+        <Text style={[styles.plot, { color: colors.text }]}>{movie.Plot}</Text>
+
+        {/* Series Seasons Section */}
+        {movie?.Type === "series" && seriesDetails && (
+          <View style={styles.seriesSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Episodes
+            </Text>
+            {seriesDetails.seasons.map(renderSeasonEpisodes)}
+          </View>
+        )}
+
+        {/* Loading State */}
+        {renderLoadingState()}
+
+        {/* Favorite Button */}
+        <TouchableOpacity
+          style={[
+            styles.favoriteButton,
+            {
+              backgroundColor: favorite
+                ? theme === "dark"
+                  ? "#ff5555"
+                  : "#ffcccc"
+                : theme === "dark"
+                ? "#444"
+                : "#f0f0f0",
+              borderColor: colors.border,
+            },
+          ]}
+          onPress={toggleFavorite}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={[
+              styles.buttonText,
+              {
+                color: favorite
+                  ? theme === "dark"
+                    ? "#fff"
+                    : "#d32f2f"
+                  : colors.text,
+              },
+            ]}
+          >
+            {favorite ? "❤️ Remove from Favorites" : "🤍 Add to Favorites"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Trailer Card */}
+      <Animated.View
+        entering={FadeIn.duration(500)}
+        exiting={FadeOut.duration(300)}
+        style={[
+          styles.trailerCard,
+          {
+            backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff",
+            borderColor: colors.border,
+            shadowColor: colors.text,
+          },
+        ]}
+      >
+        {isTrailerLoading ? (
+          <View style={styles.trailerLoading}>
+            <ActivityIndicator size="large" color={colors.text} />
+            <Text style={[styles.trailerText, { color: colors.text }]}>
+              Loading trailer...
+            </Text>
+          </View>
+        ) : trailerError ? (
+          <View style={styles.trailerError}>
+            <Ionicons
+              name="alert-circle-outline"
+              size={40}
+              color={colors.text}
+              style={styles.errorIcon}
+            />
+            <Text style={[styles.trailerText, { color: colors.text }]}>
+              {trailerError}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.retryButton,
+                {
+                  backgroundColor: theme === "dark" ? "#1e88e5" : "#bbdefb",
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={handleWatchTrailer}
+            >
+              <Text
+                style={[
+                  styles.buttonText,
+                  { color: theme === "dark" ? "#fff" : "#0d47a1" },
+                ]}
+              >
+                Retry
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : videoId && isPlaying ? (
+          <View style={styles.videoContainer}>
+            <YoutubePlayer
+              height={(Dimensions.get("window").width - 40) * (9 / 16)}
+              width={Dimensions.get("window").width - 40}
+              videoId={videoId}
+              play={isPlaying}
+              onChangeState={(event) => {
+                if (event === "ended") setIsPlaying(false);
+              }}
+              onError={() =>
+                setTrailerError("Error playing trailer. Please try again.")
+              }
+            />
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.trailerPlaceholder}
+            onPress={handleWatchTrailer}
+          >
+            <Ionicons name="play-circle" size={60} color={colors.primary} />
+            <Text style={[styles.trailerText, { color: colors.text }]}>
+              Watch Trailer
+            </Text>
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: 20,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    marginHorizontal: 15,
+    marginBottom: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  posterContainer: {
+    position: "relative",
+    marginBottom: 20,
+  },
+  poster: {
+    width: "100%",
+    height: 450,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+  },
+  posterPlaceholder: {
+    width: "100%",
+    height: 450,
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+  },
+  placeholderText: {
+    fontSize: 18,
+    opacity: 0.7,
+  },
+  infoCard: {
+    marginHorizontal: 15,
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  trailerCard: {
+    marginHorizontal: 15,
+    marginVertical: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  trailerLoading: {
+    height: (Dimensions.get("window").width - 40) * (9 / 16),
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  trailerError: {
+    height: (Dimensions.get("window").width - 40) * (9 / 16),
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  errorIcon: {
+    marginBottom: 10,
+  },
+  trailerPlaceholder: {
+    height: (Dimensions.get("window").width - 40) * (9 / 16),
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+    opacity: 0.9,
+  },
+  trailerText: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    marginVertical: 10,
+  },
+  videoContainer: {
+    position: "relative",
+  },
+  retryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    marginBottom: 10,
+    lineHeight: 32,
+  },
+  metaContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 15,
+  },
+  metaLeft: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  metaText: {
+    fontSize: 16,
+    opacity: 0.9,
+    marginBottom: 5,
+  },
+  plot: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontStyle: "italic",
+    marginBottom: 20,
+    opacity: 0.6,
+  },
+  favoriteButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shimmerPlaceholder: {
+    height: 44, // Keep it consistent with your actual button
+    width: 310,
+    borderRadius: 22,
+    backgroundColor: "#e0d7f8", // Soft purple base shimmer
+    overflow: "hidden",
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    shadowColor: "#7e57c2",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3, // For Android shadow
+  },
+
+  buttonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  ratingBadge: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  ratingText: {
+    color: "#000",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  seriesSection: {
+    marginTop: 15,
+    marginBottom: 25,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 15,
+    letterSpacing: 0.5,
+  },
+  seasonContainer: {
+    marginBottom: 15,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  seasonHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 15,
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
+  seasonHeaderContent: {
+    flex: 1,
+  },
+  seasonTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  seasonInfo: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  episodesContainer: {
+    padding: 10,
+  },
+  episodeItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  episodeTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  episodeInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 5,
+  },
+  episodeRuntime: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  episodeRating: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+});
+
+export default DetailsScreen;

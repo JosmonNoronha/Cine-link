@@ -1,26 +1,56 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from "../firebaseConfig";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
-const FAVORITES_KEY = 'FAVORITE_MOVIES';
-const SERIES_KEY_PREFIX = 'SERIES_';
+console.log("Storage.js loaded - auth:", auth, "db:", db); // Debug log
+
+const FAVORITES_FIELD = "userFavorites"; // Field name inside the user document
 
 export const getFavorites = async () => {
-  const json = await AsyncStorage.getItem(FAVORITES_KEY);
-  return json != null ? JSON.parse(json) : [];
-};
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return [];
+  if (!db) throw new Error("Firestore not initialized");
 
-export const saveFavorite = async (movie) => {
-  const favorites = await getFavorites();
-  const exists = favorites.find((m) => m.imdbID === movie.imdbID);
-  if (!exists) {
-    favorites.push(movie);
-    await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+  const docRef = doc(db, "users", user.uid); // Valid document path
+  try {
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data()[FAVORITES_FIELD] || [] : [];
+  } catch (error) {
+    console.error(`Error fetching favorites: ${error.message}`, error.stack);
+    return [];
   }
 };
 
+export const saveFavorite = async (movie) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const docRef = doc(db, "users", user.uid);
+  await setDoc(docRef, { [FAVORITES_FIELD]: arrayUnion(movie) }, { merge: true });
+};
+
 export const removeFavorite = async (imdbID) => {
+  if (!auth) throw new Error("Authentication not initialized");
+  const user = auth.currentUser;
+  if (!user) return;
+  if (!db) throw new Error("Firestore not initialized");
+
+  const docRef = doc(db, "users", user.uid);
   const favorites = await getFavorites();
-  const updated = favorites.filter((m) => m.imdbID !== imdbID);
-  await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updated));
+  const movieToRemove = favorites.find((m) => m.imdbID === imdbID);
+  if (movieToRemove) {
+    await updateDoc(docRef, { [FAVORITES_FIELD]: arrayRemove(movieToRemove) });
+  }
 };
 
 export const isFavorite = async (imdbID) => {
@@ -28,12 +58,16 @@ export const isFavorite = async (imdbID) => {
   return favorites.some((m) => m.imdbID === imdbID);
 };
 
+// ---------- Series Storage (Remains the Same) ----------
 export const saveSeriesDetails = async (imdbID, seriesDetails) => {
   try {
-    await AsyncStorage.setItem(
-      `${SERIES_KEY_PREFIX}${imdbID}`,
-      JSON.stringify(seriesDetails)
-    );
+    if (!auth) throw new Error("Authentication not initialized");
+    const user = auth.currentUser;
+    if (!user) return;
+    if (!db) throw new Error("Firestore not initialized");
+
+    const docRef = doc(db, `users/${user.uid}/series`, imdbID);
+    await setDoc(docRef, seriesDetails, { merge: true });
   } catch (error) {
     console.error("Error saving series details:", error);
   }
@@ -41,8 +75,14 @@ export const saveSeriesDetails = async (imdbID, seriesDetails) => {
 
 export const getSeriesDetails = async (imdbID) => {
   try {
-    const json = await AsyncStorage.getItem(`${SERIES_KEY_PREFIX}${imdbID}`);
-    return json != null ? JSON.parse(json) : null;
+    if (!auth) throw new Error("Authentication not initialized");
+    const user = auth.currentUser;
+    if (!user) return null;
+    if (!db) throw new Error("Firestore not initialized");
+
+    const docRef = doc(db, `users/${user.uid}/series`, imdbID);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data() : null;
   } catch (error) {
     console.error("Error getting series details:", error);
     return null;

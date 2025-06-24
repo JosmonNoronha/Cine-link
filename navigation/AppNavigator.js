@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import "../firebaseConfig"; // Ensure initialization
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,13 +10,14 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
-
 import HomeScreen from "../screens/HomeScreen";
 import SearchScreen from "../screens/SearchScreen";
 import DetailsScreen from "../screens/DetailsScreen";
 import FavoritesScreen from "../screens/FavoritesScreen";
 import SettingsScreen from "../screens/SettingsScreen";
+import AuthScreen from "../screens/AuthScreen";
 import { useCustomTheme } from "../contexts/ThemeContext";
+import { auth } from "../firebaseConfig"; // Add this import
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -63,9 +65,42 @@ const SettingsStack = () => (
   </Stack.Navigator>
 );
 
+const AuthStack = () => (
+  <Stack.Navigator>
+    <Stack.Screen
+      name="Auth" // Will be renamed below to fix warning
+      component={AuthScreen}
+      options={{ headerShown: false }}
+    />
+  </Stack.Navigator>
+);
+
+const TAB_COUNT = 4; // Home, Search, Favorites, Settings
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
+
+  // Always initialize 4 shared values and animated styles
+  const scalesRef = React.useRef([
+    useSharedValue(1),
+    useSharedValue(1),
+    useSharedValue(1),
+    useSharedValue(1),
+  ]);
+  const animatedStylesRef = React.useRef([
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[0].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[1].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[2].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[3].value }],
+    })),
+  ]);
 
   return (
     <View
@@ -98,23 +133,23 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           Search: isFocused ? "search-sharp" : "search-outline",
           Favorites: isFocused ? "heart" : "heart-outline",
           Settings: isFocused ? "settings" : "settings-outline",
+          Auth: isFocused ? "lock-closed" : "lock-closed-outline", // Will be updated below
         }[route.name];
-
-        const scale = useSharedValue(1);
-        const animatedStyle = useAnimatedStyle(() => ({
-          transform: [{ scale: scale.value }],
-        }));
 
         return (
           <TouchableOpacity
             key={route.key}
             onPress={onPress}
-            onPressIn={() => (scale.value = withSpring(0.95))}
-            onPressOut={() => (scale.value = withSpring(1))}
+            onPressIn={() =>
+              (scalesRef.current[index].value = withSpring(0.95))
+            }
+            onPressOut={() => (scalesRef.current[index].value = withSpring(1))}
             style={styles.tabItem}
             activeOpacity={0.7}
           >
-            <Animated.View style={[styles.tabContent, animatedStyle]}>
+            <Animated.View
+              style={[styles.tabContent, animatedStylesRef.current[index]]}
+            >
               <Ionicons
                 name={iconName}
                 size={28}
@@ -140,13 +175,22 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
 };
 
 const AppNavigator = () => {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          position: "absolute", // Fix at bottom
+          position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
@@ -160,10 +204,20 @@ const AppNavigator = () => {
         },
       }}
     >
-      <Tab.Screen name="Home" component={HomeStack} />
-      <Tab.Screen name="Search" component={SearchStack} />
-      <Tab.Screen name="Favorites" component={FavoritesStack} />
-      <Tab.Screen name="Settings" component={SettingsStack} />
+      {user ? (
+        <>
+          <Tab.Screen name="Home" component={HomeStack} />
+          <Tab.Screen name="Search" component={SearchStack} />
+          <Tab.Screen name="Favorites" component={FavoritesStack} />
+          <Tab.Screen name="Settings" component={SettingsStack} />
+        </>
+      ) : (
+        <Tab.Screen
+          name="Login" // Changed from "Auth" to "Login" to fix warning
+          component={AuthStack}
+          options={{ tabBarButton: () => null }}
+        />
+      )}
     </Tab.Navigator>
   );
 };

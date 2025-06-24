@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { OMDB_API_KEY } from '@env';
+import axios from "axios";
+import { OMDB_API_KEY } from "@env";
 
 export const searchMovies = async (query) => {
   try {
@@ -7,15 +7,19 @@ export const searchMovies = async (query) => {
     let url;
 
     if (trimmedQuery.length < 3) {
-      url = `https://www.omdbapi.com/?t=${encodeURIComponent(trimmedQuery)}&apikey=${OMDB_API_KEY}`;
+      url = `https://www.omdbapi.com/?t=${encodeURIComponent(
+        trimmedQuery
+      )}&apikey=${OMDB_API_KEY}`;
     } else {
-      url = `https://www.omdbapi.com/?s=${encodeURIComponent(trimmedQuery)}&apikey=${OMDB_API_KEY}`;
+      url = `https://www.omdbapi.com/?s=${encodeURIComponent(
+        trimmedQuery
+      )}&apikey=${OMDB_API_KEY}`;
     }
-    
+
     console.log("Raw query:", query);
     console.log("Trimmed query:", trimmedQuery);
     console.log("Fetching:", url);
-    
+
     const response = await fetch(url);
     const data = await response.json();
 
@@ -43,7 +47,7 @@ export const getMovieDetails = async (imdbID) => {
       params: {
         i: imdbID,
         apikey: OMDB_API_KEY,
-        plot: 'full',
+        plot: "full",
       },
     });
     if (response.data.Response === "False") {
@@ -51,7 +55,7 @@ export const getMovieDetails = async (imdbID) => {
     }
     return response.data;
   } catch (error) {
-    console.error('Error fetching movie details:', error);
+    console.error("Error fetching movie details:", error);
     throw error;
   }
 };
@@ -90,7 +94,10 @@ export const getEpisodeDetails = async (imdbID, season, episode) => {
     }
     return response.data;
   } catch (error) {
-    console.error(`Error fetching episode ${episode} of season ${season}:`, error);
+    console.error(
+      `Error fetching episode ${episode} of season ${season}:`,
+      error
+    );
     return null;
   }
 };
