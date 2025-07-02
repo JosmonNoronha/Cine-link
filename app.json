@@ -22,7 +22,11 @@
     },
     "sdkVersion": "53.0.0",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.josmon2004.CineLink",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -38,7 +42,14 @@
     "extra": {
       "eas": {
         "projectId": "7892f2fc-684a-4de4-a501-6214b9fafb05"
-      }
+      },
+      "FIREBASE_API_KEY": "AIzaSyBTnoH-aM_6bkprUWaqPDfJlW3BszYNAtQ",
+      "FIREBASE_AUTH_DOMAIN": "cinelink-7343e.firebaseapp.com",
+      "FIREBASE_PROJECT_ID": "cinelink-7343e",
+      "FIREBASE_STORAGE_BUCKET": "cinelink-7343e.firebasestorage.app",
+      "FIREBASE_MESSAGING_SENDER_ID": "1024760551349",
+      "FIREBASE_APP_ID": "1:1024760551349:web:ae5f35ccfce9a9e257ebfc",
+      "FIREBASE_MEASUREMENT_ID": "G-1HG3P6E0QX"
     },
     "plugins": []
   }
