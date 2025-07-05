@@ -99,7 +99,6 @@ const SettingsScreen = ({ navigation }) => {
   const handleSignOut = async () => {
     try {
       await auth.signOut(); // Namespace-based signOut
-      navigation.replace("Auth");
     } catch (error) {
       console.log("Sign Out Error", error.message);
     }
