@@ -88,7 +88,7 @@ const SettingsStack = () => (
 const AuthStack = () => (
   <Stack.Navigator>
     <Stack.Screen
-      name="Login" // Changed from "Auth" to "Login" to fix warning
+      name="AuthScreen" // Changed from "Auth" to "Login" to fix warning
       component={AuthScreen}
       options={{ headerShown: false }}
     />
@@ -186,39 +186,29 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
 
 const AppNavigator = () => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // true initially
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
+      setUser(user); // Will be null if signed out
       setLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#0000ff" />; // Loading state
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#6b48ff" />
+      </View>
+    );
   }
 
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 80,
-          borderTopWidth: 1,
-          elevation: 10,
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.2,
-          shadowRadius: 4,
-          zIndex: 1000,
-        },
-      }}
+      screenOptions={{ headerShown: false }}
     >
       {user ? (
         <>
@@ -238,6 +228,7 @@ const AppNavigator = () => {
     </Tab.Navigator>
   );
 };
+
 
 const styles = StyleSheet.create({
   tabBar: {

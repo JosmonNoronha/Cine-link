@@ -1,8 +1,9 @@
-// Import the Firebase namespace with compat layer
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
-import "firebase/compat/firestore"; // Ensure Firestore is included
+import "firebase/compat/firestore";
 import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth/react-native"; // 👈
 
 const {
   FIREBASE_API_KEY,
@@ -24,24 +25,26 @@ const firebaseConfig = {
   measurementId: FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase app
 let firebaseApp;
+let authInstance;
+
 try {
   if (!firebase.apps.length) {
     firebaseApp = firebase.initializeApp(firebaseConfig);
-    console.log(
-      "Firebase initialized successfully with config:",
-      firebaseConfig
-    );
+    console.log("Firebase initialized with config:", firebaseConfig);
+
+    authInstance = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(AsyncStorage), // 👈 This enables session persistence
+    });
   } else {
     firebaseApp = firebase.app();
-    console.log("Reusing existing Firebase app");
+    authInstance = firebase.auth();
+    console.log("Using existing Firebase app");
   }
 } catch (error) {
-  console.error("Firebase initialization failed:", error);
-  throw error; // Re-throw to prevent silent failure
+  console.error("Firebase init error:", error);
+  throw error;
 }
 
-// Export services
-export const auth = firebaseApp ? firebaseApp.auth() : null;
-export const db = firebaseApp ? firebaseApp.firestore() : null;
+export const auth = authInstance;
+export const db = firebaseApp.firestore();
