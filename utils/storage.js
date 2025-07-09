@@ -98,28 +98,70 @@ export const getSeriesDetails = async (imdbID) => {
 };
 
 export const getWatchlists = async () => {
+  console.log(
+    "getWatchlists called - auth:",
+    !!auth,
+    "user:",
+    !!auth?.currentUser,
+    "db:",
+    !!db
+  );
+
   if (!auth) throw new Error("Authentication not initialized");
   const user = auth.currentUser;
-  if (!user) return {};
+  if (!user) {
+    console.log("No current user found");
+    return {};
+  }
   if (!db) throw new Error("Firestore not initialized");
 
   const watchlistsRef = collection(db, `users/${user.uid}/watchlists`);
-  const snapshot = await getDocs(watchlistsRef);
-  const result = {};
-  snapshot.forEach((docSnap) => {
-    result[docSnap.id] = docSnap.data().movies || [];
-  });
-  return result;
+  console.log(
+    "Querying watchlists collection:",
+    `users/${user.uid}/watchlists`
+  );
+
+  try {
+    const snapshot = await getDocs(watchlistsRef);
+    console.log("Snapshot size:", snapshot.size);
+    const result = {};
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      console.log("Document:", docSnap.id, "Data:", data);
+      result[docSnap.id] = data.movies || [];
+    });
+    console.log("Retrieved watchlists:", Object.keys(result));
+    return result;
+  } catch (error) {
+    console.error("Error getting watchlists:", error);
+    return {};
+  }
 };
 
 export const addWatchlist = async (name) => {
+  console.log("addWatchlist called with name:", name);
+
   if (!auth) throw new Error("Authentication not initialized");
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) {
+    console.log("No current user found in addWatchlist");
+    return;
+  }
   if (!db) throw new Error("Firestore not initialized");
 
   const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
-  await setDoc(watchlistRef, { movies: [] }, { merge: true });
+  console.log(
+    "Creating watchlist at path:",
+    `users/${user.uid}/watchlists/${name}`
+  );
+
+  try {
+    await setDoc(watchlistRef, { movies: [] }, { merge: true });
+    console.log("Watchlist created successfully:", name);
+  } catch (error) {
+    console.error("Error creating watchlist:", error);
+    throw error;
+  }
 };
 
 export const removeWatchlist = async (name) => {
@@ -171,3 +213,4 @@ export const isInWatchlist = async (name, imdbID) => {
   const movies = docSnap.data().movies || [];
   return movies.some((m) => m.imdbID === imdbID);
 };
+

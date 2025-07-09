@@ -4,7 +4,13 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -108,11 +114,21 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
     useSharedValue(1),
   ]);
   const animatedStylesRef = React.useRef([
-    useAnimatedStyle(() => ({ transform: [{ scale: scalesRef.current[0].value }] })),
-    useAnimatedStyle(() => ({ transform: [{ scale: scalesRef.current[1].value }] })),
-    useAnimatedStyle(() => ({ transform: [{ scale: scalesRef.current[2].value }] })),
-    useAnimatedStyle(() => ({ transform: [{ scale: scalesRef.current[3].value }] })),
-    useAnimatedStyle(() => ({ transform: [{ scale: scalesRef.current[4].value }] })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[0].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[1].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[2].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[3].value }],
+    })),
+    useAnimatedStyle(() => ({
+      transform: [{ scale: scalesRef.current[4].value }],
+    })),
   ]);
 
   return (
@@ -154,12 +170,16 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           <TouchableOpacity
             key={route.key}
             onPress={onPress}
-            onPressIn={() => (scalesRef.current[index].value = withSpring(0.95))}
+            onPressIn={() =>
+              (scalesRef.current[index].value = withSpring(0.95))
+            }
             onPressOut={() => (scalesRef.current[index].value = withSpring(1))}
             style={styles.tabItem}
             activeOpacity={0.7}
           >
-            <Animated.View style={[styles.tabContent, animatedStylesRef.current[index]]}>
+            <Animated.View
+              style={[styles.tabContent, animatedStylesRef.current[index]]}
+            >
               <Ionicons
                 name={iconName}
                 size={28}
@@ -205,30 +225,25 @@ const AppNavigator = () => {
     );
   }
 
+  // If user is not authenticated, show only the auth screen without tab bar
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  // If user is authenticated, show the full tab navigation
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      {user ? (
-        <>
-          <Tab.Screen name="Home" component={HomeStack} />
-          <Tab.Screen name="Search" component={SearchStack} />
-          <Tab.Screen name="Favorites" component={FavoritesStack} />
-          <Tab.Screen name="Watchlist" component={WatchlistStack} />
-          <Tab.Screen name="Settings" component={SettingsStack} />
-        </>
-      ) : (
-        <Tab.Screen
-          name="Login"
-          component={AuthStack}
-          options={{ tabBarButton: () => null }}
-        />
-      )}
+      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Search" component={SearchStack} />
+      <Tab.Screen name="Favorites" component={FavoritesStack} />
+      <Tab.Screen name="Watchlist" component={WatchlistStack} />
+      <Tab.Screen name="Settings" component={SettingsStack} />
     </Tab.Navigator>
   );
 };
-
 
 const styles = StyleSheet.create({
   tabBar: {

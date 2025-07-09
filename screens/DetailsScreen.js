@@ -12,6 +12,7 @@ import {
   FlatList,
   TextInput,
   Alert,
+  StatusBar,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -47,6 +48,8 @@ import Animated, {
 import ShimmerPlaceholder from "react-native-shimmer-placeholder";
 import { LinearGradient } from "expo-linear-gradient";
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+
 const DetailsScreen = ({ route, navigation }) => {
   const { imdbID } = route.params;
   const [movie, setMovie] = useState(null);
@@ -63,8 +66,11 @@ const DetailsScreen = ({ route, navigation }) => {
   const [showWatchlistModal, setShowWatchlistModal] = useState(false);
   const [selectedWatchlist, setSelectedWatchlist] = useState(null);
   const [inWatchlist, setInWatchlist] = useState(false);
+  const [movieInWatchlists, setMovieInWatchlists] = useState([]);
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
+
+  const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
   const loadingOpacity = useSharedValue(1);
 
@@ -280,7 +286,15 @@ const DetailsScreen = ({ route, navigation }) => {
     return (
       <View key={season.seasonNumber} style={styles.seasonContainer}>
         <TouchableOpacity
-          style={styles.seasonHeader}
+          style={[
+            styles.seasonHeader,
+            {
+              backgroundColor:
+                theme === "dark"
+                  ? "rgba(255,255,255,0.05)"
+                  : "rgba(0,0,0,0.03)",
+            },
+          ]}
           onPress={() => toggleSeason(season.seasonNumber)}
         >
           <View style={styles.seasonHeaderContent}>
@@ -313,7 +327,12 @@ const DetailsScreen = ({ route, navigation }) => {
                   key={index}
                   style={[
                     styles.episodeItem,
-                    { borderBottomColor: colors.border },
+                    {
+                      borderBottomColor:
+                        theme === "dark"
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(0,0,0,0.1)",
+                    },
                   ]}
                 >
                   <Text style={[styles.episodeTitle, { color: colors.text }]}>
@@ -369,13 +388,17 @@ const DetailsScreen = ({ route, navigation }) => {
     const lists = await getWatchlists();
     setWatchlists(lists);
     let found = false;
+    const movieWatchlists = [];
+
     for (const name of Object.keys(lists)) {
       if (lists[name].some((m) => m.imdbID === imdbID)) {
         found = true;
-        break;
+        movieWatchlists.push(name);
       }
     }
+
     setInWatchlist(found);
+    setMovieInWatchlists(movieWatchlists);
   };
 
   if (!movie) {
@@ -392,66 +415,183 @@ const DetailsScreen = ({ route, navigation }) => {
   }
 
   return (
-    <ScrollView
+    <View
       style={[
         styles.container,
-        { backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff" },
+        { backgroundColor: theme === "dark" ? "#0a0a0a" : "#f8f9fa" },
       ]}
     >
-      {/* Poster */}
-      <View style={styles.posterContainer}>
-        {movie.Poster !== "N/A" ? (
-          <Image source={{ uri: movie.Poster }} style={styles.poster} />
-        ) : (
-          <View
-            style={[styles.posterPlaceholder, { backgroundColor: colors.card }]}
-          >
-            <Text style={[styles.placeholderText, { color: colors.text }]}>
-              No Poster Available
-            </Text>
-          </View>
-        )}
-      </View>
+      <StatusBar
+        barStyle={theme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent
+      />
 
-      {/* Movie/Series Details */}
-      <View
-        style={[
-          styles.infoCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
-        ]}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
-        <Text style={[styles.title, { color: colors.text }]}>
-          {movie.Title}
-        </Text>
-        <View style={styles.metaContainer}>
-          <View style={styles.metaLeft}>
-            <Text style={[styles.metaText, { color: colors.text }]}>
-              {movie.Type === "series"
-                ? movie.Year
-                : `${movie.Year} • ${movie.Runtime}`}
-            </Text>
-            <Text style={[styles.metaText, { color: colors.text }]}>
-              {movie.Genre}
-            </Text>
-            {movie.Type === "series" && (
-              <Text style={[styles.metaText, { color: colors.text }]}>
-                {seriesDetails && !seriesDetails.fallback
-                  ? `${seriesDetails.seasons.length} Season${
-                      seriesDetails.seasons.length > 1 ? "s" : ""
-                    }`
-                  : `Seasons: ${movie.totalSeasons || "N/A"}`}
+        {/* Hero Section with Poster - Now Scrollable */}
+        <View style={styles.heroSection}>
+          {movie.Poster !== "N/A" ? (
+            <Image source={{ uri: movie.Poster }} style={styles.heroPoster} />
+          ) : (
+            <View
+              style={[styles.heroPlaceholder, { backgroundColor: colors.card }]}
+            >
+              <Ionicons name="film-outline" size={80} color={colors.text} />
+              <Text style={[styles.placeholderText, { color: colors.text }]}>
+                No Poster Available
               </Text>
-            )}
+            </View>
+          )}
+        </View>
+        {/* Movie/Series Details Card */}
+        <View style={[styles.detailsCard, { backgroundColor: colors.card }]}>
+          <View style={styles.titleContainer}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {movie.Title}
+            </Text>
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
+            </View>
           </View>
-          <View style={styles.ratingBadge}>
-            <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
+
+          <View style={styles.metaContainer}>
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <Text style={[styles.metaLabel, { color: colors.text }]}>
+                  Release Year
+                </Text>
+                <Text style={[styles.metaValue, { color: colors.text }]}>
+                  {movie.Year}
+                </Text>
+              </View>
+
+              {movie.Type !== "series" && (
+                <View style={styles.metaItem}>
+                  <Text style={[styles.metaLabel, { color: colors.text }]}>
+                    Runtime
+                  </Text>
+                  <Text style={[styles.metaValue, { color: colors.text }]}>
+                    {movie.Runtime}
+                  </Text>
+                </View>
+              )}
+
+              {movie.Type === "series" && (
+                <View style={styles.metaItem}>
+                  <Text style={[styles.metaLabel, { color: colors.text }]}>
+                    Seasons
+                  </Text>
+                  <Text style={[styles.metaValue, { color: colors.text }]}>
+                    {seriesDetails && !seriesDetails.fallback
+                      ? `${seriesDetails.seasons.length}`
+                      : `${movie.totalSeasons || "N/A"}`}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.genreSection}>
+              <Text style={[styles.genreLabel, { color: colors.text }]}>
+                Genres
+              </Text>
+              <View style={styles.genreTags}>
+                {movie.Genre.split(", ").map((genre, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.genreTag,
+                      {
+                        backgroundColor:
+                          theme === "dark"
+                            ? "rgba(255,255,255,0.08)"
+                            : "rgba(0,0,0,0.06)",
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.genreText, { color: colors.text }]}>
+                      {genre.trim()}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <Text style={[styles.plot, { color: colors.text }]}>
+            {movie.Plot}
+          </Text>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                favorite && styles.actionButtonActive,
+                {
+                  backgroundColor:
+                    theme === "dark"
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(0,0,0,0.05)",
+                },
+              ]}
+              onPress={toggleFavorite}
+              onLongPress={() =>
+                Alert.alert(
+                  "Favorites",
+                  favorite ? "Remove from Favorites" : "Add to Favorites"
+                )
+              }
+            >
+              <Ionicons
+                name={favorite ? "heart" : "heart-outline"}
+                size={24}
+                color={favorite ? "#ff6b81" : colors.text}
+              />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>
+                {favorite ? "Favorited" : "Favorite"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                inWatchlist && styles.actionButtonActive,
+                {
+                  backgroundColor:
+                    theme === "dark"
+                      ? "rgba(255,255,255,0.1)"
+                      : "rgba(0,0,0,0.05)",
+                },
+              ]}
+              onPress={handleWatchlistButton}
+              onLongPress={() =>
+                Alert.alert(
+                  "Watchlist",
+                  inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"
+                )
+              }
+            >
+              <Ionicons
+                name={inWatchlist ? "bookmark" : "bookmark-outline"}
+                size={24}
+                color={inWatchlist ? "#42a5f5" : colors.text}
+              />
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>
+                {inWatchlist ? "In List" : "Watchlist"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-        <Text style={[styles.plot, { color: colors.text }]}>{movie.Plot}</Text>
 
         {/* Series Seasons Section */}
         {movie?.Type === "series" && seriesDetails && (
-          <View style={styles.seriesSection}>
+          <View
+            style={[styles.seriesSection, { backgroundColor: colors.card }]}
+          >
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Episodes
             </Text>
@@ -462,220 +602,153 @@ const DetailsScreen = ({ route, navigation }) => {
         {/* Loading State */}
         {renderLoadingState()}
 
-        {/* Favorite Button */}
-        <TouchableOpacity
-          style={[
-            styles.favoriteButton,
-            {
-              backgroundColor: favorite
-                ? theme === "dark"
-                  ? "#ff5555"
-                  : "#ffcccc"
-                : theme === "dark"
-                ? "#444"
-                : "#f0f0f0",
-              borderColor: colors.border,
-            },
-          ]}
-          onPress={toggleFavorite}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.buttonText,
-              {
-                color: favorite
-                  ? theme === "dark"
-                    ? "#fff"
-                    : "#d32f2f"
-                  : colors.text,
-              },
-            ]}
-          >
-            {favorite ? "❤️ Remove from Favorites" : "🤍 Add to Favorites"}
+        {/* Trailer Section */}
+        <View style={[styles.trailerSection, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Trailer
           </Text>
-        </TouchableOpacity>
-        {/* Watchlist Button */}
-        <TouchableOpacity
-          style={[
-            styles.favoriteButton,
-            {
-              backgroundColor: inWatchlist
-                ? theme === "dark"
-                  ? "#1976d2"
-                  : "#bbdefb"
-                : theme === "dark"
-                ? "#444"
-                : "#f0f0f0",
-              borderColor: colors.border,
-              marginTop: 10,
-            },
-          ]}
-          onPress={handleWatchlistButton}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.buttonText,
-              {
-                color: inWatchlist
-                  ? theme === "dark"
-                    ? "#fff"
-                    : "#1976d2"
-                  : colors.text,
-              },
-            ]}
-          >
-            {inWatchlist ? "✔️ In Watchlist(s)" : "➕ Add to Watchlist"}
-          </Text>
-        </TouchableOpacity>
 
-        {/* Watchlist Selection Modal */}
-        <Modal
-          visible={showWatchlistModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowWatchlistModal(false)}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "#0008",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: colors.card,
-                borderRadius: 12,
-                padding: 20,
-                width: "80%",
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "bold",
-                  marginBottom: 10,
-                  color: colors.text,
-                }}
-              >
-                Select Watchlist
+          {isTrailerLoading ? (
+            <View style={styles.trailerLoading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.trailerText, { color: colors.text }]}>
+                Loading trailer...
               </Text>
-              <FlatList
-                data={Object.keys(watchlists)}
-                keyExtractor={(name) => name}
-                renderItem={({ item: name }) => (
-                  <TouchableOpacity
-                    style={{
-                      padding: 12,
-                      borderBottomWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                    onPress={() => handleSelectWatchlist(name)}
-                  >
-                    <Text style={{ color: colors.text }}>{name}</Text>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={{ color: colors.text }}>
-                    No watchlists. Create one in the Watchlists tab.
-                  </Text>
-                }
+            </View>
+          ) : trailerError ? (
+            <View style={styles.trailerError}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={40}
+                color={colors.text}
+                style={styles.errorIcon}
               />
+              <Text style={[styles.trailerText, { color: colors.text }]}>
+                {trailerError}
+              </Text>
               <TouchableOpacity
-                style={{ marginTop: 16, alignSelf: "flex-end" }}
-                onPress={() => setShowWatchlistModal(false)}
+                style={[
+                  styles.retryButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={handleWatchTrailer}
               >
-                <Text style={{ color: colors.primary, fontWeight: "bold" }}>
-                  Cancel
+                <Text style={[styles.buttonText, { color: "#fff" }]}>
+                  Retry
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </Modal>
-      </View>
-
-      {/* Trailer Card */}
-      <Animated.View
-        entering={FadeIn.duration(500)}
-        exiting={FadeOut.duration(300)}
-        style={[
-          styles.trailerCard,
-          {
-            backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff",
-            borderColor: colors.border,
-            shadowColor: colors.text,
-          },
-        ]}
-      >
-        {isTrailerLoading ? (
-          <View style={styles.trailerLoading}>
-            <ActivityIndicator size="large" color={colors.text} />
-            <Text style={[styles.trailerText, { color: colors.text }]}>
-              Loading trailer...
-            </Text>
-          </View>
-        ) : trailerError ? (
-          <View style={styles.trailerError}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={40}
-              color={colors.text}
-              style={styles.errorIcon}
-            />
-            <Text style={[styles.trailerText, { color: colors.text }]}>
-              {trailerError}
-            </Text>
+          ) : videoId && isPlaying ? (
+            <View style={styles.videoContainer}>
+              <YoutubePlayer
+                height={(screenWidth - 40) * (9 / 16)}
+                width={screenWidth - 40}
+                videoId={videoId}
+                play={isPlaying}
+                onChangeState={(event) => {
+                  if (event === "ended") setIsPlaying(false);
+                }}
+                onError={() =>
+                  setTrailerError("Error playing trailer. Please try again.")
+                }
+              />
+            </View>
+          ) : (
             <TouchableOpacity
-              style={[
-                styles.retryButton,
-                {
-                  backgroundColor: theme === "dark" ? "#1e88e5" : "#bbdefb",
-                  borderColor: colors.border,
-                },
-              ]}
+              style={styles.trailerPlaceholder}
               onPress={handleWatchTrailer}
             >
-              <Text
-                style={[
-                  styles.buttonText,
-                  { color: theme === "dark" ? "#fff" : "#0d47a1" },
-                ]}
+              <LinearGradient
+                colors={[colors.primary, colors.primary + "80"]}
+                style={styles.trailerGradient}
               >
-                Retry
+                <Ionicons name="play-circle" size={60} color="#fff" />
+                <Text style={[styles.trailerText, { color: "#fff" }]}>
+                  Watch Trailer
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Watchlist Selection Modal */}
+      <Modal
+        visible={showWatchlistModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowWatchlistModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Select Watchlist
+            </Text>
+            <FlatList
+              data={Object.keys(watchlists)}
+              keyExtractor={(name) => name}
+              renderItem={({ item: name }) => {
+                const isInThisWatchlist = movieInWatchlists.includes(name);
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalItem,
+                      {
+                        borderBottomColor: colors.border,
+                        backgroundColor: isInThisWatchlist
+                          ? theme === "dark"
+                            ? "rgba(126, 87, 194, 0.2)"
+                            : "rgba(126, 87, 194, 0.1)"
+                          : "transparent",
+                      },
+                    ]}
+                    onPress={() => handleSelectWatchlist(name)}
+                  >
+                    <View style={styles.modalItemContent}>
+                      <Text
+                        style={[styles.modalItemText, { color: colors.text }]}
+                      >
+                        {name}
+                      </Text>
+                      {isInThisWatchlist && (
+                        <View style={styles.inWatchlistBadge}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={16}
+                            color={colors.primary}
+                          />
+                          <Text
+                            style={[
+                              styles.inWatchlistText,
+                              { color: colors.primary },
+                            ]}
+                          >
+                            Added
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <Text style={[styles.modalEmptyText, { color: colors.text }]}>
+                  No watchlists. Create one in the Watchlists tab.
+                </Text>
+              }
+            />
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowWatchlistModal(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.primary }]}>
+                Cancel
               </Text>
             </TouchableOpacity>
           </View>
-        ) : videoId && isPlaying ? (
-          <View style={styles.videoContainer}>
-            <YoutubePlayer
-              height={(Dimensions.get("window").width - 40) * (9 / 16)}
-              width={Dimensions.get("window").width - 40}
-              videoId={videoId}
-              play={isPlaying}
-              onChangeState={(event) => {
-                if (event === "ended") setIsPlaying(false);
-              }}
-              onError={() =>
-                setTrailerError("Error playing trailer. Please try again.")
-              }
-            />
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.trailerPlaceholder}
-            onPress={handleWatchTrailer}
-          >
-            <Ionicons name="play-circle" size={60} color={colors.primary} />
-            <Text style={[styles.trailerText, { color: colors.text }]}>
-              Watch Trailer
-            </Text>
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-    </ScrollView>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
@@ -683,203 +756,188 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  contentContainer: {
-    paddingBottom: 20,
-  },
-  loadingContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    marginHorizontal: 15,
-    marginBottom: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-  },
-  posterContainer: {
+  heroSection: {
     position: "relative",
+    height: screenHeight * 0.55,
     marginBottom: 20,
   },
-  poster: {
+  heroPoster: {
     width: "100%",
-    height: 450,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
+    height: "100%",
+    resizeMode: "cover",
   },
-  posterPlaceholder: {
+  heroPlaceholder: {
     width: "100%",
-    height: 450,
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
   },
   placeholderText: {
-    fontSize: 18,
+    fontSize: 16,
+    marginTop: 10,
     opacity: 0.7,
   },
-  infoCard: {
-    marginHorizontal: 15,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  trailerCard: {
-    marginHorizontal: 15,
-    marginVertical: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-    overflow: "hidden",
-  },
-  trailerLoading: {
-    height: (Dimensions.get("window").width - 40) * (9 / 16),
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  trailerError: {
-    height: (Dimensions.get("window").width - 40) * (9 / 16),
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  errorIcon: {
-    marginBottom: 10,
-  },
-  trailerPlaceholder: {
-    height: (Dimensions.get("window").width - 40) * (9 / 16),
-    backgroundColor: "#000",
-    justifyContent: "center",
-    alignItems: "center",
-    opacity: 0.9,
-  },
-  trailerText: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-    marginVertical: 10,
-  },
-  videoContainer: {
-    position: "relative",
-  },
-  retryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 10,
-    lineHeight: 32,
-  },
-  metaContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 15,
-  },
-  metaLeft: {
-    flex: 1,
-    paddingRight: 10,
-  },
-  metaText: {
-    fontSize: 16,
-    opacity: 0.9,
-    marginBottom: 5,
-  },
-  plot: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontStyle: "italic",
-    marginBottom: 20,
-    opacity: 0.6,
-  },
-  favoriteButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shimmerPlaceholder: {
-    height: 44, // Keep it consistent with your actual button
-    width: 310,
-    borderRadius: 22,
-    backgroundColor: "#e0d7f8", // Soft purple base shimmer
-    overflow: "hidden",
-    marginBottom: 12,
-    paddingHorizontal: 16,
-    shadowColor: "#7e57c2",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3, // For Android shadow
-  },
 
-  buttonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
   ratingBadge: {
     backgroundColor: "#FFD700",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    alignSelf: "flex-start",
-    elevation: 2,
+    elevation: 3,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowRadius: 4,
+    alignSelf: "flex-start",
   },
   ratingText: {
     color: "#000",
-    fontWeight: "bold",
+    fontWeight: "700",
+    fontSize: 14,
+    letterSpacing: 0.3,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
+  detailsCard: {
+    marginHorizontal: 20,
+    marginTop: 0,
+    padding: 28,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  titleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    lineHeight: 38,
+    letterSpacing: -0.8,
+    flex: 1,
+    paddingRight: 16,
+  },
+  metaContainer: {
+    marginBottom: 24,
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
+    paddingHorizontal: 4,
+  },
+  metaItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  metaLabel: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginBottom: 6,
+    fontWeight: "500",
+    textAlign: "center",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  metaValue: {
+    fontSize: 20,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  genreSection: {
+    marginTop: 16,
+  },
+  genreLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 12,
+    opacity: 0.8,
+  },
+  genreTags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  genreTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  genreText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  plot: {
     fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+    opacity: 0.7,
+    fontStyle: "italic",
+  },
+  actionButtonsContainer: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 8,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(126, 87, 194, 0.2)",
+  },
+  actionButtonActive: {
+    backgroundColor: "rgba(126, 87, 194, 0.15)",
+    borderColor: "rgba(126, 87, 194, 0.4)",
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
   seriesSection: {
-    marginTop: 15,
-    marginBottom: 25,
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 28,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
   },
   sectionTitle: {
     fontSize: 24,
     fontWeight: "700",
-    marginBottom: 15,
-    letterSpacing: 0.5,
+    marginBottom: 24,
+    letterSpacing: -0.6,
   },
   seasonContainer: {
-    marginBottom: 15,
-    borderRadius: 10,
+    marginBottom: 16,
+    borderRadius: 12,
     overflow: "hidden",
   },
   seasonHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 15,
-    backgroundColor: "rgba(0,0,0,0.05)",
+    padding: 20,
+    borderRadius: 12,
   },
   seasonHeaderContent: {
     flex: 1,
@@ -889,33 +947,176 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   seasonInfo: {
-    fontSize: 12,
+    fontSize: 14,
     opacity: 0.7,
     marginTop: 2,
   },
   episodesContainer: {
-    padding: 10,
+    padding: 16,
   },
   episodeItem: {
-    paddingVertical: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
+    borderRadius: 8,
   },
   episodeTitle: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 20,
   },
   episodeInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 5,
+    marginTop: 8,
+    alignItems: "center",
   },
   episodeRuntime: {
-    fontSize: 12,
-    opacity: 0.7,
+    fontSize: 13,
+    opacity: 0.8,
+    fontWeight: "500",
   },
   episodeRating: {
+    fontSize: 13,
+    opacity: 0.8,
+    fontWeight: "500",
+  },
+  trailerSection: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 28,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  trailerLoading: {
+    height: (screenWidth - 88) * (9 / 16),
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+  },
+  trailerError: {
+    height: (screenWidth - 88) * (9 / 16),
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    borderRadius: 12,
+  },
+  errorIcon: {
+    marginBottom: 12,
+  },
+  trailerPlaceholder: {
+    height: (screenWidth - 88) * (9 / 16),
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  trailerGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  trailerText: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 12,
+  },
+  videoContainer: {
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  retryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    marginTop: 16,
+  },
+  buttonText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    borderRadius: 24,
+    padding: 28,
+    width: "85%",
+    maxHeight: "70%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 20,
+    textAlign: "center",
+    letterSpacing: -0.5,
+  },
+  modalItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+  },
+  modalItemContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  modalItemText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  inWatchlistBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  inWatchlistText: {
     fontSize: 12,
+    fontWeight: "600",
+  },
+  modalEmptyText: {
+    textAlign: "center",
+    fontSize: 16,
     opacity: 0.7,
+    padding: 20,
+  },
+  modalCancelButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
 
