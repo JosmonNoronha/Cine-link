@@ -34,7 +34,7 @@ import {
 } from "../utils/storage";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { Ionicons } from "@expo/vector-icons";
-import { YOUTUBE_API_KEY } from "@env";
+
 import Animated, {
   FadeIn,
   FadeOut,
@@ -49,6 +49,8 @@ import ShimmerPlaceholder from "react-native-shimmer-placeholder";
 import { LinearGradient } from "expo-linear-gradient";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
+
 
 const DetailsScreen = ({ route, navigation }) => {
   const { imdbID } = route.params;
