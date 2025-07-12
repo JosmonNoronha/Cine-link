@@ -51,7 +51,6 @@ import { LinearGradient } from "expo-linear-gradient";
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
 
-
 const DetailsScreen = ({ route, navigation }) => {
   const { imdbID } = route.params;
   const [movie, setMovie] = useState(null);
@@ -641,12 +640,12 @@ const DetailsScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           ) : videoId && isPlaying ? (
-            <View style={styles.videoContainer}>
+            <View style={styles.videoWrapper}>
               <YoutubePlayer
-                height={(screenWidth - 40) * (9 / 16)}
+                height={Math.min(240, (screenWidth - 40) * (9 / 16))}
                 width={screenWidth - 40}
-                videoId={videoId}
                 play={isPlaying}
+                videoId={videoId}
                 onChangeState={(event) => {
                   if (event === "ended") setIsPlaying(false);
                 }}
@@ -1120,6 +1119,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  videoWrapper: {
+  marginTop: 16,
+  alignSelf: "center",
+  overflow: "hidden",
+  borderRadius: 12,
+},
+
 });
 
 export default DetailsScreen;
