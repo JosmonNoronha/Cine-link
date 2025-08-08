@@ -1,4 +1,6 @@
 import axios from "axios";
+import Constants from 'expo-constants';
+
 
 const OMDB_API_KEY =
   Constants.expoConfig.extra.OMDB_API_KEY ||
