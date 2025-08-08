@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Animated,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -16,9 +17,8 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth } from "../firebaseConfig";
-// Removed modular import: import { signOut } from "firebase/auth";
 
-const SettingsScreen = ({ navigation }) => {
+const SettingsScreen = () => {
   const { colors } = useTheme();
   const { theme, toggleTheme } = useCustomTheme();
   const [updateOverWifi, setUpdateOverWifi] = useState(false);
@@ -29,9 +29,8 @@ const SettingsScreen = ({ navigation }) => {
 
   useEffect(() => {
     setIsExpoGo(Constants.appOwnership === "expo");
-    if (!isExpoGo) {
-      checkForUpdates();
-    }
+    if (!isExpoGo) checkForUpdates();
+
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 500,
@@ -57,8 +56,7 @@ const SettingsScreen = ({ navigation }) => {
     if (isExpoGo) {
       Alert.alert(
         "Not Available in Expo Go",
-        "Please build a development version of the app to test update functionality.",
-        [{ text: "OK" }]
+        "Please build a development version of the app to test update functionality."
       );
       return;
     }
@@ -66,11 +64,7 @@ const SettingsScreen = ({ navigation }) => {
     try {
       const netInfo = await NetInfo.fetch();
       if (updateOverWifi && netInfo.type !== "wifi") {
-        Alert.alert(
-          "WiFi Required",
-          "Please connect to WiFi to update the app",
-          [{ text: "OK" }]
-        );
+        Alert.alert("WiFi Required", "Please connect to WiFi to update the app");
         return;
       }
 
@@ -80,12 +74,7 @@ const SettingsScreen = ({ navigation }) => {
         Alert.alert(
           "Update Downloaded",
           "The app will restart to apply the update",
-          [
-            {
-              text: "Restart Now",
-              onPress: () => Updates.reloadAsync(),
-            },
-          ]
+          [{ text: "Restart Now", onPress: () => Updates.reloadAsync() }]
         );
       } else {
         Alert.alert("No Updates", "Your app is up to date");
@@ -98,78 +87,92 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleSignOut = async () => {
     try {
-      await auth.signOut(); // Namespace-based signOut
+      await auth.signOut();
     } catch (error) {
       console.log("Sign Out Error", error.message);
     }
   };
 
-  return (
+  const SectionCard = ({ title, children }) => (
     <View
       style={[
-        styles.container,
-        { backgroundColor: theme === "dark" ? "#1a1a1a" : "#ffffff" },
+        styles.sectionCard,
+        { backgroundColor: theme === "dark" ? "#1f1f1f" : "#ffffff" },
       ]}
     >
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          App Updates
-        </Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      {children}
+    </View>
+  );
+
+  return (
+    <ScrollView
+      style={[
+        styles.container,
+        { backgroundColor: theme === "dark" ? "#121212" : "#f2f2f7" },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* App Updates */}
+      <SectionCard title="App Updates">
         {isExpoGo ? (
-          <View style={styles.expoGoMessage}>
+          <View style={styles.infoRow}>
             <Ionicons
               name="information-circle-outline"
               size={24}
               color={colors.text}
             />
-            <Text style={[styles.expoGoText, { color: colors.text }]}>
-              Update functionality is not available in Expo Go. Please build a
-              development version of the app to test updates.
+            <Text style={[styles.infoText, { color: colors.text }]}>
+              Updates are unavailable in Expo Go. Please use a development build
+              to test.
             </Text>
           </View>
         ) : (
           <>
-            <View style={styles.settingItem}>
-              <View style={styles.settingTextContainer}>
+            <View style={styles.settingRow}>
+              <View>
                 <Text style={[styles.settingLabel, { color: colors.text }]}>
-                  Update over WiFi only
+                  Update over Wi-Fi only
                 </Text>
                 <Text
                   style={[styles.settingDescription, { color: colors.text }]}
                 >
-                  Only download updates when connected to WiFi
+                  Download updates only when connected to Wi-Fi
                 </Text>
               </View>
               <Switch
                 value={updateOverWifi}
                 onValueChange={setUpdateOverWifi}
-                trackColor={{ false: "#767577", true: colors.primary }}
+                trackColor={{ false: "#ccc", true: colors.primary }}
                 thumbColor={updateOverWifi ? colors.primary : "#f4f3f4"}
               />
             </View>
             <TouchableOpacity
-              style={[styles.updateButton, { backgroundColor: colors.primary }]}
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
               onPress={handleUpdate}
             >
-              <Ionicons name="cloud-download-outline" size={24} color="white" />
-              <Text style={styles.updateButtonText}>
+              <Ionicons
+                name="cloud-download-outline"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.buttonText}>
                 {updateAvailable ? "Update Available" : "Check for Updates"}
               </Text>
             </TouchableOpacity>
           </>
         )}
-      </View>
+      </SectionCard>
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Appearance
-        </Text>
+      {/* Appearance */}
+      <SectionCard title="Appearance">
         <Animated.View
           style={[
             styles.themeCard,
             {
               backgroundColor: theme === "dark" ? "#2c2c2c" : "#f9f9f9",
-              opacity: fadeAnim,
+              
             },
           ]}
         >
@@ -179,72 +182,71 @@ const SettingsScreen = ({ navigation }) => {
             }
             style={styles.gradientOverlay}
           />
-          <View style={styles.themeContent}>
-            <View style={styles.themeIconContainer}>
-              <Ionicons
-                name="moon-outline"
-                size={28}
-                color={theme === "dark" ? "#fff" : "#333"}
-              />
-            </View>
-            <View style={styles.themeTextContainer}>
-              <Text style={[styles.themeLabel, { color: colors.text }]}>
-                Dark Theme
+          <View style={styles.themeRow}>
+            <Ionicons
+              name="moon-outline"
+              size={28}
+              color={theme === "dark" ? "#fff" : "#333"}
+              style={styles.themeIcon}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                Dark Mode
               </Text>
-              <Text style={[styles.themeDescription, { color: colors.text }]}>
-                Switch between light and dark modes
+              <Text
+                style={[styles.settingDescription, { color: colors.text }]}
+              >
+                Switch between light and dark themes
               </Text>
             </View>
             <Switch
               value={theme === "dark"}
               onValueChange={toggleTheme}
               trackColor={{
-                false: "#d3d3d3",
+                false: "#ccc",
                 true: theme === "dark" ? "#1e88e5" : "#1976d2",
               }}
               thumbColor={theme === "dark" ? "#fff" : "#333"}
-              style={styles.themeSwitch}
             />
           </View>
         </Animated.View>
-      </View>
+      </SectionCard>
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Account
-        </Text>
+      {/* Account */}
+      <SectionCard title="Account">
         {user ? (
           <>
-            <View style={styles.settingItem}>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>
-                  Email
-                </Text>
-                <Text
-                  style={[styles.settingDescription, { color: colors.text }]}
-                >
-                  {user.email}
-                </Text>
-              </View>
+            <View style={styles.settingRow}>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                Email
+              </Text>
+              <Text
+                style={[styles.settingDescription, { color: colors.text }]}
+              >
+                {user.email}
+              </Text>
             </View>
-            <View style={styles.settingItem}>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>
-                  User ID
-                </Text>
-                <Text
-                  style={[styles.settingDescription, { color: colors.text }]}
-                >
-                  {user.uid}
-                </Text>
-              </View>
+            <View style={styles.settingRow}>
+              <Text style={[styles.settingLabel, { color: colors.text }]}>
+                User ID
+              </Text>
+              <Text
+                style={[styles.settingDescription, { color: colors.text }]}
+              >
+                {user.uid}
+              </Text>
             </View>
             <TouchableOpacity
-              style={[styles.updateButton, { backgroundColor: "#ff4444" }]}
+              style={[styles.primaryButton, { backgroundColor: "#ff3b30" }]}
               onPress={handleSignOut}
             >
-              <Ionicons name="log-out-outline" size={24} color="white" />
-              <Text style={styles.updateButtonText}>Sign Out</Text>
+              <Ionicons
+                name="log-out-outline"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.buttonText}>Sign Out</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -257,110 +259,64 @@ const SettingsScreen = ({ navigation }) => {
             Not logged in. Please log in from the Auth screen.
           </Text>
         )}
-      </View>
-    </View>
+      </SectionCard>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
+  container: { flex: 1, padding: 15 },
+  sectionCard: {
+    borderRadius: 14,
+    padding: 15,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
   },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  settingItem: {
+  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 15 },
+  settingRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#ccc",
   },
-  settingTextContainer: {
-    flex: 1,
-    marginRight: 10,
-  },
-  settingLabel: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  settingDescription: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  updateButton: {
+  settingLabel: { fontSize: 15, fontWeight: "500" },
+  settingDescription: { fontSize: 13, opacity: 0.7, marginTop: 2 },
+  infoRow: { flexDirection: "row", alignItems: "center" },
+  infoText: { fontSize: 14, marginLeft: 8, flex: 1 },
+  primaryButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 15,
+    paddingVertical: 12,
     borderRadius: 10,
-    marginTop: 20,
+    marginTop: 15,
   },
-  updateButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  expoGoMessage: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 15,
-    backgroundColor: "#f8f9fa",
-    borderRadius: 10,
-    marginTop: 20,
-  },
-  expoGoText: {
-    marginLeft: 10,
-    flex: 1,
-    fontSize: 14,
-  },
+  buttonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
   themeCard: {
-    borderRadius: 15,
-    padding: 15,
-    marginTop: 10,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginTop: 5,
   },
   gradientOverlay: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.1,
-    borderRadius: 15,
+    opacity: 0.15,
   },
-  themeContent: {
+  themeRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    padding: 15,
   },
-  themeIconContainer: {
-    padding: 10,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  themeIcon: {
+    padding: 8,
     borderRadius: 50,
-  },
-  themeTextContainer: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  themeLabel: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  themeDescription: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  themeSwitch: {
-    transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }],
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginRight: 15,
   },
 });
 

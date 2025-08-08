@@ -176,7 +176,7 @@ const WatchlistsScreen = ({ navigation }) => {
           { color: colors.text, fontSize: 12, marginTop: 10 },
         ]}
       >
-        Debug: watchlists = {JSON.stringify(watchlists)}
+        
       </Text>
       <TouchableOpacity
         style={styles.createFirstButton}

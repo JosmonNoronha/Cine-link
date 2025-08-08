@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import "../firebaseConfig"; // Ensure initialization
+import React, { useState, useEffect, useRef } from "react";
+import "../firebaseConfig";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
+
 import HomeScreen from "../screens/HomeScreen";
 import SearchScreen from "../screens/SearchScreen";
 import DetailsScreen from "../screens/DetailsScreen";
@@ -27,109 +28,65 @@ import {
 import SettingsScreen from "../screens/SettingsScreen";
 import AuthScreen from "../screens/AuthScreen";
 import { useCustomTheme } from "../contexts/ThemeContext";
-import { auth } from "../firebaseConfig"; // Import auth
+import { auth } from "../firebaseConfig";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+/* ---------- STACKS FOR EACH TAB ---------- */
 const HomeStack = () => (
   <Stack.Navigator>
-    <Stack.Screen
-      name="Home"
-      component={HomeScreen}
-      options={{ headerShown: false }}
-    />
+    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Details" component={DetailsScreen} />
   </Stack.Navigator>
 );
 
 const SearchStack = () => (
   <Stack.Navigator>
-    <Stack.Screen
-      name="Search"
-      component={SearchScreen}
-      options={{ headerShown: false }}
-    />
+    <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Details" component={DetailsScreen} />
   </Stack.Navigator>
 );
 
 const FavoritesStack = () => (
   <Stack.Navigator>
-    <Stack.Screen
-      name="Favorites"
-      component={FavoritesScreen}
-      options={{ headerShown: false }}
-    />
+    <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Details" component={DetailsScreen} />
   </Stack.Navigator>
 );
 
 const WatchlistStack = () => (
   <Stack.Navigator>
-    <Stack.Screen
-      name="Watchlists"
-      component={WatchlistsScreen}
-      options={{ headerShown: false }}
-    />
-    <Stack.Screen
-      name="WatchlistContent"
-      component={WatchlistContentScreen}
-      options={{ headerShown: false }}
-    />
+    <Stack.Screen name="Watchlists" component={WatchlistsScreen} options={{ headerShown: false }} />
+    <Stack.Screen name="WatchlistContent" component={WatchlistContentScreen} options={{ headerShown: false }} />
     <Stack.Screen name="Details" component={DetailsScreen} />
   </Stack.Navigator>
 );
 
 const SettingsStack = () => (
   <Stack.Navigator>
-    <Stack.Screen
-      name="Settings"
-      component={SettingsScreen}
-      options={{ headerShown: false }}
-    />
+    <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
   </Stack.Navigator>
 );
 
+/* ---------- AUTH STACK ---------- */
 const AuthStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen
-      name="AuthScreen" // Changed from "Auth" to "Login" to fix warning
-      component={AuthScreen}
-      options={{ headerShown: false }}
-    />
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Auth" component={AuthScreen} />
   </Stack.Navigator>
 );
 
-const TAB_COUNT = 5; // Home, Search, Favorites, Watchlist, Settings
+/* ---------- CUSTOM TAB BAR ---------- */
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
-  const scalesRef = React.useRef([
-    useSharedValue(1),
-    useSharedValue(1),
-    useSharedValue(1),
-    useSharedValue(1),
-    useSharedValue(1),
-  ]);
-  const animatedStylesRef = React.useRef([
-    useAnimatedStyle(() => ({
-      transform: [{ scale: scalesRef.current[0].value }],
-    })),
-    useAnimatedStyle(() => ({
-      transform: [{ scale: scalesRef.current[1].value }],
-    })),
-    useAnimatedStyle(() => ({
-      transform: [{ scale: scalesRef.current[2].value }],
-    })),
-    useAnimatedStyle(() => ({
-      transform: [{ scale: scalesRef.current[3].value }],
-    })),
-    useAnimatedStyle(() => ({
-      transform: [{ scale: scalesRef.current[4].value }],
-    })),
-  ]);
+  const scalesRef = useRef(state.routes.map(() => useSharedValue(1)));
+  const animatedStylesRef = useRef(
+    scalesRef.current.map((scale) =>
+      useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
+    )
+  );
 
   return (
     <View
@@ -142,7 +99,6 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
       ]}
     >
       {state.routes.map((route, index) => {
-        const { options } = descriptors[route.key];
         const isFocused = state.index === index;
 
         const onPress = () => {
@@ -151,7 +107,6 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
             target: route.key,
             canPreventDefault: true,
           });
-
           if (!isFocused && !event.defaultPrevented) {
             navigation.navigate(route.name);
           }
@@ -163,23 +118,18 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           Favorites: isFocused ? "heart" : "heart-outline",
           Watchlist: isFocused ? "bookmark" : "bookmark-outline",
           Settings: isFocused ? "settings" : "settings-outline",
-          Login: isFocused ? "lock-closed" : "lock-closed-outline", // Updated for "Login"
         }[route.name];
 
         return (
           <TouchableOpacity
             key={route.key}
             onPress={onPress}
-            onPressIn={() =>
-              (scalesRef.current[index].value = withSpring(0.95))
-            }
+            onPressIn={() => (scalesRef.current[index].value = withSpring(0.95))}
             onPressOut={() => (scalesRef.current[index].value = withSpring(1))}
             style={styles.tabItem}
             activeOpacity={0.7}
           >
-            <Animated.View
-              style={[styles.tabContent, animatedStylesRef.current[index]]}
-            >
+            <Animated.View style={[styles.tabContent, animatedStylesRef.current[index]]}>
               <Ionicons
                 name={iconName}
                 size={28}
@@ -204,16 +154,30 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   );
 };
 
-const AppNavigator = () => {
+/* ---------- AUTHENTICATED TABS ---------- */
+const AppTabs = () => (
+  <Tab.Navigator
+    tabBar={(props) => <CustomTabBar {...props} />}
+    screenOptions={{ headerShown: false }}
+  >
+    <Tab.Screen name="Home" component={HomeStack} />
+    <Tab.Screen name="Search" component={SearchStack} />
+    <Tab.Screen name="Favorites" component={FavoritesStack} />
+    <Tab.Screen name="Watchlist" component={WatchlistStack} />
+    <Tab.Screen name="Settings" component={SettingsStack} />
+  </Tab.Navigator>
+);
+
+/* ---------- ROOT NAVIGATOR ---------- */
+const RootNavigator = () => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // true initially
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user); // Will be null if signed out
+    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+      setUser(firebaseUser);
       setLoading(false);
     });
-
     return unsubscribe;
   }, []);
 
@@ -225,26 +189,12 @@ const AppNavigator = () => {
     );
   }
 
-  // If user is not authenticated, show only the auth screen without tab bar
-  if (!user) {
-    return <AuthScreen />;
-  }
-
-  // If user is authenticated, show the full tab navigation
-  return (
-    <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tab.Screen name="Home" component={HomeStack} />
-      <Tab.Screen name="Search" component={SearchStack} />
-      <Tab.Screen name="Favorites" component={FavoritesStack} />
-      <Tab.Screen name="Watchlist" component={WatchlistStack} />
-      <Tab.Screen name="Settings" component={SettingsStack} />
-    </Tab.Navigator>
-  );
+  return user ? <AppTabs /> : <AuthStack />;
 };
 
+export default RootNavigator;
+
+/* ---------- STYLES ---------- */
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
@@ -271,5 +221,3 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
-
-export default AppNavigator;

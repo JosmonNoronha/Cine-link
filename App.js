@@ -5,7 +5,7 @@ import {
   DarkTheme,
 } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import AppNavigator from "./navigation/AppNavigator";
+import RootNavigator from "./navigation/AppNavigator";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useCustomTheme } from "./contexts/ThemeContext";
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,7 +16,7 @@ const AppContent = () => {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <AppNavigator />
+      <RootNavigator />
     </NavigationContainer>
   );
 };
