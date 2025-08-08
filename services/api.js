@@ -1,16 +1,21 @@
 import axios from "axios";
 
-const OMDB_API_KEY = process.env.EXPO_PUBLIC_OMDB_API_KEY;
-
+const OMDB_API_KEY =
+  Constants.expoConfig.extra.OMDB_API_KEY ||
+  process.env.EXPO_PUBLIC_OMDB_API_KEY;
 export const searchMovies = async (query) => {
   try {
     const trimmedQuery = query.trim();
     let url;
 
     if (trimmedQuery.length < 3) {
-      url = `https://www.omdbapi.com/?t=${encodeURIComponent(trimmedQuery)}&apikey=${OMDB_API_KEY}`;
+      url = `https://www.omdbapi.com/?t=${encodeURIComponent(
+        trimmedQuery
+      )}&apikey=${OMDB_API_KEY}`;
     } else {
-      url = `https://www.omdbapi.com/?s=${encodeURIComponent(trimmedQuery)}&apikey=${OMDB_API_KEY}`;
+      url = `https://www.omdbapi.com/?s=${encodeURIComponent(
+        trimmedQuery
+      )}&apikey=${OMDB_API_KEY}`;
     }
 
     console.log("Raw query:", query);
@@ -91,7 +96,10 @@ export const getEpisodeDetails = async (imdbID, season, episode) => {
     }
     return response.data;
   } catch (error) {
-    console.error(`Error fetching episode ${episode} of season ${season}:`, error);
+    console.error(
+      `Error fetching episode ${episode} of season ${season}:`,
+      error
+    );
     return null;
   }
 };
