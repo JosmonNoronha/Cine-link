@@ -37,21 +37,21 @@ const Tab = createBottomTabNavigator();
 const HomeStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} />
+    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
   </Stack.Navigator>
 );
 
 const SearchStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} />
+    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
   </Stack.Navigator>
 );
 
 const FavoritesStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} />
+    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
   </Stack.Navigator>
 );
 
@@ -59,7 +59,7 @@ const WatchlistStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Watchlists" component={WatchlistsScreen} options={{ headerShown: false }} />
     <Stack.Screen name="WatchlistContent" component={WatchlistContentScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} />
+    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
   </Stack.Navigator>
 );
 
