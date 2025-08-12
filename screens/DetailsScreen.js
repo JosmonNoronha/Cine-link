@@ -12,7 +12,6 @@ import {
   FlatList,
   TextInput,
   Alert,
-  StatusBar,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -34,7 +33,6 @@ import {
 } from "../utils/storage";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { Ionicons } from "@expo/vector-icons";
-
 import Animated, {
   FadeIn,
   FadeOut,
@@ -47,6 +45,8 @@ import Animated, {
 } from "react-native-reanimated";
 import ShimmerPlaceholder from "react-native-shimmer-placeholder";
 import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
@@ -71,8 +71,6 @@ const DetailsScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
-  const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-
   const loadingOpacity = useSharedValue(1);
 
   useEffect(() => {
@@ -92,7 +90,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
   const animatedTextStyle = useAnimatedStyle(() => ({
     opacity: loadingOpacity.value,
-    color: theme === "dark" ? "#7e57c2" : "#5e35b1", // Change color based on theme
+    color: theme === "dark" ? "#7e57c2" : "#5e35b1",
   }));
 
   useEffect(() => {
@@ -378,13 +376,11 @@ const DetailsScreen = ({ route, navigation }) => {
     );
   };
 
-  // Fetch all watchlists for modal
   const fetchWatchlists = async () => {
     const data = await getWatchlists();
     setWatchlists(data);
   };
 
-  // Check if movie is in any watchlist (for button state)
   const checkInAnyWatchlist = async () => {
     const lists = await getWatchlists();
     setWatchlists(lists);
@@ -404,39 +400,74 @@ const DetailsScreen = ({ route, navigation }) => {
 
   if (!movie) {
     return (
-      <View
+      <SafeAreaView
         style={[
           styles.loadingContainer,
           { backgroundColor: colors.background },
         ]}
+        edges={['top']}
       >
         <ActivityIndicator size="large" color={colors.text} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: theme === "dark" ? "#0a0a0a" : "#f8f9fa" },
-      ]}
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: theme === "dark" ? "#0a0a0a" : "#f8f9fa" }]} 
+      edges={['top']}
     >
-      <StatusBar
-        barStyle={theme === "dark" ? "light-content" : "dark-content"}
-        backgroundColor="transparent"
-        translucent
+      <StatusBar 
+        style={theme === 'dark' ? 'light' : 'dark'} 
+        translucent={false} 
+        backgroundColor={theme === 'dark' ? '#0a0a0a' : '#f8f9fa'}
       />
-
+      
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Hero Section with Poster - Now Scrollable */}
+        {/* Header with Back Button */}
+        <View style={styles.header}>
+  <TouchableOpacity
+    onPress={() => navigation.goBack()}
+    style={[
+      styles.backButton,
+      { 
+        backgroundColor: colors.primary, // Solid contrast color
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 5 // For Android shadow
+      }
+    ]}
+    activeOpacity={0.8}
+  >
+    <Ionicons
+      name="arrow-back"
+      size={26}
+      color="#fff" // White icon for contrast
+    />
+  </TouchableOpacity>
+</View>
+
+
+        {/* Hero Section with Poster */}
         <View style={styles.heroSection}>
           {movie.Poster !== "N/A" ? (
-            <Image source={{ uri: movie.Poster }} style={styles.heroPoster} />
+            <View style={styles.posterContainer}>
+              <Image 
+                source={{ uri: movie.Poster }} 
+                style={styles.heroPoster} 
+                resizeMode="cover"
+              />
+              <LinearGradient
+                colors={['transparent', 'transparent', colors.background + '80', colors.background]}
+                style={styles.posterGradient}
+              />
+            </View>
           ) : (
             <View
               style={[styles.heroPlaceholder, { backgroundColor: colors.card }]}
@@ -448,15 +479,18 @@ const DetailsScreen = ({ route, navigation }) => {
             </View>
           )}
         </View>
+
         {/* Movie/Series Details Card */}
         <View style={[styles.detailsCard, { backgroundColor: colors.card }]}>
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: colors.text }]}>
               {movie.Title}
             </Text>
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
-            </View>
+            {movie.imdbRating && movie.imdbRating !== 'N/A' && (
+              <View style={styles.ratingBadge}>
+                <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.metaContainer}>
@@ -470,7 +504,7 @@ const DetailsScreen = ({ route, navigation }) => {
                 </Text>
               </View>
 
-              {movie.Type !== "series" && (
+              {movie.Type !== "series" && movie.Runtime && movie.Runtime !== 'N/A' && (
                 <View style={styles.metaItem}>
                   <Text style={[styles.metaLabel, { color: colors.text }]}>
                     Runtime
@@ -495,36 +529,62 @@ const DetailsScreen = ({ route, navigation }) => {
               )}
             </View>
 
-            <View style={styles.genreSection}>
-              <Text style={[styles.genreLabel, { color: colors.text }]}>
-                Genres
-              </Text>
-              <View style={styles.genreTags}>
-                {movie.Genre.split(", ").map((genre, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.genreTag,
-                      {
-                        backgroundColor:
-                          theme === "dark"
-                            ? "rgba(255,255,255,0.08)"
-                            : "rgba(0,0,0,0.06)",
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.genreText, { color: colors.text }]}>
-                      {genre.trim()}
-                    </Text>
-                  </View>
-                ))}
+            {movie.Genre && movie.Genre !== 'N/A' && (
+              <View style={styles.genreSection}>
+                <Text style={[styles.genreLabel, { color: colors.text }]}>
+                  Genres
+                </Text>
+                <View style={styles.genreTags}>
+                  {movie.Genre.split(", ").map((genre, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.genreTag,
+                        {
+                          backgroundColor:
+                            theme === "dark"
+                              ? "rgba(255,255,255,0.08)"
+                              : "rgba(0,0,0,0.06)",
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.genreText, { color: colors.text }]}>
+                        {genre.trim()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
           </View>
 
-          <Text style={[styles.plot, { color: colors.text }]}>
-            {movie.Plot}
-          </Text>
+          {movie.Plot && movie.Plot !== 'N/A' && (
+            <Text style={[styles.plot, { color: colors.text }]}>
+              {movie.Plot}
+            </Text>
+          )}
+
+          {movie.Actors && movie.Actors !== 'N/A' && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Cast
+              </Text>
+              <Text style={[styles.cast, { color: colors.textSecondary }]}>
+                {movie.Actors}
+              </Text>
+            </View>
+          )}
+
+          {movie.Director && movie.Director !== 'N/A' && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Director
+              </Text>
+              <Text style={[styles.director, { color: colors.textSecondary }]}>
+                {movie.Director}
+              </Text>
+            </View>
+          )}
 
           {/* Action Buttons */}
           <View style={styles.actionButtonsContainer}>
@@ -590,9 +650,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
         {/* Series Seasons Section */}
         {movie?.Type === "series" && seriesDetails && (
-          <View
-            style={[styles.seriesSection, { backgroundColor: colors.card }]}
-          >
+          <View style={[styles.seriesSection, { backgroundColor: colors.card }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Episodes
             </Text>
@@ -628,10 +686,7 @@ const DetailsScreen = ({ route, navigation }) => {
                 {trailerError}
               </Text>
               <TouchableOpacity
-                style={[
-                  styles.retryButton,
-                  { backgroundColor: colors.primary },
-                ]}
+                style={[styles.retryButton, { backgroundColor: colors.primary }]}
                 onPress={handleWatchTrailer}
               >
                 <Text style={[styles.buttonText, { color: "#fff" }]}>
@@ -706,9 +761,7 @@ const DetailsScreen = ({ route, navigation }) => {
                     onPress={() => handleSelectWatchlist(name)}
                   >
                     <View style={styles.modalItemContent}>
-                      <Text
-                        style={[styles.modalItemText, { color: colors.text }]}
-                      >
+                      <Text style={[styles.modalItemText, { color: colors.text }]}>
                         {name}
                       </Text>
                       {isInThisWatchlist && (
@@ -719,10 +772,7 @@ const DetailsScreen = ({ route, navigation }) => {
                             color={colors.primary}
                           />
                           <Text
-                            style={[
-                              styles.inWatchlistText,
-                              { color: colors.primary },
-                            ]}
+                            style={[styles.inWatchlistText, { color: colors.primary }]}
                           >
                             Added
                           </Text>
@@ -749,7 +799,7 @@ const DetailsScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -757,15 +807,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
   heroSection: {
     position: "relative",
     height: screenHeight * 0.55,
-    marginBottom: 20,
+  },
+  posterContainer: {
+    position: 'relative',
   },
   heroPoster: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+  posterGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
   },
   heroPlaceholder: {
     width: "100%",
@@ -778,7 +855,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     opacity: 0.7,
   },
-
   ratingBadge: {
     backgroundColor: "#FFD700",
     paddingHorizontal: 12,
@@ -802,11 +878,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
-    paddingTop: 20,
   },
   detailsCard: {
     marginHorizontal: 20,
-    marginTop: 0,
+    marginTop: -40, // Overlap with poster
     padding: 28,
     borderRadius: 24,
     shadowColor: "#000",
@@ -886,9 +961,27 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     fontStyle: "italic",
   },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  cast: {
+    fontSize: 16,
+    lineHeight: 22,
+    opacity: 0.7,
+  },
+  director: {
+    fontSize: 16,
+    lineHeight: 22,
+    opacity: 0.7,
+  },
   actionButtonsContainer: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
     marginTop: 8,
   },
   actionButton: {
@@ -896,12 +989,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "rgba(126, 87, 194, 0.2)",
+    paddingVertical: 14,
+    borderRadius: 25,
+    borderWidth: 2,
+    gap: 8,
   },
   actionButtonActive: {
     backgroundColor: "rgba(126, 87, 194, 0.15)",
@@ -910,6 +1001,7 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 16,
     fontWeight: "600",
+    color: "#ffffff",
   },
   seriesSection: {
     marginHorizontal: 20,
@@ -921,12 +1013,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 16,
     elevation: 6,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 24,
-    letterSpacing: -0.6,
   },
   seasonContainer: {
     marginBottom: 16,
@@ -1025,10 +1111,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 12,
   },
-  videoContainer: {
-    borderRadius: 12,
-    overflow: "hidden",
-  },
   retryButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -1040,17 +1122,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   loadingContainer: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
   },
   loadingText: {
     fontSize: 16,
@@ -1120,12 +1195,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   videoWrapper: {
-  marginTop: 16,
-  alignSelf: "center",
-  overflow: "hidden",
-  borderRadius: 12,
-},
-
+    marginTop: 16,
+    alignSelf: "center",
+    overflow: "hidden",
+    borderRadius: 12,
+  },
 });
 
 export default DetailsScreen;

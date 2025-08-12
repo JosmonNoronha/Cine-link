@@ -11,6 +11,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -29,49 +31,113 @@ import SettingsScreen from "../screens/SettingsScreen";
 import AuthScreen from "../screens/AuthScreen";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { auth } from "../firebaseConfig";
+import SplashLoader from "../components/SplashLoader";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 /* ---------- STACKS FOR EACH TAB ---------- */
 const HomeStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      // Add these options to prevent status bar issues
+      contentStyle: { backgroundColor: 'transparent' },
+      animation: 'slide_from_right',
+    }}
+  >
+    <Stack.Screen name="Home" component={HomeScreen} />
+    <Stack.Screen 
+      name="Details" 
+      component={DetailsScreen}
+      options={{
+        presentation: 'card', // Ensures consistent presentation
+        gestureEnabled: true,
+      }}
+    />
   </Stack.Navigator>
 );
 
 const SearchStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: 'transparent' },
+      animation: 'slide_from_right',
+    }}
+  >
+    <Stack.Screen name="Search" component={SearchScreen} />
+    <Stack.Screen 
+      name="Details" 
+      component={DetailsScreen}
+      options={{
+        presentation: 'card',
+        gestureEnabled: true,
+      }}
+    />
   </Stack.Navigator>
 );
 
 const FavoritesStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Favorites" component={FavoritesScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: 'transparent' },
+      animation: 'slide_from_right',
+    }}
+  >
+    <Stack.Screen name="Favorites" component={FavoritesScreen} />
+    <Stack.Screen 
+      name="Details" 
+      component={DetailsScreen}
+      options={{
+        presentation: 'card',
+        gestureEnabled: true,
+      }}
+    />
   </Stack.Navigator>
 );
 
 const WatchlistStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Watchlists" component={WatchlistsScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="WatchlistContent" component={WatchlistContentScreen} options={{ headerShown: false }} />
-    <Stack.Screen name="Details" component={DetailsScreen} options={{ headerShown: false }}  />
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: 'transparent' },
+      animation: 'slide_from_right',
+    }}
+  >
+    <Stack.Screen name="Watchlists" component={WatchlistsScreen} />
+    <Stack.Screen name="WatchlistContent" component={WatchlistContentScreen} />
+    <Stack.Screen 
+      name="Details" 
+      component={DetailsScreen}
+      options={{
+        presentation: 'card',
+        gestureEnabled: true,
+      }}
+    />
   </Stack.Navigator>
 );
 
 const SettingsStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+  <Stack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: 'transparent' },
+    }}
+  >
+    <Stack.Screen name="Settings" component={SettingsScreen} />
   </Stack.Navigator>
 );
 
 /* ---------- AUTH STACK ---------- */
 const AuthStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator 
+    screenOptions={{ 
+      headerShown: false,
+      contentStyle: { backgroundColor: 'transparent' },
+    }}
+  >
     <Stack.Screen name="Auth" component={AuthScreen} />
   </Stack.Navigator>
 );
@@ -155,23 +221,35 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
 };
 
 /* ---------- AUTHENTICATED TABS ---------- */
-const AppTabs = () => (
-  <Tab.Navigator
-    tabBar={(props) => <CustomTabBar {...props} />}
-    screenOptions={{ headerShown: false }}
-  >
-    <Tab.Screen name="Home" component={HomeStack} />
-    <Tab.Screen name="Search" component={SearchStack} />
-    <Tab.Screen name="Favorites" component={FavoritesStack} />
-    <Tab.Screen name="Watchlist" component={WatchlistStack} />
-    <Tab.Screen name="Settings" component={SettingsStack} />
-  </Tab.Navigator>
-);
+const AppTabs = () => {
+  const { theme } = useCustomTheme();
+  
+  return (
+    <SafeAreaProvider>
+      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} translucent={false} />
+      <Tab.Navigator
+        tabBar={(props) => <CustomTabBar {...props} />}
+        screenOptions={{ 
+          headerShown: false,
+          // Ensure consistent background
+          sceneContainerStyle: { backgroundColor: 'transparent' },
+        }}
+      >
+        <Tab.Screen name="Home" component={HomeStack} />
+        <Tab.Screen name="Search" component={SearchStack} />
+        <Tab.Screen name="Favorites" component={FavoritesStack} />
+        <Tab.Screen name="Watchlist" component={WatchlistStack} />
+        <Tab.Screen name="Settings" component={SettingsStack} />
+      </Tab.Navigator>
+    </SafeAreaProvider>
+  );
+};
 
 /* ---------- ROOT NAVIGATOR ---------- */
 const RootNavigator = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { theme } = useCustomTheme();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
@@ -183,13 +261,19 @@ const RootNavigator = () => {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#6b48ff" />
-      </View>
+      <SafeAreaProvider>
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} translucent={false} />
+        <SplashLoader />
+      </SafeAreaProvider>
     );
   }
 
-  return user ? <AppTabs /> : <AuthStack />;
+  return user ? <AppTabs /> : (
+    <SafeAreaProvider>
+      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} translucent={false} />
+      <AuthStack />
+    </SafeAreaProvider>
+  );
 };
 
 export default RootNavigator;
