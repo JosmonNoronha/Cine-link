@@ -569,7 +569,7 @@ const DetailsScreen = ({ route, navigation }) => {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 Cast
               </Text>
-              <Text style={[styles.cast, { color: colors.textSecondary }]}>
+              <Text style={[styles.cast, { color: colors.text }]}>
                 {movie.Actors}
               </Text>
             </View>
@@ -580,7 +580,7 @@ const DetailsScreen = ({ route, navigation }) => {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 Director
               </Text>
-              <Text style={[styles.director, { color: colors.textSecondary }]}>
+              <Text style={[styles.director, { color: colors.text }]}>
                 {movie.Director}
               </Text>
             </View>
@@ -1122,10 +1122,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   loadingContainer: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   loadingText: {
     fontSize: 16,
