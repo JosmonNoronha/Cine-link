@@ -402,7 +402,7 @@ const DetailsScreen = ({ route, navigation }) => {
     return (
       <SafeAreaView
         style={[
-          styles.loadingContainer,
+          styles.detailsLoadingContainer,
           { backgroundColor: colors.background },
         ]}
         edges={['top']}
@@ -1207,6 +1207,13 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderRadius: 12,
   },
+  detailsLoadingContainer: {
+  flex: 1,
+  justifyContent: "center",
+  alignItems: "center",
+  padding: 20, 
+},
+
 });
 
 export default DetailsScreen;

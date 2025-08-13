@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 40,
-    marginTop: -50,
+    paddingTop: 40,
   },
   emptyIconContainer: {
     marginBottom: 24,
