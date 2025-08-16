@@ -8,6 +8,7 @@ import {
   Alert,
   Animated,
   ScrollView,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -64,7 +65,10 @@ const SettingsScreen = () => {
     try {
       const netInfo = await NetInfo.fetch();
       if (updateOverWifi && netInfo.type !== "wifi") {
-        Alert.alert("WiFi Required", "Please connect to WiFi to update the app");
+        Alert.alert(
+          "WiFi Required",
+          "Please connect to WiFi to update the app"
+        );
         return;
       }
 
@@ -105,6 +109,103 @@ const SettingsScreen = () => {
     </View>
   );
 
+  const ProfileSection = () => (
+    <SectionCard title="Profile">
+      {user ? (
+        <View style={styles.profileContainer}>
+          <View style={styles.avatarContainer}>
+            <LinearGradient
+              colors={["#4a90e2", "#9013fe"]}
+              style={styles.avatarGradient}
+            >
+              <View style={styles.avatarInner}>
+      
+                {user?.displayName && (
+                  <Text style={styles.avatarInitial}>
+                    {user.displayName.charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+            </LinearGradient>
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={[styles.profileName, { color: colors.text }]}>
+              {user.displayName || "No Username Set"}
+            </Text>
+            <Text style={[styles.profileEmail, { color: colors.text }]}>
+              {user.email}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.signOutButton, { backgroundColor: "#ff3b30" }]}
+            onPress={handleSignOut}
+          >
+            <Ionicons
+              name="log-out-outline"
+              size={20}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.buttonText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.notLoggedIn}>
+          <Text
+            style={[
+              styles.settingDescription,
+              { color: colors.text, textAlign: "center" },
+            ]}
+          >
+            Not logged in. Please log in from the Auth screen.
+          </Text>
+        </View>
+      )}
+    </SectionCard>
+  );
+
+  const AboutSection = () => (
+    <SectionCard title="About">
+      <View style={styles.aboutContainer}>
+        
+        <View style={styles.aboutDetails}>
+          <Text style={[styles.appName, { color: colors.text }]}>
+            CineLink
+          </Text>
+          <Text style={[styles.appVersion, { color: colors.text }]}>
+            Version {Constants.expoConfig.version || "1.0.0"}
+          </Text>
+          <Text style={[styles.appDescription, { color: colors.text }]}>
+            Your ultimate movie companion app, designed to help you discover,
+            organize, and enjoy your favorite films.
+          </Text>
+          
+          <Text style={[styles.apiCredit, { color: colors.text }]}>
+            Powered by OMDB API
+          </Text>
+        </View>
+      </View>
+      <View style={styles.legalContainer}>
+        <TouchableOpacity
+          onPress={() => Alert.alert("Privacy Policy", "Details here...")}
+          style={styles.legalLink}
+        >
+          <Text style={[styles.legalText, { color: colors.text }]}>
+            Privacy Policy
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => Alert.alert("Terms of Service", "Details here...")}
+          style={styles.legalLink}
+        >
+          <Text style={[styles.legalText, { color: colors.text }]}>
+            Terms of Service
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SectionCard>
+  );
+
   return (
     <ScrollView
       style={[
@@ -113,6 +214,8 @@ const SettingsScreen = () => {
       ]}
       showsVerticalScrollIndicator={false}
     >
+      <ProfileSection />
+
       {/* App Updates */}
       <SectionCard title="App Updates">
         {isExpoGo ? (
@@ -148,7 +251,10 @@ const SettingsScreen = () => {
               />
             </View>
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.primaryButton,
+                { backgroundColor: colors.primary },
+              ]}
               onPress={handleUpdate}
             >
               <Ionicons
@@ -172,7 +278,6 @@ const SettingsScreen = () => {
             styles.themeCard,
             {
               backgroundColor: theme === "dark" ? "#2c2c2c" : "#f9f9f9",
-              
             },
           ]}
         >
@@ -193,9 +298,7 @@ const SettingsScreen = () => {
               <Text style={[styles.settingLabel, { color: colors.text }]}>
                 Dark Mode
               </Text>
-              <Text
-                style={[styles.settingDescription, { color: colors.text }]}
-              >
+              <Text style={[styles.settingDescription, { color: colors.text }]}>
                 Switch between light and dark themes
               </Text>
             </View>
@@ -212,54 +315,8 @@ const SettingsScreen = () => {
         </Animated.View>
       </SectionCard>
 
-      {/* Account */}
-      <SectionCard title="Account">
-        {user ? (
-          <>
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
-                Email
-              </Text>
-              <Text
-                style={[styles.settingDescription, { color: colors.text }]}
-              >
-                {user.email}
-              </Text>
-            </View>
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>
-                User ID
-              </Text>
-              <Text
-                style={[styles.settingDescription, { color: colors.text }]}
-              >
-                {user.uid}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: "#ff3b30" }]}
-              onPress={handleSignOut}
-            >
-              <Ionicons
-                name="log-out-outline"
-                size={20}
-                color="#fff"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.buttonText}>Sign Out</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <Text
-            style={[
-              styles.settingDescription,
-              { color: colors.text, textAlign: "center" },
-            ]}
-          >
-            Not logged in. Please log in from the Auth screen.
-          </Text>
-        )}
-      </SectionCard>
+      {/* About */}
+      <AboutSection />
     </ScrollView>
   );
 };
@@ -317,6 +374,145 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: "rgba(255,255,255,0.15)",
     marginRight: 15,
+  },
+  profileContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#ccc",
+  },
+  avatarContainer: {
+    marginRight: 15,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  avatarGradient: {
+    width: 54,
+    height: 54,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarInner: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  avatarIcon: {
+    position: "absolute",
+    opacity: 0.5,
+  },
+  avatarInitial: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    opacity: 0.7,
+    marginBottom: 2,
+  },
+  profileId: {
+    fontSize: 12,
+    opacity: 0.5,
+  },
+  signOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+  },
+  notLoggedIn: {
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  aboutContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  appLogoContainer: {
+    marginRight: 15,
+  },
+  appLogoGradient: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  appLogoText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+  },
+  aboutDetails: {
+    flex: 1,
+  },
+  appName: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  appVersion: {
+    fontSize: 14,
+    opacity: 0.7,
+    marginBottom: 8,
+  },
+  appDescription: {
+    fontSize: 13,
+    opacity: 0.8,
+    marginBottom: 12,
+  },
+  linkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  linkText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  legalContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 0.5,
+    borderTopColor: "#ccc",
+  },
+  legalLink: {
+    padding: 5,
+  },
+  legalText: {
+    fontSize: 13,
+    opacity: 0.6,
+  },
+  apiCredit: {
+    fontSize: 14,
+    opacity: 0.6,
+    marginTop: 18,
+    fontStyle: "italic",
   },
 });
 

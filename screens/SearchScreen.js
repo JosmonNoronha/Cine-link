@@ -14,7 +14,7 @@ import { useTheme } from '@react-navigation/native';
 import { useCustomTheme } from '../contexts/ThemeContext';
 import { searchMovies } from '../services/api';
 import MovieCard from '../components/MovieCard';
-import ShimmerMovieCard from '../components/ShimmerMovieCard'; // Import shimmer component
+import ShimmerMovieCard from '../components/ShimmerMovieCard';
 import { Ionicons } from '@expo/vector-icons';
 import debounce from 'lodash.debounce';
 
@@ -41,6 +41,7 @@ const SearchScreen = ({ navigation }) => {
       try {
         console.log('Searching for:', searchQuery);
         const data = await searchMovies(searchQuery);
+        console.log('Search results:', data); // Debug: Check for imdbID
         const filteredData = filterType === 'all'
           ? data
           : data.filter(item => item.Type.toLowerCase() === filterType);
@@ -88,6 +89,13 @@ const SearchScreen = ({ navigation }) => {
       contentContainerStyle={styles.listContent}
     />
   );
+
+  const renderItem = useCallback(({ item }) => (
+    <MovieCard
+      movie={item}
+      onPress={() => navigation.navigate('Details', { imdbID: item.imdbID })}
+    />
+  ), [navigation]);
 
   return (
     <SafeAreaView style={[styles.safeContainer, { backgroundColor: colors.background }]}>
@@ -196,13 +204,8 @@ const SearchScreen = ({ navigation }) => {
         ) : (
           <FlatList
             data={results}
-            keyExtractor={(item) => item.imdbID}
-            renderItem={({ item }) => (
-              <MovieCard
-                movie={item}
-                onPress={() => navigation.navigate('Details', { imdbID: item.imdbID })}
-              />
-            )}
+            keyExtractor={(item, index) => `${item.imdbID}-${index}`} // Fallback to imdbID + index
+            renderItem={renderItem}
             ListEmptyComponent={
               <Text style={[styles.emptyText, { color: colors.text }]}>
                 {query.trim() ? 'No results found' : 'Enter a title to search'}

@@ -75,11 +75,18 @@ const SplashLoader = ({
         </View>
         <Text style={styles.loadingText}>{message}</Text>
       </Animated.View>
+      {/* OMDB Credits */}
+      <Animated.View
+        entering={FadeInUp.delay(1200).duration(800)}
+        style={styles.creditContainer}
+      >
+        <Text style={styles.creditText}>Powered by OMDB API</Text>
+      </Animated.View>
     </Animated.View>
   );
 };
 
-const MainApp = () => (
+const MainApp = ({ appName = "CineLink" }) => ( // Pass appName as a prop
   <View style={styles.mainAppContainer}>
     <Text style={styles.mainAppText}>Welcome to {appName}</Text>
   </View>
@@ -91,7 +98,7 @@ const App = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 5000); // 3 seconds duration
+    }, 6000); // Increased to 6 seconds
 
     return () => clearTimeout(timer);
   }, []);
@@ -142,6 +149,18 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "500",
     opacity: 0.8,
+  },
+  creditContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 40,
+    justifyContent: "center", // Ensure text is centered
+  },
+  creditText: {
+    fontSize: 12,
+    color: "#ffffff",
+    opacity: 0.6,
+    fontStyle: "italic",
   },
   mainAppContainer: {
     flex: 1,

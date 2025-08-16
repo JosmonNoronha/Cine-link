@@ -9,32 +9,72 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-} from "firebase/auth";
-import { auth } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { serverTimestamp } from "firebase/firestore";
 
 const AuthScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(""); // NEW
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const getFriendlyError = (error) => {
+    if (error.code === 'auth/weak-password') {
+      return 'Password must be at least 6 characters long.';
+    }
+    if (error.code === 'auth/email-already-in-use') {
+      return 'This email is already registered.';
+    }
+    if (error.code === 'auth/invalid-email') {
+      return 'Invalid email address.';
+    }
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-login-credentials') {
+      return 'Invalid email or password.';
+    }
+    if (error.code === 'auth/password-does-not-meet-requirements') {
+      return 'Password must contain at least 6 characters.';
+    }
+    return error.message;
+  };
 
   const handleAuth = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+    setErrorMessage("");
+    if (!email || !password || (!isLogin && !username)) {
+      setErrorMessage("Please fill in all fields");
       return;
     }
 
     try {
       if (isLogin) {
+        // Sign in
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        // Create account
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
+        const user = userCredential.user;
+
+        // Store username in Firestore
+        await setDoc(doc(db, "users", user.uid), {
+          username: username,
+          email: email,
+          createdAt: serverTimestamp(),
+        });
+
+        // Set displayName in Firebase Auth profile
+        await updateProfile(user, {
+          displayName: username,
+        });
       }
     } catch (error) {
-      Alert.alert("Authentication Error", error.message);
+      setErrorMessage(getFriendlyError(error));
     }
   };
 
@@ -55,6 +95,20 @@ const AuthScreen = () => {
 
           {/* Form */}
           <View style={styles.form}>
+            {!isLogin && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Username</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your username"
+                  placeholderTextColor="#999"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -89,6 +143,8 @@ const AuthScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {errorMessage ? <Text style={styles.errorMessage}>{errorMessage}</Text> : null}
 
             <TouchableOpacity style={styles.button} onPress={handleAuth}>
               <Text style={styles.buttonText}>
@@ -190,6 +246,12 @@ const styles = StyleSheet.create({
     color: "#666",
     fontSize: 14,
     fontWeight: "500",
+  },
+  errorMessage: {
+    color: "red",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
   },
   button: {
     backgroundColor: "#e50914",
