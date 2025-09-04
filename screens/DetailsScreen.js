@@ -45,8 +45,8 @@ import Animated, {
 } from "react-native-reanimated";
 import ShimmerPlaceholder from "react-native-shimmer-placeholder";
 import { LinearGradient } from "expo-linear-gradient";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
@@ -73,7 +73,14 @@ const DetailsScreen = ({ route, navigation }) => {
 
   const loadingOpacity = useSharedValue(1);
 
+  // Fix: Pause animations when modal is visible
   useEffect(() => {
+    if (showWatchlistModal) {
+      // Stop the animation when modal is open
+      loadingOpacity.value = withTiming(1, { duration: 200 });
+      return;
+    }
+
     if (Object.values(loadingEpisodes).some((isLoading) => isLoading)) {
       loadingOpacity.value = withRepeat(
         withSequence(
@@ -86,7 +93,7 @@ const DetailsScreen = ({ route, navigation }) => {
     } else {
       loadingOpacity.value = withTiming(1); // Reset to full opacity
     }
-  }, [loadingEpisodes]);
+  }, [loadingEpisodes, showWatchlistModal]); // Added showWatchlistModal dependency
 
   const animatedTextStyle = useAnimatedStyle(() => ({
     opacity: loadingOpacity.value,
@@ -228,23 +235,33 @@ const DetailsScreen = ({ route, navigation }) => {
     setFavorite(!favorite);
   };
 
-  const handleWatchlistButton = () => {
-    fetchWatchlists();
+  const handleWatchlistButton = async () => {
+    // Fix: Ensure fresh data before showing modal
+    await fetchWatchlists();
+    await checkInAnyWatchlist();
     setShowWatchlistModal(true);
   };
 
   const handleSelectWatchlist = async (name) => {
-    const alreadyIn = await isInWatchlist(name, imdbID);
-    if (alreadyIn) {
-      await removeFromWatchlist(name, imdbID);
-      Alert.alert("Removed", `Removed from '${name}' watchlist.`);
-    } else {
-      await addToWatchlist(name, movie);
-      Alert.alert("Added", `Added to '${name}' watchlist.`);
+    try {
+      const alreadyIn = await isInWatchlist(name, imdbID);
+      if (alreadyIn) {
+        await removeFromWatchlist(name, imdbID);
+        Alert.alert("Removed", `Removed from '${name}' watchlist.`);
+      } else {
+        await addToWatchlist(name, movie);
+        Alert.alert("Added", `Added to '${name}' watchlist.`);
+      }
+      setShowWatchlistModal(false);
+      setSelectedWatchlist(null);
+      // Fix: Update watchlist status after modal closes
+      setTimeout(() => {
+        checkInAnyWatchlist();
+      }, 100);
+    } catch (error) {
+      console.error("Error handling watchlist:", error);
+      Alert.alert("Error", "Failed to update watchlist. Please try again.");
     }
-    setShowWatchlistModal(false);
-    setSelectedWatchlist(null);
-    checkInAnyWatchlist();
   };
 
   const handleWatchTrailer = () => {
@@ -358,11 +375,12 @@ const DetailsScreen = ({ route, navigation }) => {
     );
   };
 
+  // Fix: Only show loading state when modal is not visible
   const renderLoadingState = () => {
     const isLoading = Object.values(loadingEpisodes).some(
       (isLoading) => isLoading
     );
-    if (!isLoading) return null;
+    if (!isLoading || showWatchlistModal) return null;
 
     return (
       <Animated.View
@@ -377,25 +395,43 @@ const DetailsScreen = ({ route, navigation }) => {
   };
 
   const fetchWatchlists = async () => {
-    const data = await getWatchlists();
-    setWatchlists(data);
+    try {
+      const data = await getWatchlists();
+      setWatchlists(data);
+    } catch (error) {
+      console.error("Error fetching watchlists:", error);
+    }
   };
 
   const checkInAnyWatchlist = async () => {
-    const lists = await getWatchlists();
-    setWatchlists(lists);
-    let found = false;
-    const movieWatchlists = [];
+    try {
+      const lists = await getWatchlists();
+      setWatchlists(lists);
+      let found = false;
+      const movieWatchlists = [];
 
-    for (const name of Object.keys(lists)) {
-      if (lists[name].some((m) => m.imdbID === imdbID)) {
-        found = true;
-        movieWatchlists.push(name);
+      for (const name of Object.keys(lists)) {
+        if (lists[name].some((m) => m.imdbID === imdbID)) {
+          found = true;
+          movieWatchlists.push(name);
+        }
       }
-    }
 
-    setInWatchlist(found);
-    setMovieInWatchlists(movieWatchlists);
+      setInWatchlist(found);
+      setMovieInWatchlists(movieWatchlists);
+    } catch (error) {
+      console.error("Error checking watchlist status:", error);
+    }
+  };
+
+  // Fix: Handle modal close properly
+  const handleModalClose = () => {
+    setShowWatchlistModal(false);
+    setSelectedWatchlist(null);
+    // Small delay to ensure smooth transition
+    setTimeout(() => {
+      checkInAnyWatchlist();
+    }, 100);
   };
 
   if (!movie) {
@@ -405,7 +441,7 @@ const DetailsScreen = ({ route, navigation }) => {
           styles.detailsLoadingContainer,
           { backgroundColor: colors.background },
         ]}
-        edges={['top']}
+        edges={["top"]}
       >
         <ActivityIndicator size="large" color={colors.text} />
       </SafeAreaView>
@@ -413,58 +449,67 @@ const DetailsScreen = ({ route, navigation }) => {
   }
 
   return (
-    <SafeAreaView 
-      style={[styles.container, { backgroundColor: theme === "dark" ? "#0a0a0a" : "#f8f9fa" }]} 
-      edges={['top']}
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: theme === "dark" ? "#0a0a0a" : "#f8f9fa" },
+      ]}
+      edges={["top"]}
     >
-      <StatusBar 
-        style={theme === 'dark' ? 'light' : 'dark'} 
-        translucent={false} 
-        backgroundColor={theme === 'dark' ? '#0a0a0a' : '#f8f9fa'}
+      <StatusBar
+        style={theme === "dark" ? "light" : "dark"}
+        translucent={false}
+        backgroundColor={theme === "dark" ? "#0a0a0a" : "#f8f9fa"}
       />
-      
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        // Fix: Disable scroll when modal is open to prevent conflicts
+        scrollEnabled={!showWatchlistModal}
       >
         {/* Header with Back Button */}
         <View style={styles.header}>
-  <TouchableOpacity
-    onPress={() => navigation.goBack()}
-    style={[
-      styles.backButton,
-      { 
-        backgroundColor: colors.primary, // Solid contrast color
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-        elevation: 5 // For Android shadow
-      }
-    ]}
-    activeOpacity={0.8}
-  >
-    <Ionicons
-      name="arrow-back"
-      size={26}
-      color="#fff" // White icon for contrast
-    />
-  </TouchableOpacity>
-</View>
-
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={[
+              styles.backButton,
+              {
+                backgroundColor: colors.primary, // Solid contrast color
+                shadowColor: "#000",
+                shadowOpacity: 0.2,
+                shadowOffset: { width: 0, height: 2 },
+                shadowRadius: 4,
+                elevation: 5, // For Android shadow
+              },
+            ]}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={26}
+              color="#fff" // White icon for contrast
+            />
+          </TouchableOpacity>
+        </View>
 
         {/* Hero Section with Poster */}
         <View style={styles.heroSection}>
           {movie.Poster !== "N/A" ? (
             <View style={styles.posterContainer}>
-              <Image 
-                source={{ uri: movie.Poster }} 
-                style={styles.heroPoster} 
+              <Image
+                source={{ uri: movie.Poster }}
+                style={styles.heroPoster}
                 resizeMode="cover"
               />
               <LinearGradient
-                colors={['transparent', 'transparent', colors.background + '80', colors.background]}
+                colors={[
+                  "transparent",
+                  "transparent",
+                  colors.background + "80",
+                  colors.background,
+                ]}
                 style={styles.posterGradient}
               />
             </View>
@@ -486,7 +531,7 @@ const DetailsScreen = ({ route, navigation }) => {
             <Text style={[styles.title, { color: colors.text }]}>
               {movie.Title}
             </Text>
-            {movie.imdbRating && movie.imdbRating !== 'N/A' && (
+            {movie.imdbRating && movie.imdbRating !== "N/A" && (
               <View style={styles.ratingBadge}>
                 <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
               </View>
@@ -504,16 +549,18 @@ const DetailsScreen = ({ route, navigation }) => {
                 </Text>
               </View>
 
-              {movie.Type !== "series" && movie.Runtime && movie.Runtime !== 'N/A' && (
-                <View style={styles.metaItem}>
-                  <Text style={[styles.metaLabel, { color: colors.text }]}>
-                    Runtime
-                  </Text>
-                  <Text style={[styles.metaValue, { color: colors.text }]}>
-                    {movie.Runtime}
-                  </Text>
-                </View>
-              )}
+              {movie.Type !== "series" &&
+                movie.Runtime &&
+                movie.Runtime !== "N/A" && (
+                  <View style={styles.metaItem}>
+                    <Text style={[styles.metaLabel, { color: colors.text }]}>
+                      Runtime
+                    </Text>
+                    <Text style={[styles.metaValue, { color: colors.text }]}>
+                      {movie.Runtime}
+                    </Text>
+                  </View>
+                )}
 
               {movie.Type === "series" && (
                 <View style={styles.metaItem}>
@@ -529,7 +576,7 @@ const DetailsScreen = ({ route, navigation }) => {
               )}
             </View>
 
-            {movie.Genre && movie.Genre !== 'N/A' && (
+            {movie.Genre && movie.Genre !== "N/A" && (
               <View style={styles.genreSection}>
                 <Text style={[styles.genreLabel, { color: colors.text }]}>
                   Genres
@@ -558,13 +605,13 @@ const DetailsScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {movie.Plot && movie.Plot !== 'N/A' && (
+          {movie.Plot && movie.Plot !== "N/A" && (
             <Text style={[styles.plot, { color: colors.text }]}>
               {movie.Plot}
             </Text>
           )}
 
-          {movie.Actors && movie.Actors !== 'N/A' && (
+          {movie.Actors && movie.Actors !== "N/A" && (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 Cast
@@ -575,7 +622,7 @@ const DetailsScreen = ({ route, navigation }) => {
             </View>
           )}
 
-          {movie.Director && movie.Director !== 'N/A' && (
+          {movie.Director && movie.Director !== "N/A" && (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 Director
@@ -650,7 +697,9 @@ const DetailsScreen = ({ route, navigation }) => {
 
         {/* Series Seasons Section */}
         {movie?.Type === "series" && seriesDetails && (
-          <View style={[styles.seriesSection, { backgroundColor: colors.card }]}>
+          <View
+            style={[styles.seriesSection, { backgroundColor: colors.card }]}
+          >
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Episodes
             </Text>
@@ -686,7 +735,10 @@ const DetailsScreen = ({ route, navigation }) => {
                 {trailerError}
               </Text>
               <TouchableOpacity
-                style={[styles.retryButton, { backgroundColor: colors.primary }]}
+                style={[
+                  styles.retryButton,
+                  { backgroundColor: colors.primary },
+                ]}
                 onPress={handleWatchTrailer}
               >
                 <Text style={[styles.buttonText, { color: "#fff" }]}>
@@ -733,7 +785,9 @@ const DetailsScreen = ({ route, navigation }) => {
         visible={showWatchlistModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowWatchlistModal(false)}
+        onRequestClose={handleModalClose}
+        // Fix: Ensure modal has higher z-index and proper rendering
+        supportedOrientations={['portrait', 'landscape']}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
@@ -761,7 +815,9 @@ const DetailsScreen = ({ route, navigation }) => {
                     onPress={() => handleSelectWatchlist(name)}
                   >
                     <View style={styles.modalItemContent}>
-                      <Text style={[styles.modalItemText, { color: colors.text }]}>
+                      <Text
+                        style={[styles.modalItemText, { color: colors.text }]}
+                      >
                         {name}
                       </Text>
                       {isInThisWatchlist && (
@@ -772,7 +828,10 @@ const DetailsScreen = ({ route, navigation }) => {
                             color={colors.primary}
                           />
                           <Text
-                            style={[styles.inWatchlistText, { color: colors.primary }]}
+                            style={[
+                              styles.inWatchlistText,
+                              { color: colors.primary },
+                            ]}
                           >
                             Added
                           </Text>
@@ -790,7 +849,7 @@ const DetailsScreen = ({ route, navigation }) => {
             />
             <TouchableOpacity
               style={styles.modalCancelButton}
-              onPress={() => setShowWatchlistModal(false)}
+              onPress={handleModalClose}
             >
               <Text style={[styles.modalCancelText, { color: colors.primary }]}>
                 Cancel
@@ -808,7 +867,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    position: 'absolute',
+    position: "absolute",
     top: 16,
     left: 16,
     zIndex: 10,
@@ -817,10 +876,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -830,7 +889,7 @@ const styles = StyleSheet.create({
     height: screenHeight * 0.55,
   },
   posterContainer: {
-    position: 'relative',
+    position: "relative",
   },
   heroPoster: {
     width: "100%",
@@ -838,7 +897,7 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
   posterGradient: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
@@ -1208,12 +1267,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   detailsLoadingContainer: {
-  flex: 1,
-  justifyContent: "center",
-  alignItems: "center",
-  padding: 20, 
-},
-
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
 });
 
 export default DetailsScreen;
