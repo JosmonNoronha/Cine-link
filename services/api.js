@@ -105,3 +105,49 @@ export const getEpisodeDetails = async (imdbID, season, episode) => {
     return null;
   }
 };
+
+export const getRecommendations = async (title) => {
+  try {
+    const response = await fetch('https://movie-reco-api.onrender.com/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titles: [title], top_n: 10 })
+    });
+    
+    const data = await response.json();
+    const recommendations = data.recommendations || [];
+
+    // Fetch OMDB details and filter out unavailable ones
+    const detailedRecommendations = (
+      await Promise.all(
+        recommendations.map(async (rec) => {
+          try {
+            const omdbResponse = await fetch(
+              `https://www.omdbapi.com/?t=${encodeURIComponent(rec.title)}&y=${rec.release_year}&apikey=${OMDB_API_KEY}`
+            );
+            const omdbData = await omdbResponse.json();
+            
+            if (omdbData.Response === 'True') {
+              return {
+                ...rec,
+                imdbID: omdbData.imdbID,
+                Poster: omdbData.Poster,
+                imdbRating: omdbData.imdbRating,
+                Runtime: omdbData.Runtime
+              };
+            }
+            return null; // Return null for movies not found in OMDB
+          } catch (error) {
+            console.error('Error fetching OMDb details:', error);
+            return null;
+          }
+        })
+      )
+    ).filter(rec => rec !== null); // Filter out null entries
+
+    return detailedRecommendations;
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    throw error;
+  }
+};

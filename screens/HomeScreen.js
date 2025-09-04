@@ -11,10 +11,19 @@ import {
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { searchMovies } from "../services/api";
+import { searchMovies, getRecommendations } from "../services/api";
 import MovieCard from "../components/MovieCard";
 import ShimmerMovieCard from "../components/ShimmerMovieCard";
+import RecommendationCard from "../components/RecommendationCard";
 import { useCustomTheme } from "../contexts/ThemeContext";
+import { getFavorites, getWatchlists } from "../utils/storage";
+
+// Fetch recommendation map (example for Firebase hosting JSON)
+const fetchRecommendationsMap = async () => {
+  const url = "https://cinelink-7343e.web.app/recommendations.json";
+  const response = await fetch(url);
+  return await response.json();
+};
 
 const HomeScreen = ({ navigation }) => {
   const [trendingMovies, setTrendingMovies] = useState([]);
@@ -22,12 +31,17 @@ const HomeScreen = ({ navigation }) => {
   const [youMayLike, setYouMayLike] = useState([]);
   const [featuredMovie, setFeaturedMovie] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [recommendedMovies, setRecommendedMovies] = useState([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [lastDataHash, setLastDataHash] = useState(null);
+  
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
-  useEffect(() => {
-    const fetchMovies = async () => {
-      setIsLoading(true);
+  // Fetch static movie data (trending, popular, etc.)
+  const fetchStaticMovies = async () => {
+    setIsLoading(true);
+    try {
       const trendingData = await searchMovies("2023");
       const trending = trendingData.slice(0, 10);
       setTrendingMovies(trending);
@@ -38,12 +52,113 @@ const HomeScreen = ({ navigation }) => {
 
       const shuffled = [...trending].sort(() => 0.5 - Math.random());
       setYouMayLike(shuffled.slice(0, 5));
-
+    } catch (error) {
+      console.error("Error fetching static movies:", error);
+    } finally {
       setIsLoading(false);
-    };
-    fetchMovies();
+    }
+  };
+
+  // Generate a simple hash from favorites and watchlists data
+  const generateDataHash = (favorites, watchlists) => {
+    const favIds = favorites.map(m => m.imdbID).sort().join(',');
+    const watchlistIds = Object.values(watchlists)
+      .flat()
+      .map(m => m.imdbID)
+      .sort()
+      .join(',');
+    return `${favIds}|${watchlistIds}`;
+  };
+
+  // Check if recommendations need to be updated
+  const checkAndUpdateRecommendations = async () => {
+    try {
+      const [favorites, watchlists] = await Promise.all([
+        getFavorites(),
+        getWatchlists(),
+      ]);
+      
+      const currentHash = generateDataHash(favorites, watchlists);
+      
+      // Only fetch recommendations if data has actually changed
+      if (currentHash !== lastDataHash) {
+        console.log('Data changed, updating recommendations...');
+        setLastDataHash(currentHash);
+        await fetchRecommendations(favorites, watchlists);
+      } else {
+        console.log('No data changes, keeping existing recommendations');
+      }
+    } catch (error) {
+      console.error('Error checking for recommendation updates:', error);
+    }
+  };
+
+  // Fetch personalized recommendations based on user's favorites and watchlists
+  const fetchRecommendations = async (favorites = null, watchlists = null) => {
+    setIsLoadingRecommendations(true);
+    try {
+      // Use provided data or fetch fresh data
+      const [favs, lists] = favorites && watchlists ? 
+        [favorites, watchlists] : 
+        await Promise.all([getFavorites(), getWatchlists()]);
+      
+      const favTitles = favs.map((m) => m.Title);
+      const watchlistTitles = Object.values(lists)
+        .flat()
+        .map((m) => m.Title);
+      const allTitles = Array.from(new Set([...favTitles, ...watchlistTitles]));
+
+      if (allTitles.length > 0) {
+        // Get recommendations based on multiple titles for better variety
+        const recommendationPromises = allTitles.slice(0, 3).map(title => 
+          getRecommendations(title).catch(err => {
+            console.warn(`Failed to get recommendations for ${title}:`, err);
+            return [];
+          })
+        );
+        
+        const allRecommendations = await Promise.all(recommendationPromises);
+        
+        // Flatten and deduplicate recommendations
+        const flatRecommendations = allRecommendations.flat();
+        const uniqueRecommendations = flatRecommendations.filter((movie, index, self) => 
+          movie.imdbID && self.findIndex(m => m.imdbID === movie.imdbID) === index
+        );
+        
+        // Limit to 10 recommendations and shuffle for variety
+        const shuffledRecommendations = uniqueRecommendations
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 10);
+          
+        setRecommendedMovies(shuffledRecommendations);
+      } else {
+        setRecommendedMovies([]);
+      }
+    } catch (err) {
+      console.error("Error fetching recommendations:", err);
+      setRecommendedMovies([]);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchStaticMovies();
+    checkAndUpdateRecommendations();
   }, []);
 
+  // Listen for screen focus to update recommendations only if data changed
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Check if recommendations need updating when returning to home screen
+      checkAndUpdateRecommendations();
+    });
+
+    return unsubscribe;
+  }, [navigation, lastDataHash]);
+
+  // --- Render shimmer skeleton ----
   const renderShimmer = (count = 5, horizontal = false) => (
     <FlatList
       data={Array(count).fill({})}
@@ -57,41 +172,45 @@ const HomeScreen = ({ navigation }) => {
     />
   );
 
-  const renderFeaturedBanner = () => (
-    <TouchableOpacity
-      style={styles.featuredContainer}
-      onPress={() =>
-        navigation.navigate("Details", { imdbID: featuredMovie.imdbID })
-      }
-    >
-      <Image
-        source={{
-          uri: featuredMovie?.Poster || "https://via.placeholder.com/400x250",
-        }}
-        style={styles.featuredImage}
-      />
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.8)"]}
-        style={styles.gradientOverlay}
+  // --- Featured Banner ---
+  const renderFeaturedBanner = () =>
+    featuredMovie && (
+      <TouchableOpacity
+        style={styles.featuredContainer}
+        onPress={() =>
+          navigation.navigate("Details", { imdbID: featuredMovie.imdbID })
+        }
       >
-        <Text
-          style={styles.featuredTitle}
-          numberOfLines={2}
-          ellipsizeMode="tail"
+        <Image
+          source={{
+            uri: featuredMovie?.Poster || "https://via.placeholder.com/400x250",
+          }}
+          style={styles.featuredImage}
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          style={styles.gradientOverlay}
         >
-          {featuredMovie?.Title}
-        </Text>
-        <Text style={styles.featuredSubtitle}>
-          {featuredMovie?.Year} • {featuredMovie?.Type}
-        </Text>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+          <Text
+            style={styles.featuredTitle}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {featuredMovie?.Title}
+          </Text>
+          <Text style={styles.featuredSubtitle}>
+            {featuredMovie?.Year} • {featuredMovie?.Type}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
 
-  const renderHorizontalSection = (title, data, keyPrefix) => (
+  // --- Horizontal sections ---
+  const renderHorizontalSection = (title, data, keyPrefix, loading = false) => (
     <View style={styles.sectionContainer}>
       <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
-      {isLoading ? (
+      <View style={styles.sectionUnderline} />
+      {loading ? (
         renderShimmer(3, true)
       ) : (
         <FlatList
@@ -114,15 +233,32 @@ const HomeScreen = ({ navigation }) => {
     </View>
   );
 
+  // --- Recommendation section ---
+  const renderRecommendationSection = (title, data, loading = false) => (
+    <View style={styles.recommendationSection}>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      <View style={styles.sectionUnderline} />
+      {loading ? (
+        renderShimmer(3, true)
+      ) : (
+        <FlatList
+          horizontal
+          data={data}
+          keyExtractor={(_, idx) => `rec-${idx}`}
+          renderItem={({ item }) => <RecommendationCard item={item} />}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+        />
+      )}
+    </View>
+  );
+
+  // --- Sections list ---
   const sections = [
     {
       key: "featured",
       render: () =>
-        isLoading ? (
-          <View style={styles.featuredShimmer} />
-        ) : (
-          renderFeaturedBanner()
-        ),
+        isLoading ? <View style={styles.featuredShimmer} /> : renderFeaturedBanner(),
     },
     {
       key: "featuredThisWeek",
@@ -130,28 +266,36 @@ const HomeScreen = ({ navigation }) => {
         renderHorizontalSection(
           "Featured This Week",
           trendingMovies.slice(0, 5),
-          "featured"
+          "featured",
+          isLoading
         ),
     },
     {
       key: "popularHits",
       render: () =>
-        renderHorizontalSection("Popular Hits", popularHits, "popular"),
+        renderHorizontalSection("Popular Hits", popularHits, "popular", isLoading),
     },
     {
       key: "youMayLike",
-      render: () => renderHorizontalSection("You May Like", youMayLike, "like"),
+      render: () =>
+        renderHorizontalSection("You May Like", youMayLike, "like", isLoading),
     },
     {
-      key: "trendingMovies",
-      render: () => (
-        <View style={styles.sectionContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Trending Movies
-          </Text>
-          {isLoading ? renderShimmer() : null}
-        </View>
-      ),
+      key: "personalRecommendations",
+      render: () => {
+        // Show section if we have recommendations or if we're loading them
+        const hasValidRecommendations = recommendedMovies.length > 0 && 
+          recommendedMovies.some((movie) => movie.imdbID);
+        
+        if (hasValidRecommendations || isLoadingRecommendations) {
+          return renderRecommendationSection(
+            "Recommended For You",
+            recommendedMovies.filter((movie) => movie.imdbID),
+            isLoadingRecommendations
+          );
+        }
+        return null;
+      },
     },
   ];
 
@@ -164,6 +308,7 @@ const HomeScreen = ({ navigation }) => {
         backgroundColor={colors.background}
       />
       <View style={styles.container}>
+        {/* HEADER with Search */}
         <View style={styles.header}>
           <View style={styles.appNameContainer}>
             <Text
@@ -178,24 +323,16 @@ const HomeScreen = ({ navigation }) => {
               Your Movie Heaven
             </Text>
           </View>
+          
         </View>
 
+        {/* Main List */}
         <FlatList
-          data={isLoading ? sections : [...sections, ...trendingMovies]}
-          keyExtractor={(item, index) => (item.key ? item.key : item.imdbID)}
-          renderItem={({ item }) =>
-            item.render ? (
-              item.render()
-            ) : (
-              <MovieCard
-                movie={item}
-                onPress={() =>
-                  navigation.navigate("Details", { imdbID: item.imdbID })
-                }
-              />
-            )
-          }
+          data={sections}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => item.render()}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
         />
       </View>
     </SafeAreaView>
@@ -203,93 +340,80 @@ const HomeScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  safeContainer: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-  },
+  safeContainer: { flex: 1 },
+  container: { flex: 1 },
+
+  // ---- HEADER ----
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
+    borderBottomColor: "#ccc",
   },
-  appNameContainer: {
-    flexDirection: "column",
-  },
-  appName: {
-    fontSize: 30,
-    fontWeight: "bold",
-    letterSpacing: 1.2,
-  },
-  appTagline: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
+  appNameContainer: { flexDirection: "column" },
+  appName: { fontSize: 28, fontWeight: "bold", letterSpacing: 1 },
+  appTagline: { fontSize: 13, opacity: 0.7, marginTop: -2 },
+  searchIcon: { fontSize: 22, color: "#1e88e5" },
+
+  // ---- FEATURED ----
   featuredContainer: {
-    marginHorizontal: 15,
-    marginTop: 15,
-    marginBottom: 20,
-    borderRadius: 12,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 25,
+    borderRadius: 14,
     overflow: "hidden",
-    elevation: 5,
+    elevation: 6,
+    backgroundColor: "#000",
   },
-  featuredImage: {
-    width: "100%",
-    height: 250, // Increased to match card’s prominence
-  },
+  featuredImage: { width: "100%", height: 280, resizeMode: "cover" },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 20,
+    padding: 18,
+    justifyContent: "flex-end",
   },
-  featuredTitle: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-    lineHeight: 28,
-  },
-  featuredSubtitle: {
-    color: "#fff",
-    fontSize: 16,
-    opacity: 0.9,
-    marginTop: 4,
-  },
+  featuredTitle: { color: "#fff", fontSize: 22, fontWeight: "bold" },
+  featuredSubtitle: { color: "#ddd", fontSize: 15, opacity: 0.85 },
   featuredShimmer: {
     width: "90%",
-    height: 250,
-    borderRadius: 12,
+    height: 280,
+    borderRadius: 14,
     backgroundColor: "#ddd",
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 25,
+  },
+
+  // ---- SECTIONS ----
+  sectionContainer: { marginBottom: 25 },
+  sectionTitle: { fontSize: 20, fontWeight: "bold", marginLeft: 20 },
+  sectionUnderline: {
+    width: 40,
+    height: 3,
+    backgroundColor: "#1e88e5",
+    borderRadius: 2,
+    marginLeft: 20,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+
+  // ---- LIST STYLES ----
+  horizontalList: { paddingLeft: 20 },
+  horizontalCard: { width: 160, marginRight: 14 },
+  listContent: { paddingBottom: 50 },
+
+  // ---- PERSONALIZED SECTION ----
+  recommendationSection: {
+    paddingVertical: 20,
+    backgroundColor: "rgba(30,136,229,0.05)", // light blue tint
+    borderRadius: 10,
     marginHorizontal: 15,
-    marginTop: 15,
-    marginBottom: 20,
-  },
-  sectionContainer: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginLeft: 15,
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  horizontalList: {
-    paddingLeft: 15,
-    paddingRight: 15,
-  },
-  horizontalCard: {
-    width: 180, // Increased to fit new card design
-    marginRight: 12,
-  },
-  listContent: {
-    paddingBottom: 30, // Extra space for bottom nav
+    marginBottom: 25,
   },
 });
 

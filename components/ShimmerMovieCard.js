@@ -48,6 +48,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 14,
     elevation: 2,
+    marginRight: 10
   },
   poster: {
     width: 80,

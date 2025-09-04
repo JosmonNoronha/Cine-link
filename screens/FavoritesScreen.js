@@ -20,6 +20,7 @@ const FavoritesScreen = ({ navigation }) => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [showUpdate, setShowUpdate] = useState(false);
   const hasLoadedOnce = useRef(false);
+  const previousFavoritesCount = useRef(0);
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
@@ -39,8 +40,15 @@ const FavoritesScreen = ({ navigation }) => {
       if (changed && hasLoadedOnce.current) {
         setShowUpdate(true);
         setTimeout(() => setShowUpdate(false), 3000);
+        
+        // Mark that favorites have changed for other screens
+        if (favs.length !== previousFavoritesCount.current) {
+          // Set a flag in navigation params that HomeScreen can check
+          navigation.setParams({ favoritesUpdated: Date.now() });
+        }
       }
 
+      previousFavoritesCount.current = favs.length;
       return favs;
     });
 
@@ -53,6 +61,17 @@ const FavoritesScreen = ({ navigation }) => {
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       fetchFavorites(!hasLoadedOnce.current);
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  // Listen for when user leaves this screen to potentially update HomeScreen
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      // This will help trigger updates when user navigates away
+      if (hasLoadedOnce.current) {
+        navigation.setParams({ lastVisited: Date.now() });
+      }
     });
     return unsubscribe;
   }, [navigation]);

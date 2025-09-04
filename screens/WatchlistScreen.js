@@ -52,6 +52,15 @@ const WatchlistsScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
+  // Mark when watchlists are modified for HomeScreen updates
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      // Signal that watchlists might have been updated
+      navigation.setParams({ watchlistsUpdated: Date.now() });
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const handleAddWatchlist = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -78,6 +87,9 @@ const WatchlistsScreen = ({ navigation }) => {
       setTimeout(() => {
         fetchWatchlists();
       }, 100);
+      
+      // Mark that watchlists have been updated
+      navigation.setParams({ watchlistsModified: Date.now() });
     } catch (error) {
       console.error("Error adding watchlist:", error);
       Alert.alert("Error", "Failed to create watchlist. Please try again.");
@@ -93,6 +105,8 @@ const WatchlistsScreen = ({ navigation }) => {
         onPress: async () => {
           await removeWatchlist(name);
           fetchWatchlists();
+          // Mark that watchlists have been updated
+          navigation.setParams({ watchlistsModified: Date.now() });
         },
       },
     ]);
@@ -327,10 +341,22 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
+  // Mark when movies are removed from watchlist
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      // Signal that watchlist content might have been updated
+      navigation.setParams({ contentUpdated: Date.now() });
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const handleDeleteMovie = async (imdbID) => {
     try {
       await removeFromWatchlist(name, imdbID);
       setMovies((prev) => prev.filter((m) => m.imdbID !== imdbID));
+      
+      // Mark that watchlist content has been updated
+      navigation.setParams({ movieRemoved: Date.now() });
     } catch (error) {
       console.error("Failed to remove movie:", error);
     }
