@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -18,6 +19,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import HomeScreen from "../screens/HomeScreen";
 import SearchScreen from "../screens/SearchScreen";
@@ -36,12 +38,15 @@ import SplashLoader from "../components/SplashLoader";
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Add a version key to track app installations
+const APP_VERSION_KEY = '@app_version';
+const CURRENT_APP_VERSION = '1.0.0'; // Update this when you want to force logout
+
 /* ---------- STACKS FOR EACH TAB ---------- */
 const HomeStack = () => (
   <Stack.Navigator
     screenOptions={{
       headerShown: false,
-      // Add these options to prevent status bar issues
       contentStyle: { backgroundColor: 'transparent' },
       animation: 'slide_from_right',
     }}
@@ -51,7 +56,7 @@ const HomeStack = () => (
       name="Details" 
       component={DetailsScreen}
       options={{
-        presentation: 'card', // Ensures consistent presentation
+        presentation: 'card',
         gestureEnabled: true,
       }}
     />
@@ -231,7 +236,6 @@ const AppTabs = () => {
         tabBar={(props) => <CustomTabBar {...props} />}
         screenOptions={{ 
           headerShown: false,
-          // Ensure consistent background
           sceneContainerStyle: { backgroundColor: 'transparent' },
         }}
       >
@@ -251,12 +255,48 @@ const RootNavigator = () => {
   const [loading, setLoading] = useState(true);
   const { theme } = useCustomTheme();
 
+  // Check if this is a fresh installation
+  const checkAppVersion = async () => {
+    try {
+      const savedVersion = await AsyncStorage.getItem(APP_VERSION_KEY);
+      
+      if (!savedVersion || savedVersion !== CURRENT_APP_VERSION) {
+        // This is either first install or a version change
+        console.log('Fresh installation detected, clearing auth state');
+        
+        // Sign out any existing user
+        if (auth.currentUser) {
+          await auth.signOut();
+        }
+        
+        // Clear AsyncStorage
+        await AsyncStorage.clear();
+        
+        // Set current version
+        await AsyncStorage.setItem(APP_VERSION_KEY, CURRENT_APP_VERSION);
+      }
+    } catch (error) {
+      console.error('Error checking app version:', error);
+    }
+  };
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-    });
-    return unsubscribe;
+    const initializeAuth = async () => {
+      await checkAppVersion();
+      
+      const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+        setUser(firebaseUser);
+        setLoading(false);
+      });
+      
+      return unsubscribe;
+    };
+
+    const cleanup = initializeAuth();
+    
+    return () => {
+      cleanup.then(unsubscribe => unsubscribe && unsubscribe());
+    };
   }, []);
 
   if (loading) {

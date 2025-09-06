@@ -12,8 +12,8 @@ import {
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { searchMovies, getRecommendations } from "../services/api";
-import MovieCard from "../components/MovieCard";
-import ShimmerMovieCard from "../components/ShimmerMovieCard";
+import MovieCard from "../components/HomeMovieCard";
+import ShimmerMovieCard from "../components/ShimmerHomeMovieCard";
 import RecommendationCard from "../components/RecommendationCard";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { getFavorites, getWatchlists } from "../utils/storage";

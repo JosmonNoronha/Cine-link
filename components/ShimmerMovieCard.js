@@ -10,66 +10,105 @@ const ShimmerMovieCard = () => {
   const { colors, dark } = useTheme();
 
   return (
-    <View style={[styles.card, { backgroundColor: dark ? '#1a1a1a' : '#f0f0f0' }]}>
-      <ShimmerPlaceholder
-        style={styles.poster}
-        shimmerColors={
-          dark
-            ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-            : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
-        }
-      />
-      <View style={styles.details}>
-        <ShimmerPlaceholder
-          style={styles.title}
-          shimmerColors={
-            dark
-              ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-              : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
-          }
+    <View style={styles.cardContainer}>
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <LinearGradient
+          colors={[colors.card, colors.background]}
+          style={styles.cardGradient}
         />
-        <ShimmerPlaceholder
-          style={styles.subtitle}
-          shimmerColors={
-            dark
-              ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-              : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
-          }
-        />
+        <View style={styles.content}>
+          <ShimmerPlaceholder
+            style={styles.poster}
+            shimmerColors={
+              dark
+                ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
+                : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+            }
+          />
+          <View style={styles.info}>
+            <ShimmerPlaceholder
+              style={styles.title}
+              shimmerColors={
+                dark
+                  ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
+                  : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+              }
+            />
+            <ShimmerPlaceholder
+              style={styles.subtitle}
+              shimmerColors={
+                dark
+                  ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
+                  : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+              }
+            />
+          </View>
+          <ShimmerPlaceholder
+            style={styles.favButton}
+            shimmerColors={
+              dark
+                ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
+                : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+            }
+          />
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  cardContainer: {
+    marginVertical: 8,
+    marginHorizontal: 12,
+  },
   card: {
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  cardGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 16,
+  },
+  content: {
     flexDirection: 'row',
-    borderRadius: 12,
+    alignItems: 'center',
     padding: 12,
-    marginBottom: 14,
-    elevation: 2,
-    marginRight: 10
   },
   poster: {
-    width: 80,
-    height: 110,
+    width: 70,
+    height: 100,
     borderRadius: 10,
+    marginRight: 12,
   },
-  details: {
+  info: {
     flex: 1,
-    marginLeft: 14,
     justifyContent: 'center',
   },
   title: {
-    width: '75%',
-    height: 20,
+    width: '80%',
+    height: 22, // Approximate height for fontSize: 17, lineHeight: 22
     borderRadius: 6,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   subtitle: {
     width: '50%',
-    height: 16,
+    height: 16, // Approximate height for fontSize: 13
     borderRadius: 6,
+  },
+  favButton: {
+    width: 40, // Approximate size for icon (24) + padding (8 + 8)
+    height: 40,
+    borderRadius: 12,
+    marginLeft: 8,
   },
 });
 
