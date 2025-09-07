@@ -11,7 +11,6 @@ import {
   Modal,
   FlatList,
   TextInput,
-  Alert,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -51,6 +50,55 @@ import { StatusBar } from "expo-status-bar";
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
 
+// Simple Toast Component
+const Toast = ({ visible, message, type, onHide }) => {
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      opacity.value = withTiming(1, { duration: 300 });
+      const timer = setTimeout(() => {
+        opacity.value = withTiming(0, { duration: 300 });
+        setTimeout(onHide, 300);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  if (!visible) return null;
+
+  const getToastColor = () => {
+    switch (type) {
+      case 'success': return '#10B981';
+      case 'error': return '#EF4444';
+      case 'info': return '#3B82F6';
+      default: return '#6B7280';
+    }
+  };
+
+  const getIcon = () => {
+    switch (type) {
+      case 'success': return 'checkmark-circle';
+      case 'error': return 'alert-circle';
+      case 'info': return 'information-circle';
+      default: return 'information-circle';
+    }
+  };
+
+  return (
+    <Animated.View style={[styles.toastContainer, animatedStyle]}>
+      <View style={[styles.toast, { backgroundColor: getToastColor() }]}>
+        <Ionicons name={getIcon()} size={18} color="#fff" />
+        <Text style={styles.toastText}>{message}</Text>
+      </View>
+    </Animated.View>
+  );
+};
+
 const DetailsScreen = ({ route, navigation }) => {
   const { imdbID } = route.params;
   const [movie, setMovie] = useState(null);
@@ -65,35 +113,43 @@ const DetailsScreen = ({ route, navigation }) => {
   const [loadingEpisodes, setLoadingEpisodes] = useState({});
   const [watchlists, setWatchlists] = useState({});
   const [showWatchlistModal, setShowWatchlistModal] = useState(false);
-  const [selectedWatchlist, setSelectedWatchlist] = useState(null);
   const [inWatchlist, setInWatchlist] = useState(false);
   const [movieInWatchlists, setMovieInWatchlists] = useState([]);
+  
+  // Toast state
+  const [toast, setToast] = useState({
+    visible: false,
+    message: '',
+    type: 'info'
+  });
+
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
   const loadingOpacity = useSharedValue(1);
 
-  // Fix: Pause animations when modal is visible
-  useEffect(() => {
-    if (showWatchlistModal) {
-      // Stop the animation when modal is open
-      loadingOpacity.value = withTiming(1, { duration: 200 });
-      return;
-    }
+  const showToast = (message, type = 'info') => {
+    setToast({ visible: true, message, type });
+  };
 
+  const hideToast = () => {
+    setToast(prev => ({ ...prev, visible: false }));
+  };
+
+  useEffect(() => {
     if (Object.values(loadingEpisodes).some((isLoading) => isLoading)) {
       loadingOpacity.value = withRepeat(
         withSequence(
           withTiming(0.4, { duration: 800 }),
           withTiming(1, { duration: 800 })
         ),
-        -1, // Infinite loop
-        true // Reverse
+        -1,
+        true
       );
     } else {
-      loadingOpacity.value = withTiming(1); // Reset to full opacity
+      loadingOpacity.value = withTiming(1);
     }
-  }, [loadingEpisodes, showWatchlistModal]); // Added showWatchlistModal dependency
+  }, [loadingEpisodes]);
 
   const animatedTextStyle = useAnimatedStyle(() => ({
     opacity: loadingOpacity.value,
@@ -114,6 +170,7 @@ const DetailsScreen = ({ route, navigation }) => {
       } catch (error) {
         console.error("Failed to load movie details:", error);
         setMovie(null);
+        showToast("Failed to load movie details", "error");
       }
     };
     fetchDetails();
@@ -128,7 +185,6 @@ const DetailsScreen = ({ route, navigation }) => {
         cached.seasons?.length > 0 &&
         cached.seasons[0]?.episodes?.every((ep) => ep.runtime && ep.rating)
       ) {
-        console.log("Loaded series from cache:", cached);
         setSeriesDetails(cached);
         setLoadingEpisodes({});
         return;
@@ -136,7 +192,6 @@ const DetailsScreen = ({ route, navigation }) => {
 
       const seasons = [];
       for (let season = 1; season <= totalSeasons; season++) {
-        console.log(`Fetching season ${season}`);
         setLoadingEpisodes((prev) => ({ ...prev, [season]: true }));
         try {
           const seasonData = await getSeasonDetails(imdbID, season);
@@ -148,9 +203,6 @@ const DetailsScreen = ({ route, navigation }) => {
               seasonData.Episodes.map(async (ep) => {
                 const episodeNumber = parseInt(ep.Episode, 10);
                 if (isNaN(episodeNumber)) {
-                  console.warn(
-                    `Invalid episode number for ${ep.Title}: ${ep.Episode}`
-                  );
                   return {
                     title: ep.Title,
                     episodeNumber: ep.Episode,
@@ -162,10 +214,6 @@ const DetailsScreen = ({ route, navigation }) => {
                   imdbID,
                   season,
                   episodeNumber
-                );
-                console.log(
-                  `Episode ${season}-${episodeNumber} data:`,
-                  episodeData
                 );
                 return {
                   title: ep.Title,
@@ -181,20 +229,14 @@ const DetailsScreen = ({ route, navigation }) => {
               airYear,
               episodes,
             });
-          } else {
-            throw new Error("No episodes found for season");
           }
         } catch (error) {
           console.error(`Error fetching season ${season}:`, error);
         }
-        setLoadingEpisodes((prev) => {
-          console.log(`Clearing loading for season ${season}`);
-          return { ...prev, [season]: false };
-        });
+        setLoadingEpisodes((prev) => ({ ...prev, [season]: false }));
       }
 
       const seriesData = { seasons, fallback: seasons.length === 0 };
-      console.log("Saving series data:", seriesData);
       await saveSeriesDetails(imdbID, seriesData);
       setSeriesDetails(seriesData);
     } catch (error) {
@@ -216,51 +258,68 @@ const DetailsScreen = ({ route, navigation }) => {
       if (data.items && data.items.length > 0) {
         const videoId = data.items[0].id.videoId;
         setVideoId(videoId);
+        showToast("Trailer loaded!", "success");
       } else {
         setTrailerError("No trailer found for this title.");
+        showToast("No trailer found", "info");
       }
     } catch (err) {
       setTrailerError("Failed to load trailer. Please try again.");
+      showToast("Failed to load trailer", "error");
     } finally {
       setTrailerLoading(false);
     }
   };
 
   const toggleFavorite = async () => {
-    if (favorite) {
-      await removeFavorite(imdbID);
-    } else {
-      await saveFavorite(movie);
+    try {
+      if (favorite) {
+        await removeFavorite(imdbID);
+        showToast("Removed from favorites", "info");
+      } else {
+        await saveFavorite(movie);
+        showToast("Added to favorites!", "success");
+      }
+      setFavorite(!favorite);
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      showToast("Failed to update favorites", "error");
     }
-    setFavorite(!favorite);
   };
 
   const handleWatchlistButton = async () => {
-    // Fix: Ensure fresh data before showing modal
-    await fetchWatchlists();
-    await checkInAnyWatchlist();
-    setShowWatchlistModal(true);
+    try {
+      await fetchWatchlists();
+      await checkInAnyWatchlist();
+      setShowWatchlistModal(true);
+    } catch (error) {
+      console.error("Error opening watchlist:", error);
+      showToast("Failed to load watchlists", "error");
+    }
   };
 
   const handleSelectWatchlist = async (name) => {
     try {
       const alreadyIn = await isInWatchlist(name, imdbID);
+      
+      setShowWatchlistModal(false); // Close modal first
+      
       if (alreadyIn) {
         await removeFromWatchlist(name, imdbID);
-        Alert.alert("Removed", `Removed from '${name}' watchlist.`);
+        showToast(`Removed from '${name}'`, "info");
       } else {
         await addToWatchlist(name, movie);
-        Alert.alert("Added", `Added to '${name}' watchlist.`);
+        showToast(`Added to '${name}'!`, "success");
       }
-      setShowWatchlistModal(false);
-      setSelectedWatchlist(null);
-      // Fix: Update watchlist status after modal closes
+      
+      // Update status after a short delay
       setTimeout(() => {
         checkInAnyWatchlist();
-      }, 100);
+      }, 300);
+      
     } catch (error) {
       console.error("Error handling watchlist:", error);
-      Alert.alert("Error", "Failed to update watchlist. Please try again.");
+      showToast("Failed to update watchlist", "error");
     }
   };
 
@@ -271,25 +330,12 @@ const DetailsScreen = ({ route, navigation }) => {
     setIsPlaying(true);
   };
 
-  const toggleFullScreen = () => {
-    setIsFullScreen(!isFullScreen);
-  };
-
-  const exitFullScreen = () => {
-    setIsFullScreen(false);
-  };
-
   const toggleSeason = (seasonNumber) => {
-    console.log(
-      `Toggling season ${seasonNumber}, loadingEpisodes:`,
-      loadingEpisodes
-    );
     setExpandedSeasons((prev) => ({
       ...prev,
       [seasonNumber]: !prev[seasonNumber],
     }));
     if (!seriesDetails?.seasons?.find((s) => s.seasonNumber === seasonNumber)) {
-      console.log(`No data for season ${seasonNumber}, fetching...`);
       setLoadingEpisodes((prev) => ({ ...prev, [seasonNumber]: true }));
       fetchSeriesDetails(imdbID, movie.totalSeasons);
     }
@@ -375,7 +421,6 @@ const DetailsScreen = ({ route, navigation }) => {
     );
   };
 
-  // Fix: Only show loading state when modal is not visible
   const renderLoadingState = () => {
     const isLoading = Object.values(loadingEpisodes).some(
       (isLoading) => isLoading
@@ -424,14 +469,11 @@ const DetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Fix: Handle modal close properly
   const handleModalClose = () => {
     setShowWatchlistModal(false);
-    setSelectedWatchlist(null);
-    // Small delay to ensure smooth transition
     setTimeout(() => {
       checkInAnyWatchlist();
-    }, 100);
+    }, 200);
   };
 
   if (!movie) {
@@ -462,11 +504,18 @@ const DetailsScreen = ({ route, navigation }) => {
         backgroundColor={theme === "dark" ? "#0a0a0a" : "#f8f9fa"}
       />
 
+      {/* Toast Component */}
+      <Toast 
+        visible={toast.visible} 
+        message={toast.message} 
+        type={toast.type} 
+        onHide={hideToast} 
+      />
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        // Fix: Disable scroll when modal is open to prevent conflicts
         scrollEnabled={!showWatchlistModal}
       >
         {/* Header with Back Button */}
@@ -476,12 +525,12 @@ const DetailsScreen = ({ route, navigation }) => {
             style={[
               styles.backButton,
               {
-                backgroundColor: colors.primary, // Solid contrast color
+                backgroundColor: colors.primary,
                 shadowColor: "#000",
                 shadowOpacity: 0.2,
                 shadowOffset: { width: 0, height: 2 },
                 shadowRadius: 4,
-                elevation: 5, // For Android shadow
+                elevation: 5,
               },
             ]}
             activeOpacity={0.8}
@@ -489,7 +538,7 @@ const DetailsScreen = ({ route, navigation }) => {
             <Ionicons
               name="arrow-back"
               size={26}
-              color="#fff" // White icon for contrast
+              color="#fff"
             />
           </TouchableOpacity>
         </View>
@@ -647,12 +696,7 @@ const DetailsScreen = ({ route, navigation }) => {
                 },
               ]}
               onPress={toggleFavorite}
-              onLongPress={() =>
-                Alert.alert(
-                  "Favorites",
-                  favorite ? "Remove from Favorites" : "Add to Favorites"
-                )
-              }
+              activeOpacity={0.7}
             >
               <Ionicons
                 name={favorite ? "heart" : "heart-outline"}
@@ -676,12 +720,7 @@ const DetailsScreen = ({ route, navigation }) => {
                 },
               ]}
               onPress={handleWatchlistButton}
-              onLongPress={() =>
-                Alert.alert(
-                  "Watchlist",
-                  inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"
-                )
-              }
+              activeOpacity={0.7}
             >
               <Ionicons
                 name={inWatchlist ? "bookmark" : "bookmark-outline"}
@@ -740,6 +779,7 @@ const DetailsScreen = ({ route, navigation }) => {
                   { backgroundColor: colors.primary },
                 ]}
                 onPress={handleWatchTrailer}
+                activeOpacity={0.8}
               >
                 <Text style={[styles.buttonText, { color: "#fff" }]}>
                   Retry
@@ -756,15 +796,17 @@ const DetailsScreen = ({ route, navigation }) => {
                 onChangeState={(event) => {
                   if (event === "ended") setIsPlaying(false);
                 }}
-                onError={() =>
-                  setTrailerError("Error playing trailer. Please try again.")
-                }
+                onError={() => {
+                  setTrailerError("Error playing trailer. Please try again.");
+                  showToast("Error playing trailer", "error");
+                }}
               />
             </View>
           ) : (
             <TouchableOpacity
               style={styles.trailerPlaceholder}
               onPress={handleWatchTrailer}
+              activeOpacity={0.8}
             >
               <LinearGradient
                 colors={[colors.primary, colors.primary + "80"]}
@@ -786,7 +828,6 @@ const DetailsScreen = ({ route, navigation }) => {
         transparent
         animationType="slide"
         onRequestClose={handleModalClose}
-        // Fix: Ensure modal has higher z-index and proper rendering
         supportedOrientations={['portrait', 'landscape']}
       >
         <View style={styles.modalOverlay}>
@@ -797,6 +838,7 @@ const DetailsScreen = ({ route, navigation }) => {
             <FlatList
               data={Object.keys(watchlists)}
               keyExtractor={(name) => name}
+              showsVerticalScrollIndicator={false}
               renderItem={({ item: name }) => {
                 const isInThisWatchlist = movieInWatchlists.includes(name);
                 return (
@@ -813,6 +855,7 @@ const DetailsScreen = ({ route, navigation }) => {
                       },
                     ]}
                     onPress={() => handleSelectWatchlist(name)}
+                    activeOpacity={0.7}
                   >
                     <View style={styles.modalItemContent}>
                       <Text
@@ -850,6 +893,7 @@ const DetailsScreen = ({ route, navigation }) => {
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={handleModalClose}
+              activeOpacity={0.7}
             >
               <Text style={[styles.modalCancelText, { color: colors.primary }]}>
                 Cancel
@@ -864,6 +908,36 @@ const DetailsScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  // Toast Styles
+  toastContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+    alignItems: 'center',
+  },
+  toast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    minWidth: 200,
+    maxWidth: screenWidth - 40,
+  },
+  toastText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
     flex: 1,
   },
   header: {
@@ -1051,6 +1125,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 25,
     borderWidth: 2,
+    borderColor: "transparent",
     gap: 8,
   },
   actionButtonActive: {
@@ -1060,7 +1135,6 @@ const styles = StyleSheet.create({
   actionButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#ffffff",
   },
   seriesSection: {
     marginHorizontal: 20,
@@ -1226,6 +1300,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
+    borderRadius: 8,
   },
   modalItemContent: {
     flexDirection: "row",

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  Alert,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -27,13 +26,132 @@ import {
 } from "../utils/storage";
 import { Swipeable } from "react-native-gesture-handler";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+
+// Custom Alert Component
+const CustomAlert = ({ visible, onClose, title, message, buttons, icon, iconColor }) => {
+  const { colors } = useTheme();
+  const scaleValue = new Animated.Value(0);
+  const opacityValue = new Animated.Value(0);
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleValue, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityValue, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(scaleValue, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityValue, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent visible={visible} animationType="none">
+      <Animated.View 
+        style={[styles.alertOverlay, { opacity: opacityValue }]}
+      >
+        <Pressable 
+          style={styles.alertBackdrop} 
+          onPress={() => buttons?.length <= 1 ? onClose() : null}
+        />
+        <Animated.View
+          style={[
+            styles.alertContainer,
+            { 
+              backgroundColor: colors.card,
+              transform: [{ scale: scaleValue }]
+            }
+          ]}
+        >
+          {/* Icon */}
+          <View style={[styles.alertIconContainer, { backgroundColor: iconColor + '15' }]}>
+            <View style={[styles.alertIcon, { backgroundColor: iconColor + '25' }]}>
+              <Ionicons name={icon} size={32} color={iconColor} />
+            </View>
+          </View>
+
+          {/* Content */}
+          <View style={styles.alertContent}>
+            <Text style={[styles.alertTitle, { color: colors.text }]}>
+              {title}
+            </Text>
+            <Text style={[styles.alertMessage, { color: colors.text + 'CC' }]}>
+              {message}
+            </Text>
+          </View>
+
+          {/* Buttons */}
+          <View style={styles.alertButtons}>
+            {buttons?.map((button, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.alertButton,
+                  index === 0 && buttons.length > 1 && { marginRight: 12 }
+                ]}
+                onPress={() => {
+                  button.onPress?.();
+                  onClose();
+                }}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={
+                    button.style === 'destructive' ? ['#ff6b6b', '#ee5a52'] :
+                    button.style === 'default' ? ['#667eea', '#764ba2'] :
+                    ['#9CA3AF', '#6B7280'] // for cancel
+                  }
+                  style={styles.alertButtonGradient}
+                >
+                  <Text style={[styles.alertButtonText, { color: '#fff' }]}>
+                    {button.text}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
+};
 
 const WatchlistsScreen = ({ navigation }) => {
   const [watchlists, setWatchlists] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
+  const [alertConfig, setAlertConfig] = useState({ visible: false });
   const { colors } = useTheme();
+
+  const showCustomAlert = (config) => {
+    setAlertConfig({ ...config, visible: true });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({ visible: false });
+  };
 
   const fetchWatchlists = async () => {
     try {
@@ -64,11 +182,17 @@ const WatchlistsScreen = ({ navigation }) => {
   const handleAddWatchlist = async () => {
     const name = newName.trim();
     if (!name) return;
+    
     if (watchlists[name]) {
-      Alert.alert(
-        "Already Exists",
-        "A watchlist with that name already exists."
-      );
+      showCustomAlert({
+        title: "Watchlist Already Exists",
+        message: "A watchlist with this name already exists. Please choose a different name.",
+        icon: "information-circle",
+        iconColor: "#ffa726",
+        buttons: [
+          { text: "OK", style: "default" }
+        ]
+      });
       return;
     }
 
@@ -90,26 +214,51 @@ const WatchlistsScreen = ({ navigation }) => {
       
       // Mark that watchlists have been updated
       navigation.setParams({ watchlistsModified: Date.now() });
+
+      // Show success message
+      showCustomAlert({
+        title: "Watchlist Created!",
+        message: `"${name}" has been successfully created.`,
+        icon: "checkmark-circle",
+        iconColor: "#4caf50",
+        buttons: [
+          { text: "Great!", style: "default" }
+        ]
+      });
     } catch (error) {
       console.error("Error adding watchlist:", error);
-      Alert.alert("Error", "Failed to create watchlist. Please try again.");
+      showCustomAlert({
+        title: "Unable to Create Watchlist",
+        message: "Something went wrong while creating your watchlist. Please try again.",
+        icon: "alert-circle",
+        iconColor: "#f44336",
+        buttons: [
+          { text: "OK", style: "default" }
+        ]
+      });
     }
   };
 
   const handleRemoveWatchlist = async (name) => {
-    Alert.alert("Delete Watchlist", `Delete "${name}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          await removeWatchlist(name);
-          fetchWatchlists();
-          // Mark that watchlists have been updated
-          navigation.setParams({ watchlistsModified: Date.now() });
-        },
-      },
-    ]);
+    showCustomAlert({
+      title: "Delete Watchlist",
+      message: `Are you sure you want to delete "${name}"? This action cannot be undone and all movies in this list will be removed.`,
+      icon: "trash",
+      iconColor: "#f44336",
+      buttons: [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await removeWatchlist(name);
+            fetchWatchlists();
+            // Mark that watchlists have been updated
+            navigation.setParams({ watchlistsModified: Date.now() });
+          }
+        }
+      ]
+    });
   };
 
   const renderWatchlistItem = ({ item: name, index }) => {
@@ -184,14 +333,6 @@ const WatchlistsScreen = ({ navigation }) => {
       <Text style={[styles.emptySubtitle, { color: colors.text }]}>
         Create your first watchlist to organize your favorite movies
       </Text>
-      <Text
-        style={[
-          styles.emptySubtitle,
-          { color: colors.text, fontSize: 12, marginTop: 10 },
-        ]}
-      >
-        
-      </Text>
       <TouchableOpacity
         style={styles.createFirstButton}
         onPress={() => setModalVisible(true)}
@@ -228,11 +369,6 @@ const WatchlistsScreen = ({ navigation }) => {
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={EmptyState}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={() => {
-          console.log("Rendering FlatList with watchlists:", watchlists);
-          console.log("Watchlists keys:", Object.keys(watchlists));
-          return null;
-        }}
       />
 
       {/* Enhanced FAB button */}
@@ -321,6 +457,17 @@ const WatchlistsScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        onClose={hideAlert}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -328,7 +475,16 @@ const WatchlistsScreen = ({ navigation }) => {
 const WatchlistContentScreen = ({ route, navigation }) => {
   const { name } = route.params;
   const [movies, setMovies] = useState([]);
+  const [alertConfig, setAlertConfig] = useState({ visible: false });
   const { colors } = useTheme();
+
+  const showCustomAlert = (config) => {
+    setAlertConfig({ ...config, visible: true });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig({ visible: false });
+  };
 
   const fetchMovies = async () => {
     const lists = await getWatchlists();
@@ -426,14 +582,20 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       dragX={dragX}
       movie={movie}
       onPress={() =>
-        Alert.alert(
-          "Remove Movie",
-          `Remove \"${movie.Title}\" from \"${name}\"?`,
-          [
+        showCustomAlert({
+          title: "Remove from Watchlist",
+          message: `Are you sure you want to remove "${movie.Title}" from "${name}"?`,
+          icon: "remove-circle",
+          iconColor: "#f44336",
+          buttons: [
             { text: "Cancel", style: "cancel" },
-            { text: "Remove", onPress: () => handleDeleteMovie(movie.imdbID) },
+            { 
+              text: "Remove", 
+              style: "destructive",
+              onPress: () => handleDeleteMovie(movie.imdbID) 
+            },
           ]
-        )
+        })
       }
     />
   );
@@ -529,6 +691,17 @@ const WatchlistContentScreen = ({ route, navigation }) => {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        onClose={hideAlert}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
     </View>
   );
 };
@@ -538,6 +711,93 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 10,
+  },
+  // Alert Styles
+  alertOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  alertContainer: {
+    borderRadius: 24,
+    padding: 24,
+    width: width - 60,
+    maxWidth: 320,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  alertIconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+    borderRadius: 40,
+    padding: 16,
+    alignSelf: 'center',
+  },
+  alertIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertContent: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  alertMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  alertButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  alertButton: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    minHeight: 48,
+  },
+  alertButtonGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+  alertButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  destructiveButton: {
+    // Handled by gradient
+  },
+  cancelButton: {
+    // Handled by background color
+  },
+  defaultButton: {
+    // Handled by gradient
   },
   headerContainer: {
     alignItems: "center",
