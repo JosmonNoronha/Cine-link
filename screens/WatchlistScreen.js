@@ -5,189 +5,28 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  TextInput,
   Image,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  Pressable,
-  Dimensions,
   Animated,
-  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { Swipeable } from "react-native-gesture-handler";
+
+import CustomAlert from "../components/CustomAlert";
+import WatchlistCard from "../components/WatchlistCard";
+import EmptyState from "../components/EmptyState";
+import CreateWatchlistModal from "../components/CreateWatchlistModal";
+
 import {
   getWatchlists,
   addWatchlist,
   removeWatchlist,
   removeFromWatchlist,
 } from "../utils/storage";
-import { Swipeable } from "react-native-gesture-handler";
-
-const { width, height } = Dimensions.get("window");
-
-// Custom Loading Component
-const LoadingButton = ({ loading, onPress, children, style, disabled }) => {
-  const spinValue = new Animated.Value(0);
-
-  React.useEffect(() => {
-    if (loading) {
-      const spinAnimation = Animated.loop(
-        Animated.timing(spinValue, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        })
-      );
-      spinAnimation.start();
-      return () => spinAnimation.stop();
-    }
-  }, [loading, spinValue]);
-
-  const spin = spinValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
-  return (
-    <Pressable
-      style={[style, { opacity: disabled || loading ? 0.8 : 1 }]}
-      onPress={disabled || loading ? undefined : onPress}
-      disabled={disabled || loading}
-    >
-      <LinearGradient
-        colors={["#667eea", "#764ba2"]}
-        style={styles.createButtonGradient}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <Ionicons name="sync-outline" size={16} color="#fff" />
-            </Animated.View>
-            <Text style={[styles.createButtonText, { marginLeft: 8 }]}>
-              Creating...
-            </Text>
-          </View>
-        ) : (
-          children
-        )}
-      </LinearGradient>
-    </Pressable>
-  );
-};
-
-// Custom Alert Component
-const CustomAlert = ({ visible, onClose, title, message, buttons, icon, iconColor }) => {
-  const { colors } = useTheme();
-  const scaleValue = new Animated.Value(0);
-  const opacityValue = new Animated.Value(0);
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(scaleValue, {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityValue, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(scaleValue, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityValue, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible]);
-
-  if (!visible) return null;
-
-  return (
-    <Modal transparent visible={visible} animationType="none">
-      <Animated.View 
-        style={[styles.alertOverlay, { opacity: opacityValue }]}
-      >
-        <Pressable 
-          style={styles.alertBackdrop} 
-          onPress={() => buttons?.length <= 1 ? onClose() : null}
-        />
-        <Animated.View
-          style={[
-            styles.alertContainer,
-            { 
-              backgroundColor: colors.card,
-              transform: [{ scale: scaleValue }]
-            }
-          ]}
-        >
-          {/* Icon */}
-          <View style={[styles.alertIconContainer, { backgroundColor: iconColor + '15' }]}>
-            <View style={[styles.alertIcon, { backgroundColor: iconColor + '25' }]}>
-              <Ionicons name={icon} size={32} color={iconColor} />
-            </View>
-          </View>
-
-          {/* Content */}
-          <View style={styles.alertContent}>
-            <Text style={[styles.alertTitle, { color: colors.text }]}>
-              {title}
-            </Text>
-            <Text style={[styles.alertMessage, { color: colors.text + 'CC' }]}>
-              {message}
-            </Text>
-          </View>
-
-          {/* Buttons */}
-          <View style={styles.alertButtons}>
-            {buttons?.map((button, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.alertButton,
-                  index === 0 && buttons.length > 1 && { marginRight: 12 }
-                ]}
-                onPress={() => {
-                  button.onPress?.();
-                  onClose();
-                }}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={
-                    button.style === 'destructive' ? ['#ff6b6b', '#ee5a52'] :
-                    button.style === 'default' ? ['#667eea', '#764ba2'] :
-                    ['#9CA3AF', '#6B7280'] // for cancel
-                  }
-                  style={styles.alertButtonGradient}
-                >
-                  <Text style={[styles.alertButtonText, { color: '#fff' }]}>
-                    {button.text}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
-  );
-};
 
 const WatchlistsScreen = ({ navigation }) => {
   const [watchlists, setWatchlists] = useState({});
@@ -209,7 +48,6 @@ const WatchlistsScreen = ({ navigation }) => {
     try {
       const data = await getWatchlists();
       console.log("Fetched watchlists:", data);
-      console.log("Watchlist keys:", Object.keys(data));
       setWatchlists(data);
     } catch (error) {
       console.error("Error fetching watchlists:", error);
@@ -222,10 +60,8 @@ const WatchlistsScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
-  // Mark when watchlists are modified for HomeScreen updates
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
-      // Signal that watchlists might have been updated
       navigation.setParams({ watchlistsUpdated: Date.now() });
     });
     return unsubscribe;
@@ -241,46 +77,29 @@ const WatchlistsScreen = ({ navigation }) => {
         message: "A watchlist with this name already exists. Please choose a different name.",
         icon: "information-circle",
         iconColor: "#ffa726",
-        buttons: [
-          { text: "OK", style: "default" }
-        ]
+        buttons: [{ text: "OK", style: "default" }]
       });
       return;
     }
 
     try {
       setIsCreatingWatchlist(true);
-      
-      // Add a small delay to show the loading state
       await new Promise(resolve => setTimeout(resolve, 800));
       
       await addWatchlist(name);
       setNewName("");
       setModalVisible(false);
 
-      // Update the state immediately with the new watchlist
-      setWatchlists((prevWatchlists) => ({
-        ...prevWatchlists,
-        [name]: [],
-      }));
-
-      // Also fetch from database to ensure consistency
-      setTimeout(() => {
-        fetchWatchlists();
-      }, 100);
-      
-      // Mark that watchlists have been updated
+      setWatchlists((prev) => ({ ...prev, [name]: [] }));
+      setTimeout(fetchWatchlists, 100);
       navigation.setParams({ watchlistsModified: Date.now() });
 
-      // Show success message
       showCustomAlert({
         title: "Watchlist Created!",
         message: `"${name}" has been successfully created.`,
         icon: "checkmark-circle",
         iconColor: "#4caf50",
-        buttons: [
-          { text: "Great!", style: "default" }
-        ]
+        buttons: [{ text: "Great!", style: "default" }]
       });
     } catch (error) {
       console.error("Error adding watchlist:", error);
@@ -289,9 +108,7 @@ const WatchlistsScreen = ({ navigation }) => {
         message: "Something went wrong while creating your watchlist. Please try again.",
         icon: "alert-circle",
         iconColor: "#f44336",
-        buttons: [
-          { text: "OK", style: "default" }
-        ]
+        buttons: [{ text: "OK", style: "default" }]
       });
     } finally {
       setIsCreatingWatchlist(false);
@@ -312,7 +129,6 @@ const WatchlistsScreen = ({ navigation }) => {
           onPress: async () => {
             await removeWatchlist(name);
             fetchWatchlists();
-            // Mark that watchlists have been updated
             navigation.setParams({ watchlistsModified: Date.now() });
           }
         }
@@ -322,90 +138,20 @@ const WatchlistsScreen = ({ navigation }) => {
 
   const renderWatchlistItem = ({ item: name, index }) => {
     const movieCount = watchlists[name]?.length || 0;
-    const gradientColors = [
-      `hsl(${(index * 137.5) % 360}, 70%, 85%)`,
-      `hsl(${(index * 137.5) % 360}, 60%, 75%)`,
-    ];
 
     return (
-      <TouchableOpacity
-        style={styles.watchlistCard}
+      <WatchlistCard
+        name={name}
+        movieCount={movieCount}
+        index={index}
         onPress={() => navigation.navigate("WatchlistContent", { name })}
         onLongPress={() => handleRemoveWatchlist(name)}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={gradientColors}
-          style={styles.cardGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconContainer}>
-                <Ionicons
-                  name="film-outline"
-                  size={24}
-                  color={`hsl(${(index * 137.5) % 360}, 50%, 40%)`}
-                />
-              </View>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleRemoveWatchlist(name)}
-              >
-                <Ionicons name="trash-outline" size={16} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.watchlistName} numberOfLines={2}>
-              {name}
-            </Text>
-
-            <View style={styles.cardFooter}>
-              <View style={styles.movieCountContainer}>
-                <Ionicons name="videocam-outline" size={14} color="#666" />
-                <Text style={styles.movieCount}>
-                  {movieCount} {movieCount === 1 ? "movie" : "movies"}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="#666" />
-            </View>
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
+        onDelete={() => handleRemoveWatchlist(name)}
+      />
     );
   };
 
-  const EmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <LinearGradient
-          colors={["#667eea", "#764ba2"]}
-          style={styles.emptyIconGradient}
-        >
-          <Ionicons name="list-outline" size={48} color="#fff" />
-        </LinearGradient>
-      </View>
-      <Text style={[styles.emptyTitle, { color: colors.text }]}>
-        No Watchlists Yet
-      </Text>
-      <Text style={[styles.emptySubtitle, { color: colors.text }]}>
-        Create your first watchlist to organize your favorite movies
-      </Text>
-      <TouchableOpacity
-        style={styles.createFirstButton}
-        onPress={() => setModalVisible(true)}
-      >
-        <LinearGradient
-          colors={["#667eea", "#764ba2"]}
-          style={styles.createButtonGradient}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.createButtonText}>Create Watchlist</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-  );
+  const watchlistKeys = Object.keys(watchlists);
 
   return (
     <KeyboardAvoidingView
@@ -422,16 +168,24 @@ const WatchlistsScreen = ({ navigation }) => {
       </View>
 
       <FlatList
-        data={Object.keys(watchlists)}
+        data={watchlistKeys}
         keyExtractor={(item) => item}
         renderItem={renderWatchlistItem}
         contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={EmptyState}
+        ListEmptyComponent={
+          <EmptyState
+            title="No Watchlists Yet"
+            subtitle="Create your first watchlist to organize your favorite movies"
+            buttonText="Create Watchlist"
+            onButtonPress={() => setModalVisible(true)}
+            showButton
+          />
+        }
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Enhanced FAB button */}
-      {Object.keys(watchlists).length > 0 && (
+      {/* FAB */}
+      {watchlistKeys.length > 0 && (
         <TouchableOpacity
           onPress={() => setModalVisible(true)}
           style={styles.fab}
@@ -446,85 +200,15 @@ const WatchlistsScreen = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* Enhanced Modal for new watchlist with loading state */}
-      <Modal
+      <CreateWatchlistModal
         visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => !isCreatingWatchlist && setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => !isCreatingWatchlist && setModalVisible(false)}
-          />
-          <View
-            style={[styles.modalContainer, { backgroundColor: colors.card }]}
-          >
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIconContainer}>
-                <LinearGradient
-                  colors={["#667eea", "#764ba2"]}
-                  style={styles.modalIconGradient}
-                >
-                  <Ionicons name="add-circle-outline" size={24} color="#fff" />
-                </LinearGradient>
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Create New Watchlist
-              </Text>
-            </View>
+        onClose={() => setModalVisible(false)}
+        newName={newName}
+        setNewName={setNewName}
+        onSubmit={handleAddWatchlist}
+        isLoading={isCreatingWatchlist}
+      />
 
-            <TextInput
-              placeholder="Enter watchlist name"
-              placeholderTextColor={colors.text + "66"}
-              value={newName}
-              onChangeText={setNewName}
-              style={[
-                styles.input,
-                {
-                  color: colors.text,
-                  borderColor: colors.border,
-                  backgroundColor: colors.background,
-                },
-              ]}
-              autoFocus
-              editable={!isCreatingWatchlist}
-            />
-
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  if (!isCreatingWatchlist) {
-                    setModalVisible(false);
-                    setNewName("");
-                  }
-                }}
-                disabled={isCreatingWatchlist}
-              >
-                <Text style={[
-                  styles.cancelButtonText, 
-                  { opacity: isCreatingWatchlist ? 0.5 : 1 }
-                ]}>
-                  Cancel
-                </Text>
-              </Pressable>
-              
-              <LoadingButton
-                loading={isCreatingWatchlist}
-                onPress={handleAddWatchlist}
-                style={[styles.modalButton, styles.createButton]}
-                disabled={!newName.trim() || isCreatingWatchlist}
-              >
-                <Text style={styles.createButtonText}>Create</Text>
-              </LoadingButton>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Custom Alert */}
       <CustomAlert
         visible={alertConfig.visible}
         onClose={hideAlert}
@@ -563,10 +247,8 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
-  // Mark when movies are removed from watchlist
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
-      // Signal that watchlist content might have been updated
       navigation.setParams({ contentUpdated: Date.now() });
     });
     return unsubscribe;
@@ -576,15 +258,12 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     try {
       await removeFromWatchlist(name, imdbID);
       setMovies((prev) => prev.filter((m) => m.imdbID !== imdbID));
-      
-      // Mark that watchlist content has been updated
       navigation.setParams({ movieRemoved: Date.now() });
     } catch (error) {
       console.error("Failed to remove movie:", error);
     }
   };
 
-  // Swipe delete action component for swipeable row (classic Animated API)
   const SwipeDeleteAction = ({ dragX, movie, onPress }) => {
     const scale = dragX.interpolate({
       inputRange: [-100, 0],
@@ -596,45 +275,19 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       outputRange: [1, 0.7, 0],
       extrapolate: "clamp",
     });
+    
     return (
-      <Animated.View
-        style={{
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "transparent",
-          width: 90,
-          height: 120,
-        }}
-      >
+      <Animated.View style={styles.swipeActionContainer}>
         <TouchableOpacity
           onPress={onPress}
-          style={{
-            backgroundColor: "#e74c3c",
-            justifyContent: "center",
-            alignItems: "center",
-            width: 90,
-            height: "90%",
-            borderTopRightRadius: 16,
-            borderBottomRightRadius: 16,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.08,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
+          style={styles.swipeDeleteButton}
           activeOpacity={0.7}
         >
           <Animated.View
-            style={{
-              transform: [{ scale }],
-              opacity,
-              width: 54,
-              height: 54,
-              borderRadius: 27,
-              backgroundColor: "rgba(255,255,255,0.13)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
+            style={[
+              styles.swipeDeleteIcon,
+              { transform: [{ scale }], opacity }
+            ]}
           >
             <Ionicons name="trash" size={28} color="white" />
           </Animated.View>
@@ -705,25 +358,6 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     </Swipeable>
   );
 
-  const EmptyWatchlist = () => (
-    <View style={styles.emptyWatchlistContainer}>
-      <View style={styles.emptyWatchlistIcon}>
-        <LinearGradient
-          colors={["#667eea", "#764ba2"]}
-          style={styles.emptyWatchlistGradient}
-        >
-          <Ionicons name="videocam-outline" size={48} color="#fff" />
-        </LinearGradient>
-      </View>
-      <Text style={[styles.emptyWatchlistTitle, { color: colors.text }]}>
-        No Movies Yet
-      </Text>
-      <Text style={[styles.emptyWatchlistSubtitle, { color: colors.text }]}>
-        Add movies to "{name}" from the search screen
-      </Text>
-    </View>
-  );
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.headerRow}>
@@ -747,7 +381,11 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       </View>
 
       {movies.length === 0 ? (
-        <EmptyWatchlist />
+        <EmptyState
+          icon="videocam-outline"
+          title="No Movies Yet"
+          subtitle={`Add movies to "${name}" from the search screen`}
+        />
       ) : (
         <FlatList
           data={movies}
@@ -758,7 +396,6 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         />
       )}
 
-      {/* Custom Alert */}
       <CustomAlert
         visible={alertConfig.visible}
         onClose={hideAlert}
@@ -777,99 +414,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 10,
-  },
-  // Loading Button Styles
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Alert Styles
-  alertOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  alertBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  alertContainer: {
-    borderRadius: 24,
-    padding: 24,
-    width: width - 60,
-    maxWidth: 320,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-  },
-  alertIconContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-    borderRadius: 40,
-    padding: 16,
-    alignSelf: 'center',
-  },
-  alertIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertContent: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  alertTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  alertMessage: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  alertButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  alertButton: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    minHeight: 48,
-  },
-  alertButtonGradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-  },
-  alertButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  destructiveButton: {
-    // Handled by gradient
-  },
-  cancelButton: {
-    // Handled by background color
-  },
-  defaultButton: {
-    // Handled by gradient
   },
   headerContainer: {
     alignItems: "center",
@@ -890,106 +434,6 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingBottom: 100,
   },
-  watchlistCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: "hidden",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  cardGradient: {
-    padding: 20,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  deleteButton: {
-    padding: 8,
-  },
-  watchlistName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
-    lineHeight: 24,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  movieCountContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  movieCount: {
-    fontSize: 14,
-    color: "#666",
-    marginLeft: 4,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-    paddingTop: 40,
-  },
-  emptyIconContainer: {
-    marginBottom: 24,
-  },
-  emptyIconGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    opacity: 0.7,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  createFirstButton: {
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  createButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-  },
-  createButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-    marginLeft: 8,
-  },
   fab: {
     position: "absolute",
     bottom: 24,
@@ -1008,81 +452,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalBackdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#00000099",
-  },
-  modalContainer: {
-    borderRadius: 20,
-    padding: 24,
-    width: width - 40,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-  },
-  modalHeader: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  modalIconContainer: {
-    marginBottom: 16,
-  },
-  modalIconGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 24,
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  cancelButton: {
-    backgroundColor: "#f5f5f5",
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#666",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  createButton: {
-    overflow: "hidden",
-  },
-  input: {
-    borderWidth: 2,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    textAlign: "center",
-  },
+  // WatchlistContent styles
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1155,33 +525,34 @@ const styles = StyleSheet.create({
   movieListContainer: {
     paddingBottom: 20,
   },
-  emptyWatchlistContainer: {
-    flex: 1,
+  swipeActionContainer: {
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
+    backgroundColor: "transparent",
+    width: 90,
+    height: 120,
   },
-  emptyWatchlistIcon: {
-    marginBottom: 24,
-  },
-  emptyWatchlistGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  swipeDeleteButton: {
+    backgroundColor: "#e74c3c",
     justifyContent: "center",
     alignItems: "center",
+    width: 90,
+    height: "90%",
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  emptyWatchlistTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptyWatchlistSubtitle: {
-    fontSize: 16,
-    opacity: 0.7,
-    textAlign: "center",
-    lineHeight: 22,
+  swipeDeleteIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "rgba(255,255,255,0.13)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
