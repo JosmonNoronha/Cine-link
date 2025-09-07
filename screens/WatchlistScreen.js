@@ -14,6 +14,7 @@ import {
   Pressable,
   Dimensions,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +28,56 @@ import {
 import { Swipeable } from "react-native-gesture-handler";
 
 const { width, height } = Dimensions.get("window");
+
+// Custom Loading Component
+const LoadingButton = ({ loading, onPress, children, style, disabled }) => {
+  const spinValue = new Animated.Value(0);
+
+  React.useEffect(() => {
+    if (loading) {
+      const spinAnimation = Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      );
+      spinAnimation.start();
+      return () => spinAnimation.stop();
+    }
+  }, [loading, spinValue]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <Pressable
+      style={[style, { opacity: disabled || loading ? 0.8 : 1 }]}
+      onPress={disabled || loading ? undefined : onPress}
+      disabled={disabled || loading}
+    >
+      <LinearGradient
+        colors={["#667eea", "#764ba2"]}
+        style={styles.createButtonGradient}
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Ionicons name="sync-outline" size={16} color="#fff" />
+            </Animated.View>
+            <Text style={[styles.createButtonText, { marginLeft: 8 }]}>
+              Creating...
+            </Text>
+          </View>
+        ) : (
+          children
+        )}
+      </LinearGradient>
+    </Pressable>
+  );
+};
 
 // Custom Alert Component
 const CustomAlert = ({ visible, onClose, title, message, buttons, icon, iconColor }) => {
@@ -143,6 +194,7 @@ const WatchlistsScreen = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
   const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
   const { colors } = useTheme();
 
   const showCustomAlert = (config) => {
@@ -197,6 +249,11 @@ const WatchlistsScreen = ({ navigation }) => {
     }
 
     try {
+      setIsCreatingWatchlist(true);
+      
+      // Add a small delay to show the loading state
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
       await addWatchlist(name);
       setNewName("");
       setModalVisible(false);
@@ -236,6 +293,8 @@ const WatchlistsScreen = ({ navigation }) => {
           { text: "OK", style: "default" }
         ]
       });
+    } finally {
+      setIsCreatingWatchlist(false);
     }
   };
 
@@ -387,17 +446,17 @@ const WatchlistsScreen = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* Enhanced Modal for new watchlist */}
+      {/* Enhanced Modal for new watchlist with loading state */}
       <Modal
         visible={modalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => !isCreatingWatchlist && setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <Pressable
             style={styles.modalBackdrop}
-            onPress={() => setModalVisible(false)}
+            onPress={() => !isCreatingWatchlist && setModalVisible(false)}
           />
           <View
             style={[styles.modalContainer, { backgroundColor: colors.card }]}
@@ -430,29 +489,36 @@ const WatchlistsScreen = ({ navigation }) => {
                 },
               ]}
               autoFocus
+              editable={!isCreatingWatchlist}
             />
 
             <View style={styles.modalButtons}>
               <Pressable
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => {
-                  setModalVisible(false);
-                  setNewName("");
+                  if (!isCreatingWatchlist) {
+                    setModalVisible(false);
+                    setNewName("");
+                  }
                 }}
+                disabled={isCreatingWatchlist}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[
+                  styles.cancelButtonText, 
+                  { opacity: isCreatingWatchlist ? 0.5 : 1 }
+                ]}>
+                  Cancel
+                </Text>
               </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.createButton]}
+              
+              <LoadingButton
+                loading={isCreatingWatchlist}
                 onPress={handleAddWatchlist}
+                style={[styles.modalButton, styles.createButton]}
+                disabled={!newName.trim() || isCreatingWatchlist}
               >
-                <LinearGradient
-                  colors={["#667eea", "#764ba2"]}
-                  style={styles.createButtonGradient}
-                >
-                  <Text style={styles.createButtonText}>Create</Text>
-                </LinearGradient>
-              </Pressable>
+                <Text style={styles.createButtonText}>Create</Text>
+              </LoadingButton>
             </View>
           </View>
         </View>
@@ -711,6 +777,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 10,
+  },
+  // Loading Button Styles
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Alert Styles
   alertOverlay: {
