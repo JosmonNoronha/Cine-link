@@ -258,7 +258,6 @@ const DetailsScreen = ({ route, navigation }) => {
       if (data.items && data.items.length > 0) {
         const videoId = data.items[0].id.videoId;
         setVideoId(videoId);
-        showToast("Trailer loaded!", "success");
       } else {
         setTrailerError("No trailer found for this title.");
         showToast("No trailer found", "info");
@@ -288,6 +287,9 @@ const DetailsScreen = ({ route, navigation }) => {
   };
 
   const handleWatchlistButton = async () => {
+    if (toast.visible) {
+    return;
+  }
     try {
       await fetchWatchlists();
       await checkInAnyWatchlist();
