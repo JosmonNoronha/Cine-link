@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   Dimensions,
   Modal,
   FlatList,
-  TextInput,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -34,15 +33,12 @@ import YoutubePlayer from "react-native-youtube-iframe";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeIn,
-  FadeOut,
-  FadeInDown,
   useSharedValue,
   withTiming,
   withSequence,
   withRepeat,
   useAnimatedStyle,
 } from "react-native-reanimated";
-import ShimmerPlaceholder from "react-native-shimmer-placeholder";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -51,7 +47,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
 
 // Simple Toast Component
-const Toast = ({ visible, message, type, onHide }) => {
+const Toast = React.memo(({ visible, message, type, onHide }) => {
   const opacity = useSharedValue(0);
 
   useEffect(() => {
@@ -69,35 +65,419 @@ const Toast = ({ visible, message, type, onHide }) => {
     opacity: opacity.value,
   }));
 
+  const toastConfig = useMemo(() => ({
+    success: { color: '#10B981', icon: 'checkmark-circle' },
+    error: { color: '#EF4444', icon: 'alert-circle' },
+    info: { color: '#3B82F6', icon: 'information-circle' },
+    default: { color: '#6B7280', icon: 'information-circle' }
+  }), []);
+
+  const config = toastConfig[type] || toastConfig.default;
+
   if (!visible) return null;
-
-  const getToastColor = () => {
-    switch (type) {
-      case 'success': return '#10B981';
-      case 'error': return '#EF4444';
-      case 'info': return '#3B82F6';
-      default: return '#6B7280';
-    }
-  };
-
-  const getIcon = () => {
-    switch (type) {
-      case 'success': return 'checkmark-circle';
-      case 'error': return 'alert-circle';
-      case 'info': return 'information-circle';
-      default: return 'information-circle';
-    }
-  };
 
   return (
     <Animated.View style={[styles.toastContainer, animatedStyle]}>
-      <View style={[styles.toast, { backgroundColor: getToastColor() }]}>
-        <Ionicons name={getIcon()} size={18} color="#fff" />
+      <View style={[styles.toast, { backgroundColor: config.color }]}>
+        <Ionicons name={config.icon} size={18} color="#fff" />
         <Text style={styles.toastText}>{message}</Text>
       </View>
     </Animated.View>
   );
-};
+});
+
+// Header Component
+const Header = React.memo(({ onBack, colors }) => (
+  <View style={styles.header}>
+    <TouchableOpacity
+      onPress={onBack}
+      style={[styles.backButton, { backgroundColor: colors.primary }]}
+      activeOpacity={0.8}
+    >
+      <Ionicons name="arrow-back" size={26} color="#fff" />
+    </TouchableOpacity>
+  </View>
+));
+
+// Hero Section Component
+const HeroSection = React.memo(({ movie, colors }) => (
+  <View style={styles.heroSection}>
+    {movie.Poster !== "N/A" ? (
+      <View style={styles.posterContainer}>
+        <Image
+          source={{ uri: movie.Poster }}
+          style={styles.heroPoster}
+          resizeMode="cover"
+        />
+        <LinearGradient
+          colors={[
+            "transparent",
+            "transparent",
+            colors.background + "80",
+            colors.background,
+          ]}
+          style={styles.posterGradient}
+        />
+      </View>
+    ) : (
+      <View style={[styles.heroPlaceholder, { backgroundColor: colors.card }]}>
+        <Ionicons name="film-outline" size={80} color={colors.text} />
+        <Text style={[styles.placeholderText, { color: colors.text }]}>
+          No Poster Available
+        </Text>
+      </View>
+    )}
+  </View>
+));
+
+// Rating Badge Component
+const RatingBadge = React.memo(({ rating }) => {
+  if (!rating || rating === "N/A") return null;
+  
+  return (
+    <View style={styles.ratingBadge}>
+      <Text style={styles.ratingText}>★ {rating}/10</Text>
+    </View>
+  );
+});
+
+// Genre Tags Component
+const GenreTags = React.memo(({ genres, colors, theme }) => {
+  const genreList = useMemo(() => genres.split(", "), [genres]);
+
+  if (!genres || genres === "N/A") return null;
+
+  return (
+    <View style={styles.genreSection}>
+      <Text style={[styles.genreLabel, { color: colors.text }]}>Genres</Text>
+      <View style={styles.genreTags}>
+        {genreList.map((genre, index) => (
+          <View
+            key={index}
+            style={[
+              styles.genreTag,
+              {
+                backgroundColor: theme === "dark"
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.06)",
+              },
+            ]}
+          >
+            <Text style={[styles.genreText, { color: colors.text }]}>
+              {genre.trim()}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+});
+
+// Action Buttons Component
+const ActionButtons = React.memo(({ 
+  favorite, 
+  inWatchlist, 
+  onFavoritePress, 
+  onWatchlistPress, 
+  colors, 
+  theme 
+}) => (
+  <View style={styles.actionButtonsContainer}>
+    <TouchableOpacity
+      style={[
+        styles.actionButton,
+        favorite && styles.actionButtonActive,
+        {
+          backgroundColor: theme === "dark"
+            ? "rgba(255,255,255,0.1)"
+            : "rgba(0,0,0,0.05)",
+        },
+      ]}
+      onPress={onFavoritePress}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name={favorite ? "heart" : "heart-outline"}
+        size={24}
+        color={favorite ? "#ff6b81" : colors.text}
+      />
+      <Text style={[styles.actionButtonText, { color: colors.text }]}>
+        {favorite ? "Favorited" : "Favorite"}
+      </Text>
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      style={[
+        styles.actionButton,
+        inWatchlist && styles.actionButtonActive,
+        {
+          backgroundColor: theme === "dark"
+            ? "rgba(255,255,255,0.1)"
+            : "rgba(0,0,0,0.05)",
+        },
+      ]}
+      onPress={onWatchlistPress}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name={inWatchlist ? "bookmark" : "bookmark-outline"}
+        size={24}
+        color={inWatchlist ? "#42a5f5" : colors.text}
+      />
+      <Text style={[styles.actionButtonText, { color: colors.text }]}>
+        {inWatchlist ? "In List" : "Watchlist"}
+      </Text>
+    </TouchableOpacity>
+  </View>
+));
+
+// Episode Item Component
+const EpisodeItem = React.memo(({ episode, colors, theme }) => (
+  <View
+    style={[
+      styles.episodeItem,
+      {
+        borderBottomColor: theme === "dark"
+          ? "rgba(255,255,255,0.1)"
+          : "rgba(0,0,0,0.1)",
+      },
+    ]}
+  >
+    <Text style={[styles.episodeTitle, { color: colors.text }]}>
+      {episode.episodeNumber}. {episode.title}
+    </Text>
+    <View style={styles.episodeInfo}>
+      <Text style={[styles.episodeRuntime, { color: colors.text }]}>
+        {episode.runtime}
+      </Text>
+      <Text style={[styles.episodeRating, { color: colors.text }]}>
+        ⭐ {episode.rating}
+      </Text>
+    </View>
+  </View>
+));
+
+// Season Component
+const Season = React.memo(({ 
+  season, 
+  isExpanded, 
+  isLoading, 
+  onToggle, 
+  colors, 
+  theme 
+}) => (
+  <View style={styles.seasonContainer}>
+    <TouchableOpacity
+      style={[
+        styles.seasonHeader,
+        {
+          backgroundColor: theme === "dark"
+            ? "rgba(255,255,255,0.05)"
+            : "rgba(0,0,0,0.03)",
+        },
+      ]}
+      onPress={onToggle}
+    >
+      <View style={styles.seasonHeaderContent}>
+        <Text style={[styles.seasonTitle, { color: colors.text }]}>
+          Season {season.seasonNumber}
+        </Text>
+        <Text style={[styles.seasonInfo, { color: colors.text }]}>
+          {season.episodeCount} Episodes • {season.airYear}
+        </Text>
+      </View>
+      <Ionicons
+        name={isExpanded ? "chevron-down" : "chevron-forward"}
+        size={24}
+        color={colors.text}
+      />
+    </TouchableOpacity>
+
+    {isExpanded && (
+      <View style={styles.episodesContainer}>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.text }]}>
+              Loading Episodes...
+            </Text>
+          </View>
+        ) : (
+          season.episodes.map((episode, index) => (
+            <EpisodeItem
+              key={index}
+              episode={episode}
+              colors={colors}
+              theme={theme}
+            />
+          ))
+        )}
+      </View>
+    )}
+  </View>
+));
+
+// Trailer Section Component
+const TrailerSection = React.memo(({ 
+  isTrailerLoading,
+  trailerError,
+  videoId,
+  isPlaying,
+  onWatchTrailer,
+  onRetry,
+  colors,
+  onStateChange,
+  onError
+}) => (
+  <View style={[styles.trailerSection, { backgroundColor: colors.card }]}>
+    <Text style={[styles.sectionTitle, { color: colors.text }]}>Trailer</Text>
+
+    {isTrailerLoading ? (
+      <View style={styles.trailerLoading}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.trailerText, { color: colors.text }]}>
+          Loading trailer...
+        </Text>
+      </View>
+    ) : trailerError ? (
+      <View style={styles.trailerError}>
+        <Ionicons
+          name="alert-circle-outline"
+          size={40}
+          color={colors.text}
+          style={styles.errorIcon}
+        />
+        <Text style={[styles.trailerText, { color: colors.text }]}>
+          {trailerError}
+        </Text>
+        <TouchableOpacity
+          style={[styles.retryButton, { backgroundColor: colors.primary }]}
+          onPress={onRetry}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.buttonText, { color: "#fff" }]}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    ) : videoId && isPlaying ? (
+      <View style={styles.videoWrapper}>
+        <YoutubePlayer
+          height={Math.min(240, (screenWidth - 40) * (9 / 16))}
+          width={screenWidth - 40}
+          play={isPlaying}
+          videoId={videoId}
+          onChangeState={onStateChange}
+          onError={onError}
+        />
+      </View>
+    ) : (
+      <TouchableOpacity
+        style={styles.trailerPlaceholder}
+        onPress={onWatchTrailer}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={[colors.primary, colors.primary + "80"]}
+          style={styles.trailerGradient}
+        >
+          <Ionicons name="play-circle" size={60} color="#fff" />
+          <Text style={[styles.trailerText, { color: "#fff" }]}>
+            Watch Trailer
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    )}
+  </View>
+));
+
+// Watchlist Modal Component
+const WatchlistModal = React.memo(({ 
+  visible, 
+  watchlists, 
+  movieInWatchlists, 
+  onSelectWatchlist, 
+  onClose, 
+  colors, 
+  theme 
+}) => {
+  const watchlistNames = useMemo(() => Object.keys(watchlists), [watchlists]);
+
+  const renderWatchlistItem = useCallback(({ item: name }) => {
+    const isInThisWatchlist = movieInWatchlists.includes(name);
+    return (
+      <TouchableOpacity
+        style={[
+          styles.modalItem,
+          {
+            borderBottomColor: colors.border,
+            backgroundColor: isInThisWatchlist
+              ? theme === "dark"
+                ? "rgba(126, 87, 194, 0.2)"
+                : "rgba(126, 87, 194, 0.1)"
+              : "transparent",
+          },
+        ]}
+        onPress={() => onSelectWatchlist(name)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.modalItemContent}>
+          <Text style={[styles.modalItemText, { color: colors.text }]}>
+            {name}
+          </Text>
+          {isInThisWatchlist && (
+            <View style={styles.inWatchlistBadge}>
+              <Ionicons
+                name="checkmark-circle"
+                size={16}
+                color={colors.primary}
+              />
+              <Text style={[styles.inWatchlistText, { color: colors.primary }]}>
+                Added
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  }, [movieInWatchlists, onSelectWatchlist, colors, theme]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      supportedOrientations={['portrait', 'landscape']}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>
+            Select Watchlist
+          </Text>
+          <FlatList
+            data={watchlistNames}
+            keyExtractor={(name) => name}
+            showsVerticalScrollIndicator={false}
+            renderItem={renderWatchlistItem}
+            ListEmptyComponent={
+              <Text style={[styles.modalEmptyText, { color: colors.text }]}>
+                No watchlists. Create one in the Watchlists tab.
+              </Text>
+            }
+          />
+          <TouchableOpacity
+            style={styles.modalCancelButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.modalCancelText, { color: colors.primary }]}>
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+});
 
 const DetailsScreen = ({ route, navigation }) => {
   const { imdbID } = route.params;
@@ -107,7 +487,6 @@ const DetailsScreen = ({ route, navigation }) => {
   const [isTrailerLoading, setTrailerLoading] = useState(false);
   const [trailerError, setTrailerError] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isFullScreen, setIsFullScreen] = useState(false);
   const [seriesDetails, setSeriesDetails] = useState(null);
   const [expandedSeasons, setExpandedSeasons] = useState({});
   const [loadingEpisodes, setLoadingEpisodes] = useState({});
@@ -128,63 +507,72 @@ const DetailsScreen = ({ route, navigation }) => {
 
   const loadingOpacity = useSharedValue(1);
 
-  const showToast = (message, type = 'info') => {
+  // Memoized functions
+  const showToast = useCallback((message, type = 'info') => {
     setToast({ visible: true, message, type });
-  };
+  }, []);
 
-  const hideToast = () => {
+  const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, visible: false }));
-  };
+  }, []);
 
-  useEffect(() => {
-    if (Object.values(loadingEpisodes).some((isLoading) => isLoading)) {
-      loadingOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.4, { duration: 800 }),
-          withTiming(1, { duration: 800 })
-        ),
-        -1,
-        true
-      );
-    } else {
-      loadingOpacity.value = withTiming(1);
-    }
-  }, [loadingEpisodes]);
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
-  const animatedTextStyle = useAnimatedStyle(() => ({
-    opacity: loadingOpacity.value,
-    color: theme === "dark" ? "#7e57c2" : "#5e35b1",
-  }));
-
-  useEffect(() => {
-    const fetchDetails = async () => {
-      try {
-        const data = await getMovieDetails(imdbID);
-        setMovie(data);
-        const favStatus = await isFavorite(imdbID);
-        setFavorite(favStatus);
-        await checkInAnyWatchlist();
-        if (data.Type === "series" && data.totalSeasons) {
-          await fetchSeriesDetails(imdbID, parseInt(data.totalSeasons));
+  // Optimized episode fetching with batch processing
+  const fetchEpisodeBatch = useCallback(async (imdbID, season, episodes) => {
+    const batchSize = 5; // Process episodes in batches to avoid overwhelming the API
+    const results = [];
+    
+    for (let i = 0; i < episodes.length; i += batchSize) {
+      const batch = episodes.slice(i, i + batchSize);
+      const batchPromises = batch.map(async (ep) => {
+        const episodeNumber = parseInt(ep.Episode, 10);
+        if (isNaN(episodeNumber)) {
+          return {
+            title: ep.Title,
+            episodeNumber: ep.Episode,
+            runtime: "N/A",
+            rating: "N/A",
+          };
         }
-      } catch (error) {
-        console.error("Failed to load movie details:", error);
-        setMovie(null);
-        showToast("Failed to load movie details", "error");
+        try {
+          const episodeData = await getEpisodeDetails(imdbID, season, episodeNumber);
+          return {
+            title: ep.Title,
+            episodeNumber: ep.Episode,
+            runtime: episodeData?.Runtime || "N/A",
+            rating: episodeData?.imdbRating || "N/A",
+          };
+        } catch (error) {
+          console.error(`Error fetching episode ${episodeNumber}:`, error);
+          return {
+            title: ep.Title,
+            episodeNumber: ep.Episode,
+            runtime: "N/A",
+            rating: "N/A",
+          };
+        }
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+      
+      // Small delay between batches to be API-friendly
+      if (i + batchSize < episodes.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-    };
-    fetchDetails();
-    fetchWatchlists();
-  }, [imdbID]);
+    }
+    
+    return results;
+  }, []);
 
-  const fetchSeriesDetails = async (imdbID, totalSeasons) => {
+  const fetchSeriesDetails = useCallback(async (imdbID, totalSeasons) => {
     try {
       const cached = await getSeriesDetails(imdbID);
-      if (
-        cached &&
-        cached.seasons?.length > 0 &&
-        cached.seasons[0]?.episodes?.every((ep) => ep.runtime && ep.rating)
-      ) {
+      if (cached?.seasons?.length > 0 && 
+          cached.seasons[0]?.episodes?.every(ep => ep.runtime && ep.rating)) {
         setSeriesDetails(cached);
         setLoadingEpisodes({});
         return;
@@ -192,37 +580,16 @@ const DetailsScreen = ({ route, navigation }) => {
 
       const seasons = [];
       for (let season = 1; season <= totalSeasons; season++) {
-        setLoadingEpisodes((prev) => ({ ...prev, [season]: true }));
+        setLoadingEpisodes(prev => ({ ...prev, [season]: true }));
         try {
           const seasonData = await getSeasonDetails(imdbID, season);
-          if (seasonData && seasonData.Episodes) {
+          if (seasonData?.Episodes) {
             const airYear = seasonData.Episodes[0]?.Released
               ? new Date(seasonData.Episodes[0].Released).getFullYear()
               : "N/A";
-            const episodes = await Promise.all(
-              seasonData.Episodes.map(async (ep) => {
-                const episodeNumber = parseInt(ep.Episode, 10);
-                if (isNaN(episodeNumber)) {
-                  return {
-                    title: ep.Title,
-                    episodeNumber: ep.Episode,
-                    runtime: "N/A",
-                    rating: "N/A",
-                  };
-                }
-                const episodeData = await getEpisodeDetails(
-                  imdbID,
-                  season,
-                  episodeNumber
-                );
-                return {
-                  title: ep.Title,
-                  episodeNumber: ep.Episode,
-                  runtime: episodeData?.Runtime || "N/A",
-                  rating: episodeData?.imdbRating || "N/A",
-                };
-              })
-            );
+            
+            const episodes = await fetchEpisodeBatch(imdbID, season, seasonData.Episodes);
+            
             seasons.push({
               seasonNumber: season,
               episodeCount: seasonData.Episodes.length,
@@ -233,7 +600,7 @@ const DetailsScreen = ({ route, navigation }) => {
         } catch (error) {
           console.error(`Error fetching season ${season}:`, error);
         }
-        setLoadingEpisodes((prev) => ({ ...prev, [season]: false }));
+        setLoadingEpisodes(prev => ({ ...prev, [season]: false }));
       }
 
       const seriesData = { seasons, fallback: seasons.length === 0 };
@@ -244,9 +611,9 @@ const DetailsScreen = ({ route, navigation }) => {
       setSeriesDetails({ seasons: [], fallback: true });
       setLoadingEpisodes({});
     }
-  };
+  }, [fetchEpisodeBatch]);
 
-  const fetchTrailer = async (title) => {
+  const fetchTrailer = useCallback(async (title) => {
     setTrailerLoading(true);
     setTrailerError(null);
     try {
@@ -255,9 +622,8 @@ const DetailsScreen = ({ route, navigation }) => {
         `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${query}&type=video&maxResults=1&key=${YOUTUBE_API_KEY}`
       );
       const data = await response.json();
-      if (data.items && data.items.length > 0) {
-        const videoId = data.items[0].id.videoId;
-        setVideoId(videoId);
+      if (data.items?.length > 0) {
+        setVideoId(data.items[0].id.videoId);
       } else {
         setTrailerError("No trailer found for this title.");
         showToast("No trailer found", "info");
@@ -268,9 +634,9 @@ const DetailsScreen = ({ route, navigation }) => {
     } finally {
       setTrailerLoading(false);
     }
-  };
+  }, [showToast]);
 
-  const toggleFavorite = async () => {
+  const toggleFavorite = useCallback(async () => {
     try {
       if (favorite) {
         await removeFavorite(imdbID);
@@ -284,27 +650,49 @@ const DetailsScreen = ({ route, navigation }) => {
       console.error("Error toggling favorite:", error);
       showToast("Failed to update favorites", "error");
     }
-  };
+  }, [favorite, imdbID, movie, showToast]);
 
-  const handleWatchlistButton = async () => {
-    if (toast.visible) {
-    return;
-  }
+  const checkInAnyWatchlist = useCallback(async () => {
     try {
-      await fetchWatchlists();
-      await checkInAnyWatchlist();
+      const lists = await getWatchlists();
+      setWatchlists(lists);
+      let found = false;
+      const movieWatchlists = [];
+
+      for (const name of Object.keys(lists)) {
+        if (lists[name].some(m => m.imdbID === imdbID)) {
+          found = true;
+          movieWatchlists.push(name);
+        }
+      }
+
+      setInWatchlist(found);
+      setMovieInWatchlists(movieWatchlists);
+    } catch (error) {
+      console.error("Error checking watchlist status:", error);
+    }
+  }, [imdbID]);
+
+  const handleWatchlistButton = useCallback(async () => {
+    if (toast.visible) return;
+    
+    try {
+      await Promise.all([
+        getWatchlists().then(setWatchlists),
+        checkInAnyWatchlist()
+      ]);
       setShowWatchlistModal(true);
     } catch (error) {
       console.error("Error opening watchlist:", error);
       showToast("Failed to load watchlists", "error");
     }
-  };
+  }, [toast.visible, checkInAnyWatchlist, showToast]);
 
-  const handleSelectWatchlist = async (name) => {
+  const handleSelectWatchlist = useCallback(async (name) => {
     try {
       const alreadyIn = await isInWatchlist(name, imdbID);
       
-      setShowWatchlistModal(false); // Close modal first
+      setShowWatchlistModal(false);
       
       if (alreadyIn) {
         await removeFromWatchlist(name, imdbID);
@@ -314,119 +702,109 @@ const DetailsScreen = ({ route, navigation }) => {
         showToast(`Added to '${name}'!`, "success");
       }
       
-      // Update status after a short delay
-      setTimeout(() => {
-        checkInAnyWatchlist();
-      }, 300);
-      
+      setTimeout(checkInAnyWatchlist, 300);
     } catch (error) {
       console.error("Error handling watchlist:", error);
       showToast("Failed to update watchlist", "error");
     }
-  };
+  }, [imdbID, movie, showToast, checkInAnyWatchlist]);
 
-  const handleWatchTrailer = () => {
+  const handleWatchTrailer = useCallback(() => {
     if (!videoId && movie?.Title) {
       fetchTrailer(movie.Title);
     }
     setIsPlaying(true);
-  };
+  }, [videoId, movie?.Title, fetchTrailer]);
 
-  const toggleSeason = (seasonNumber) => {
-    setExpandedSeasons((prev) => ({
+  const handleTrailerStateChange = useCallback((event) => {
+    if (event === "ended") setIsPlaying(false);
+  }, []);
+
+  const handleTrailerError = useCallback(() => {
+    setTrailerError("Error playing trailer. Please try again.");
+    showToast("Error playing trailer", "error");
+  }, [showToast]);
+
+  const toggleSeason = useCallback((seasonNumber) => {
+    setExpandedSeasons(prev => ({
       ...prev,
       [seasonNumber]: !prev[seasonNumber],
     }));
-    if (!seriesDetails?.seasons?.find((s) => s.seasonNumber === seasonNumber)) {
-      setLoadingEpisodes((prev) => ({ ...prev, [seasonNumber]: true }));
+    if (!seriesDetails?.seasons?.find(s => s.seasonNumber === seasonNumber)) {
+      setLoadingEpisodes(prev => ({ ...prev, [seasonNumber]: true }));
       fetchSeriesDetails(imdbID, movie.totalSeasons);
     }
-  };
+  }, [seriesDetails, imdbID, movie?.totalSeasons, fetchSeriesDetails]);
 
-  const renderSeasonEpisodes = (season) => {
-    const isExpanded = expandedSeasons[season.seasonNumber];
-    const isLoading = loadingEpisodes[season.seasonNumber];
+  const handleModalClose = useCallback(() => {
+    setShowWatchlistModal(false);
+    setTimeout(checkInAnyWatchlist, 200);
+  }, [checkInAnyWatchlist]);
 
-    return (
-      <View key={season.seasonNumber} style={styles.seasonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.seasonHeader,
-            {
-              backgroundColor:
-                theme === "dark"
-                  ? "rgba(255,255,255,0.05)"
-                  : "rgba(0,0,0,0.03)",
-            },
-          ]}
-          onPress={() => toggleSeason(season.seasonNumber)}
-        >
-          <View style={styles.seasonHeaderContent}>
-            <Text style={[styles.seasonTitle, { color: colors.text }]}>
-              Season {season.seasonNumber}
-            </Text>
-            <Text style={[styles.seasonInfo, { color: colors.text }]}>
-              {season.episodeCount} Episodes • {season.airYear}
-            </Text>
-          </View>
-          <Ionicons
-            name={isExpanded ? "chevron-down" : "chevron-forward"}
-            size={24}
-            color={colors.text}
-          />
-        </TouchableOpacity>
+  // Animation effect
+  useEffect(() => {
+    if (Object.values(loadingEpisodes).some(isLoading => isLoading)) {
+      loadingOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.4, { duration: 800 }),
+          withTiming(1, { duration: 800 })
+        ),
+        -1,
+        true
+      );
+    } else {
+      loadingOpacity.value = withTiming(1);
+    }
+  }, [loadingEpisodes, loadingOpacity]);
 
-        {isExpanded && (
-          <View style={styles.episodesContainer}>
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.text }]}>
-                  Loading Episodes...
-                </Text>
-              </View>
-            ) : (
-              season.episodes.map((episode, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.episodeItem,
-                    {
-                      borderBottomColor:
-                        theme === "dark"
-                          ? "rgba(255,255,255,0.1)"
-                          : "rgba(0,0,0,0.1)",
-                    },
-                  ]}
-                >
-                  <Text style={[styles.episodeTitle, { color: colors.text }]}>
-                    {episode.episodeNumber}. {episode.title}
-                  </Text>
-                  <View style={styles.episodeInfo}>
-                    <Text
-                      style={[styles.episodeRuntime, { color: colors.text }]}
-                    >
-                      {episode.runtime}
-                    </Text>
-                    <Text
-                      style={[styles.episodeRating, { color: colors.text }]}
-                    >
-                      ⭐ {episode.rating}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        )}
-      </View>
-    );
-  };
+  // Animated style
+  const animatedTextStyle = useAnimatedStyle(() => ({
+    opacity: loadingOpacity.value,
+    color: theme === "dark" ? "#7e57c2" : "#5e35b1",
+  }));
 
-  const renderLoadingState = () => {
-    const isLoading = Object.values(loadingEpisodes).some(
-      (isLoading) => isLoading
-    );
+  // Initial data fetch
+  useEffect(() => {
+    const fetchDetails = async () => {
+      try {
+        const [data, favStatus] = await Promise.all([
+          getMovieDetails(imdbID),
+          isFavorite(imdbID)
+        ]);
+        
+        setMovie(data);
+        setFavorite(favStatus);
+        
+        if (data.Type === "series" && data.totalSeasons) {
+          fetchSeriesDetails(imdbID, parseInt(data.totalSeasons));
+        }
+        
+        checkInAnyWatchlist();
+      } catch (error) {
+        console.error("Failed to load movie details:", error);
+        setMovie(null);
+        showToast("Failed to load movie details", "error");
+      }
+    };
+    
+    fetchDetails();
+  }, [imdbID, fetchSeriesDetails, checkInAnyWatchlist, showToast]);
+
+  // Memoized render functions
+  const renderSeasonEpisodes = useCallback((season) => (
+    <Season
+      key={season.seasonNumber}
+      season={season}
+      isExpanded={expandedSeasons[season.seasonNumber]}
+      isLoading={loadingEpisodes[season.seasonNumber]}
+      onToggle={() => toggleSeason(season.seasonNumber)}
+      colors={colors}
+      theme={theme}
+    />
+  ), [expandedSeasons, loadingEpisodes, toggleSeason, colors, theme]);
+
+  const renderLoadingState = useMemo(() => {
+    const isLoading = Object.values(loadingEpisodes).some(isLoading => isLoading);
     if (!isLoading || showWatchlistModal) return null;
 
     return (
@@ -439,52 +817,12 @@ const DetailsScreen = ({ route, navigation }) => {
         </Animated.Text>
       </Animated.View>
     );
-  };
-
-  const fetchWatchlists = async () => {
-    try {
-      const data = await getWatchlists();
-      setWatchlists(data);
-    } catch (error) {
-      console.error("Error fetching watchlists:", error);
-    }
-  };
-
-  const checkInAnyWatchlist = async () => {
-    try {
-      const lists = await getWatchlists();
-      setWatchlists(lists);
-      let found = false;
-      const movieWatchlists = [];
-
-      for (const name of Object.keys(lists)) {
-        if (lists[name].some((m) => m.imdbID === imdbID)) {
-          found = true;
-          movieWatchlists.push(name);
-        }
-      }
-
-      setInWatchlist(found);
-      setMovieInWatchlists(movieWatchlists);
-    } catch (error) {
-      console.error("Error checking watchlist status:", error);
-    }
-  };
-
-  const handleModalClose = () => {
-    setShowWatchlistModal(false);
-    setTimeout(() => {
-      checkInAnyWatchlist();
-    }, 200);
-  };
+  }, [loadingEpisodes, showWatchlistModal, colors.card, animatedTextStyle]);
 
   if (!movie) {
     return (
       <SafeAreaView
-        style={[
-          styles.detailsLoadingContainer,
-          { backgroundColor: colors.background },
-        ]}
+        style={[styles.detailsLoadingContainer, { backgroundColor: colors.background }]}
         edges={["top"]}
       >
         <ActivityIndicator size="large" color={colors.text} />
@@ -506,7 +844,6 @@ const DetailsScreen = ({ route, navigation }) => {
         backgroundColor={theme === "dark" ? "#0a0a0a" : "#f8f9fa"}
       />
 
-      {/* Toast Component */}
       <Toast 
         visible={toast.visible} 
         message={toast.message} 
@@ -520,61 +857,9 @@ const DetailsScreen = ({ route, navigation }) => {
         contentContainerStyle={styles.scrollContent}
         scrollEnabled={!showWatchlistModal}
       >
-        {/* Header with Back Button */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={[
-              styles.backButton,
-              {
-                backgroundColor: colors.primary,
-                shadowColor: "#000",
-                shadowOpacity: 0.2,
-                shadowOffset: { width: 0, height: 2 },
-                shadowRadius: 4,
-                elevation: 5,
-              },
-            ]}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={26}
-              color="#fff"
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Hero Section with Poster */}
-        <View style={styles.heroSection}>
-          {movie.Poster !== "N/A" ? (
-            <View style={styles.posterContainer}>
-              <Image
-                source={{ uri: movie.Poster }}
-                style={styles.heroPoster}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={[
-                  "transparent",
-                  "transparent",
-                  colors.background + "80",
-                  colors.background,
-                ]}
-                style={styles.posterGradient}
-              />
-            </View>
-          ) : (
-            <View
-              style={[styles.heroPlaceholder, { backgroundColor: colors.card }]}
-            >
-              <Ionicons name="film-outline" size={80} color={colors.text} />
-              <Text style={[styles.placeholderText, { color: colors.text }]}>
-                No Poster Available
-              </Text>
-            </View>
-          )}
-        </View>
+        <Header onBack={handleBack} colors={colors} />
+        
+        <HeroSection movie={movie} colors={colors} />
 
         {/* Movie/Series Details Card */}
         <View style={[styles.detailsCard, { backgroundColor: colors.card }]}>
@@ -582,11 +867,7 @@ const DetailsScreen = ({ route, navigation }) => {
             <Text style={[styles.title, { color: colors.text }]}>
               {movie.Title}
             </Text>
-            {movie.imdbRating && movie.imdbRating !== "N/A" && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingText}>★ {movie.imdbRating}/10</Text>
-              </View>
-            )}
+            <RatingBadge rating={movie.imdbRating} />
           </View>
 
           <View style={styles.metaContainer}>
@@ -627,33 +908,11 @@ const DetailsScreen = ({ route, navigation }) => {
               )}
             </View>
 
-            {movie.Genre && movie.Genre !== "N/A" && (
-              <View style={styles.genreSection}>
-                <Text style={[styles.genreLabel, { color: colors.text }]}>
-                  Genres
-                </Text>
-                <View style={styles.genreTags}>
-                  {movie.Genre.split(", ").map((genre, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.genreTag,
-                        {
-                          backgroundColor:
-                            theme === "dark"
-                              ? "rgba(255,255,255,0.08)"
-                              : "rgba(0,0,0,0.06)",
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.genreText, { color: colors.text }]}>
-                        {genre.trim()}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
+            <GenreTags 
+              genres={movie.Genre} 
+              colors={colors} 
+              theme={theme} 
+            />
           </View>
 
           {movie.Plot && movie.Plot !== "N/A" && (
@@ -684,63 +943,19 @@ const DetailsScreen = ({ route, navigation }) => {
             </View>
           )}
 
-          {/* Action Buttons */}
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                favorite && styles.actionButtonActive,
-                {
-                  backgroundColor:
-                    theme === "dark"
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(0,0,0,0.05)",
-                },
-              ]}
-              onPress={toggleFavorite}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={favorite ? "heart" : "heart-outline"}
-                size={24}
-                color={favorite ? "#ff6b81" : colors.text}
-              />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>
-                {favorite ? "Favorited" : "Favorite"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                inWatchlist && styles.actionButtonActive,
-                {
-                  backgroundColor:
-                    theme === "dark"
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(0,0,0,0.05)",
-                },
-              ]}
-              onPress={handleWatchlistButton}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={inWatchlist ? "bookmark" : "bookmark-outline"}
-                size={24}
-                color={inWatchlist ? "#42a5f5" : colors.text}
-              />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>
-                {inWatchlist ? "In List" : "Watchlist"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <ActionButtons
+            favorite={favorite}
+            inWatchlist={inWatchlist}
+            onFavoritePress={toggleFavorite}
+            onWatchlistPress={handleWatchlistButton}
+            colors={colors}
+            theme={theme}
+          />
         </View>
 
         {/* Series Seasons Section */}
         {movie?.Type === "series" && seriesDetails && (
-          <View
-            style={[styles.seriesSection, { backgroundColor: colors.card }]}
-          >
+          <View style={[styles.seriesSection, { backgroundColor: colors.card }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Episodes
             </Text>
@@ -748,162 +963,30 @@ const DetailsScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* Loading State */}
-        {renderLoadingState()}
+        {renderLoadingState}
 
-        {/* Trailer Section */}
-        <View style={[styles.trailerSection, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Trailer
-          </Text>
-
-          {isTrailerLoading ? (
-            <View style={styles.trailerLoading}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={[styles.trailerText, { color: colors.text }]}>
-                Loading trailer...
-              </Text>
-            </View>
-          ) : trailerError ? (
-            <View style={styles.trailerError}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={40}
-                color={colors.text}
-                style={styles.errorIcon}
-              />
-              <Text style={[styles.trailerText, { color: colors.text }]}>
-                {trailerError}
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.retryButton,
-                  { backgroundColor: colors.primary },
-                ]}
-                onPress={handleWatchTrailer}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.buttonText, { color: "#fff" }]}>
-                  Retry
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : videoId && isPlaying ? (
-            <View style={styles.videoWrapper}>
-              <YoutubePlayer
-                height={Math.min(240, (screenWidth - 40) * (9 / 16))}
-                width={screenWidth - 40}
-                play={isPlaying}
-                videoId={videoId}
-                onChangeState={(event) => {
-                  if (event === "ended") setIsPlaying(false);
-                }}
-                onError={() => {
-                  setTrailerError("Error playing trailer. Please try again.");
-                  showToast("Error playing trailer", "error");
-                }}
-              />
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.trailerPlaceholder}
-              onPress={handleWatchTrailer}
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primary + "80"]}
-                style={styles.trailerGradient}
-              >
-                <Ionicons name="play-circle" size={60} color="#fff" />
-                <Text style={[styles.trailerText, { color: "#fff" }]}>
-                  Watch Trailer
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </View>
+        <TrailerSection
+          isTrailerLoading={isTrailerLoading}
+          trailerError={trailerError}
+          videoId={videoId}
+          isPlaying={isPlaying}
+          onWatchTrailer={handleWatchTrailer}
+          onRetry={handleWatchTrailer}
+          colors={colors}
+          onStateChange={handleTrailerStateChange}
+          onError={handleTrailerError}
+        />
       </ScrollView>
 
-      {/* Watchlist Selection Modal */}
-      <Modal
+      <WatchlistModal
         visible={showWatchlistModal}
-        transparent
-        animationType="slide"
-        onRequestClose={handleModalClose}
-        supportedOrientations={['portrait', 'landscape']}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Select Watchlist
-            </Text>
-            <FlatList
-              data={Object.keys(watchlists)}
-              keyExtractor={(name) => name}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item: name }) => {
-                const isInThisWatchlist = movieInWatchlists.includes(name);
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.modalItem,
-                      {
-                        borderBottomColor: colors.border,
-                        backgroundColor: isInThisWatchlist
-                          ? theme === "dark"
-                            ? "rgba(126, 87, 194, 0.2)"
-                            : "rgba(126, 87, 194, 0.1)"
-                          : "transparent",
-                      },
-                    ]}
-                    onPress={() => handleSelectWatchlist(name)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalItemContent}>
-                      <Text
-                        style={[styles.modalItemText, { color: colors.text }]}
-                      >
-                        {name}
-                      </Text>
-                      {isInThisWatchlist && (
-                        <View style={styles.inWatchlistBadge}>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={16}
-                            color={colors.primary}
-                          />
-                          <Text
-                            style={[
-                              styles.inWatchlistText,
-                              { color: colors.primary },
-                            ]}
-                          >
-                            Added
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={
-                <Text style={[styles.modalEmptyText, { color: colors.text }]}>
-                  No watchlists. Create one in the Watchlists tab.
-                </Text>
-              }
-            />
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={handleModalClose}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modalCancelText, { color: colors.primary }]}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        watchlists={watchlists}
+        movieInWatchlists={movieInWatchlists}
+        onSelectWatchlist={handleSelectWatchlist}
+        onClose={handleModalClose}
+        colors={colors}
+        theme={theme}
+      />
     </SafeAreaView>
   );
 };

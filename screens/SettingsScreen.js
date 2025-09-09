@@ -9,6 +9,7 @@ import {
   Animated,
   ScrollView,
   Image,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -23,8 +24,11 @@ const SettingsScreen = () => {
   const { colors } = useTheme();
   const { theme, toggleTheme } = useCustomTheme();
   const [updateOverWifi, setUpdateOverWifi] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isExpoGo, setIsExpoGo] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [changelog, setChangelog] = useState('');
+  const [isFetchingChangelog, setIsFetchingChangelog] = useState(false);
   const [user, setUser] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -53,6 +57,21 @@ const SettingsScreen = () => {
     }
   };
 
+  const fetchChangelog = async () => {
+    try {
+      // Replace with your actual GitHub repo (e.g., 'username/cinelink')
+      const response = await fetch('https://api.github.com/repos/username/cinelink/releases/latest');
+      if (!response.ok) {
+        throw new Error('Failed to fetch release info');
+      }
+      const data = await response.json();
+      setChangelog(data.body || 'No detailed changes available.');
+    } catch (error) {
+      console.error('Error fetching changelog:', error);
+      setChangelog('Failed to load update details. Proceed anyway?');
+    }
+  };
+
   const handleUpdate = async () => {
     if (isExpoGo) {
       Alert.alert(
@@ -74,18 +93,27 @@ const SettingsScreen = () => {
 
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
-        await Updates.fetchUpdateAsync();
-        Alert.alert(
-          "Update Downloaded",
-          "The app will restart to apply the update",
-          [{ text: "Restart Now", onPress: () => Updates.reloadAsync() }]
-        );
+        setIsFetchingChangelog(true);
+        await fetchChangelog();
+        setShowUpdateModal(true);
+        setIsFetchingChangelog(false);
       } else {
         Alert.alert("No Updates", "Your app is up to date");
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to update the app");
+      Alert.alert("Error", "Failed to check for updates");
       console.error("Error updating app:", error);
+    }
+  };
+
+  const applyUpdate = async () => {
+    setShowUpdateModal(false);
+    try {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch (error) {
+      Alert.alert("Error", "Failed to apply update");
+      console.error("Error applying update:", error);
     }
   };
 
@@ -289,14 +317,14 @@ const SettingsScreen = () => {
           />
           <View style={styles.themeRow}>
             <Ionicons
-              name="moon-outline"
+              name={theme === "dark" ? "moon" : "sunny"}
               size={28}
               color={theme === "dark" ? "#fff" : "#333"}
               style={styles.themeIcon}
             />
             <View style={{ flex: 1 }}>
               <Text style={[styles.settingLabel, { color: colors.text }]}>
-                Dark Mode
+                {theme === "dark" ? "Dark Mode" : "Light Mode"}
               </Text>
               <Text style={[styles.settingDescription, { color: colors.text }]}>
                 Switch between light and dark themes
@@ -317,6 +345,42 @@ const SettingsScreen = () => {
 
       {/* About */}
       <AboutSection />
+
+      {/* Update Details Modal */}
+      <Modal
+        visible={showUpdateModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowUpdateModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            {isFetchingChangelog ? (
+              <Text style={[styles.modalBody, { color: colors.text }]}>Loading details...</Text>
+            ) : (
+              <>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Update Available</Text>
+                <Text style={[styles.modalBody, { color: colors.text }]}>What's new:</Text>
+                <ScrollView style={styles.changelogScroll}>
+                  <Text style={[styles.changelogText, { color: colors.text }]}>{changelog}</Text>
+                </ScrollView>
+              </>
+            )}
+            <TouchableOpacity
+              style={[styles.updateButton, { backgroundColor: colors.primary }]}
+              onPress={applyUpdate}
+            >
+              <Text style={styles.buttonText}>Update Now</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.laterButton}
+              onPress={() => setShowUpdateModal(false)}
+            >
+              <Text style={[styles.buttonText, { color: colors.primary }]}>Later</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -513,6 +577,44 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     marginTop: 18,
     fontStyle: "italic",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  modalBody: {
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  changelogScroll: {
+    maxHeight: 200,
+    marginBottom: 20,
+  },
+  changelogText: {
+    fontSize: 14,
+    textAlign: 'left',
+  },
+  updateButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  laterButton: {
+    paddingVertical: 10,
   },
 });
 
