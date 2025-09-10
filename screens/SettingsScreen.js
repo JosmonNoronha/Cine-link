@@ -350,7 +350,7 @@ const SettingsScreen = () => {
       </View>
       <View style={styles.legalContainer}>
         <TouchableOpacity
-          onPress={() => Alert.alert("Privacy Policy", "Respect my privacy plz")}
+          onPress={() => Alert.alert("Privacy Policy", "Respect my privacy plzzzz")}
           style={styles.legalLink}
         >
           <Text style={[styles.legalText, { color: colors.text }]}>
