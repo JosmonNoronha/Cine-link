@@ -50,16 +50,16 @@ const SettingsScreen = () => {
 
   const checkForUpdates = async () => {
     if (isExpoGo) return;
-    
+
     try {
       setIsCheckingUpdate(true);
       const update = await Updates.checkForUpdateAsync();
       setUpdateAvailable(update.isAvailable);
-      
+
       if (update.isAvailable) {
-        console.log('Update available:', update);
-        console.log('Update manifest:', update.manifest);
-        
+        console.log("Update available:", update);
+        console.log("Update manifest:", update.manifest);
+
         const updateDetails = {
           id: update.updateId,
           createdAt: update.createdAt,
@@ -85,30 +85,30 @@ const SettingsScreen = () => {
     // Check various possible locations for update message
     if (manifest?.metadata?.message) return manifest.metadata.message;
     if (manifest?.extra?.updateMessage) return manifest.extra.updateMessage;
-    
+
     // Check app config for custom metadata
     if (Constants.expoConfig.extra?.updateMetadata?.message) {
       return Constants.expoConfig.extra.updateMetadata.message;
     }
-    
+
     // Fallback to meaningful messages based on time or version
     const fallbackMessages = [
       "Latest bug fixes and performance improvements",
-      "New features and enhanced user experience", 
+      "New features and enhanced user experience",
       "Security updates and stability improvements",
       "UI enhancements and bug fixes",
-      "Performance optimizations and new features"
+      "Performance optimizations and new features",
     ];
-    
+
     if (updateId) {
-      const hash = updateId.split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
+      const hash = updateId.split("").reduce((a, b) => {
+        a = (a << 5) - a + b.charCodeAt(0);
         return a & a;
       }, 0);
       const index = Math.abs(hash) % fallbackMessages.length;
       return fallbackMessages[index];
     }
-    
+
     return "Update available with improvements";
   };
 
@@ -169,10 +169,12 @@ const SettingsScreen = () => {
       presentationStyle="pageSheet"
       onRequestClose={() => setShowUpdateDetails(false)}
     >
-      <View style={[
-        styles.modalContainer,
-        { backgroundColor: theme === "dark" ? "#1f1f1f" : "#ffffff" }
-      ]}>
+      <View
+        style={[
+          styles.modalContainer,
+          { backgroundColor: theme === "dark" ? "#1f1f1f" : "#ffffff" },
+        ]}
+      >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>
             Update Details
@@ -184,18 +186,26 @@ const SettingsScreen = () => {
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-        
+
         <ScrollView style={styles.modalContent}>
           {updateInfo && (
             <>
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
-                  <Ionicons name="information-circle" size={20} color={colors.primary} />
+                  <Ionicons
+                    name="information-circle"
+                    size={20}
+                    color={colors.primary}
+                  />
                   <View style={styles.updateDetailText}>
-                    <Text style={[styles.updateDetailLabel, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailLabel, { color: colors.text }]}
+                    >
                       Update Message
                     </Text>
-                    <Text style={[styles.updateDetailValue, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailValue, { color: colors.text }]}
+                    >
                       {updateInfo.message}
                     </Text>
                   </View>
@@ -206,10 +216,14 @@ const SettingsScreen = () => {
                 <View style={styles.updateDetailRow}>
                   <Ionicons name="calendar" size={20} color={colors.primary} />
                   <View style={styles.updateDetailText}>
-                    <Text style={[styles.updateDetailLabel, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailLabel, { color: colors.text }]}
+                    >
                       Release Date
                     </Text>
-                    <Text style={[styles.updateDetailValue, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailValue, { color: colors.text }]}
+                    >
                       {formatDate(updateInfo.createdAt)}
                     </Text>
                   </View>
@@ -218,12 +232,23 @@ const SettingsScreen = () => {
 
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
-                  <Ionicons name="code-working" size={20} color={colors.primary} />
+                  <Ionicons
+                    name="code-working"
+                    size={20}
+                    color={colors.primary}
+                  />
                   <View style={styles.updateDetailText}>
-                    <Text style={[styles.updateDetailLabel, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailLabel, { color: colors.text }]}
+                    >
                       Update ID
                     </Text>
-                    <Text style={[styles.updateDetailValueMono, { color: colors.text }]}>
+                    <Text
+                      style={[
+                        styles.updateDetailValueMono,
+                        { color: colors.text },
+                      ]}
+                    >
                       {updateInfo.id?.substring(0, 8)}...
                     </Text>
                   </View>
@@ -234,10 +259,14 @@ const SettingsScreen = () => {
                 <View style={styles.updateDetailRow}>
                   <Ionicons name="apps" size={20} color={colors.primary} />
                   <View style={styles.updateDetailText}>
-                    <Text style={[styles.updateDetailLabel, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailLabel, { color: colors.text }]}
+                    >
                       Version
                     </Text>
-                    <Text style={[styles.updateDetailValue, { color: colors.text }]}>
+                    <Text
+                      style={[styles.updateDetailValue, { color: colors.text }]}
+                    >
                       {updateInfo.version}
                     </Text>
                   </View>
@@ -247,12 +276,26 @@ const SettingsScreen = () => {
               {updateInfo.description && (
                 <View style={styles.updateDetailCard}>
                   <View style={styles.updateDetailRow}>
-                    <Ionicons name="document-text" size={20} color={colors.primary} />
+                    <Ionicons
+                      name="document-text"
+                      size={20}
+                      color={colors.primary}
+                    />
                     <View style={styles.updateDetailText}>
-                      <Text style={[styles.updateDetailLabel, { color: colors.text }]}>
+                      <Text
+                        style={[
+                          styles.updateDetailLabel,
+                          { color: colors.text },
+                        ]}
+                      >
                         Description
                       </Text>
-                      <Text style={[styles.updateDetailValue, { color: colors.text }]}>
+                      <Text
+                        style={[
+                          styles.updateDetailValue,
+                          { color: colors.text },
+                        ]}
+                      >
                         {updateInfo.description}
                       </Text>
                     </View>
@@ -265,10 +308,20 @@ const SettingsScreen = () => {
                   <View style={styles.updateDetailRow}>
                     <Ionicons name="list" size={20} color={colors.primary} />
                     <View style={styles.updateDetailText}>
-                      <Text style={[styles.updateDetailLabel, { color: colors.text }]}>
+                      <Text
+                        style={[
+                          styles.updateDetailLabel,
+                          { color: colors.text },
+                        ]}
+                      >
                         Changelog
                       </Text>
-                      <Text style={[styles.updateDetailValue, { color: colors.text }]}>
+                      <Text
+                        style={[
+                          styles.updateDetailValue,
+                          { color: colors.text },
+                        ]}
+                      >
                         {updateInfo.changelog}
                       </Text>
                     </View>
@@ -287,7 +340,12 @@ const SettingsScreen = () => {
               handleUpdate();
             }}
           >
-            <Ionicons name="download" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Ionicons
+              name="download"
+              size={20}
+              color="#fff"
+              style={{ marginRight: 8 }}
+            />
             <Text style={styles.buttonText}>Download Update</Text>
           </TouchableOpacity>
         </View>
@@ -365,9 +423,7 @@ const SettingsScreen = () => {
     <SectionCard title="About">
       <View style={styles.aboutContainer}>
         <View style={styles.aboutDetails}>
-          <Text style={[styles.appName, { color: colors.text }]}>
-            CineLink
-          </Text>
+          <Text style={[styles.appName, { color: colors.text }]}>CineLink</Text>
           <Text style={[styles.appVersion, { color: colors.text }]}>
             Version {Constants.expoConfig.version || "1.0.0"}
           </Text>
@@ -375,7 +431,7 @@ const SettingsScreen = () => {
             Your ultimate movie companion app, designed to help you discover,
             organize, and enjoy your favorite films.
           </Text>
-          
+
           <Text style={[styles.apiCredit, { color: colors.text }]}>
             Powered by OMDB API
           </Text>
@@ -383,7 +439,9 @@ const SettingsScreen = () => {
       </View>
       <View style={styles.legalContainer}>
         <TouchableOpacity
-          onPress={() => Alert.alert("Privacy Policy", "Respect my privacy plz")}
+          onPress={() =>
+            Alert.alert("Privacy Policy", "Respect my privacy plzzzz")
+          }
           style={styles.legalLink}
         >
           <Text style={[styles.legalText, { color: colors.text }]}>
@@ -391,7 +449,9 @@ const SettingsScreen = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => Alert.alert("Terms of Service", "Feed my Shawarma and biryani")}
+          onPress={() =>
+            Alert.alert("Terms of Service", "Feed me Shawarma and biryani")
+          }
           style={styles.legalLink}
         >
           <Text style={[styles.legalText, { color: colors.text }]}>
@@ -423,8 +483,8 @@ const SettingsScreen = () => {
                 color={colors.text}
               />
               <Text style={[styles.infoText, { color: colors.text }]}>
-                Updates are unavailable in Expo Go. Please use a development build
-                to test.
+                Updates are unavailable in Expo Go. Please use a development
+                build to test.
               </Text>
             </View>
           ) : (
@@ -449,27 +509,35 @@ const SettingsScreen = () => {
               </View>
 
               {updateAvailable && updateInfo && (
-                <View style={[
-                  styles.updateAvailableCard,
-                  { backgroundColor: theme === "dark" ? "#2d4a2b" : "#e8f5e8" }
-                ]}>
+                <View
+                  style={[
+                    styles.updateAvailableCard,
+                    {
+                      backgroundColor: theme === "dark" ? "#2d4a2b" : "#e8f5e8",
+                    },
+                  ]}
+                >
                   <View style={styles.updateAvailableHeader}>
-                    <Ionicons 
-                      name="cloud-download" 
-                      size={24} 
-                      color={theme === "dark" ? "#4ade80" : "#16a34a"} 
+                    <Ionicons
+                      name="cloud-download"
+                      size={24}
+                      color={theme === "dark" ? "#4ade80" : "#16a34a"}
                     />
                     <View style={styles.updateAvailableText}>
-                      <Text style={[
-                        styles.updateAvailableTitle,
-                        { color: theme === "dark" ? "#4ade80" : "#16a34a" }
-                      ]}>
+                      <Text
+                        style={[
+                          styles.updateAvailableTitle,
+                          { color: theme === "dark" ? "#4ade80" : "#16a34a" },
+                        ]}
+                      >
                         Update Available
                       </Text>
-                      <Text style={[
-                        styles.updateAvailableMessage,
-                        { color: colors.text }
-                      ]}>
+                      <Text
+                        style={[
+                          styles.updateAvailableMessage,
+                          { color: colors.text },
+                        ]}
+                      >
                         {updateInfo.message}
                       </Text>
                     </View>
@@ -478,16 +546,18 @@ const SettingsScreen = () => {
                     style={styles.viewDetailsButton}
                     onPress={() => setShowUpdateDetails(true)}
                   >
-                    <Text style={[
-                      styles.viewDetailsText,
-                      { color: theme === "dark" ? "#4ade80" : "#16a34a" }
-                    ]}>
+                    <Text
+                      style={[
+                        styles.viewDetailsText,
+                        { color: theme === "dark" ? "#4ade80" : "#16a34a" },
+                      ]}
+                    >
                       View Details
                     </Text>
-                    <Ionicons 
-                      name="chevron-forward" 
-                      size={16} 
-                      color={theme === "dark" ? "#4ade80" : "#16a34a"} 
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={theme === "dark" ? "#4ade80" : "#16a34a"}
                     />
                   </TouchableOpacity>
                 </View>
@@ -502,18 +572,23 @@ const SettingsScreen = () => {
                 disabled={isCheckingUpdate}
               >
                 <Ionicons
-                  name={isCheckingUpdate ? "sync" : updateAvailable ? "download" : "cloud-download-outline"}
+                  name={
+                    isCheckingUpdate
+                      ? "sync"
+                      : updateAvailable
+                      ? "download"
+                      : "cloud-download-outline"
+                  }
                   size={20}
                   color="#fff"
                   style={{ marginRight: 8 }}
                 />
                 <Text style={styles.buttonText}>
-                  {isCheckingUpdate 
-                    ? "Checking..." 
-                    : updateAvailable 
-                      ? "Download Update" 
-                      : "Check for Updates"
-                  }
+                  {isCheckingUpdate
+                    ? "Checking..."
+                    : updateAvailable
+                    ? "Download Update"
+                    : "Check for Updates"}
                 </Text>
               </TouchableOpacity>
             </>
@@ -532,7 +607,9 @@ const SettingsScreen = () => {
           >
             <LinearGradient
               colors={
-                theme === "dark" ? ["#1e88e5", "#1976d2"] : ["#1976d2", "#1e88e5"]
+                theme === "dark"
+                  ? ["#1e88e5", "#1976d2"]
+                  : ["#1976d2", "#1e88e5"]
               }
               style={styles.gradientOverlay}
             />
@@ -547,7 +624,9 @@ const SettingsScreen = () => {
                 <Text style={[styles.settingLabel, { color: colors.text }]}>
                   {theme === "dark" ? "Dark Mode" : "Light Mode"}
                 </Text>
-                <Text style={[styles.settingDescription, { color: colors.text }]}>
+                <Text
+                  style={[styles.settingDescription, { color: colors.text }]}
+                >
                   Switch between light and dark themes
                 </Text>
               </View>
@@ -567,7 +646,7 @@ const SettingsScreen = () => {
         {/* About */}
         <AboutSection />
       </ScrollView>
-      
+
       <UpdateDetailsModal />
     </>
   );
