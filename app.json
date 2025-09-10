@@ -34,7 +34,9 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.josmon2004.CineLink",
-      "permissions": ["android.permission.INTERNET"]
+      "permissions": [
+        "android.permission.INTERNET"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -50,7 +52,14 @@
       "FIREBASE_STORAGE_BUCKET": "cinelink-7343e.firebasestorage.app",
       "FIREBASE_MESSAGING_SENDER_ID": "1024760551349",
       "FIREBASE_APP_ID": "1:1024760551349:web:ae5f35ccfce9a9e257ebfc",
-      "FIREBASE_MEASUREMENT_ID": "G-1HG3P6E0QX"
+      "FIREBASE_MEASUREMENT_ID": "G-1HG3P6E0QX",
+      "updateMetadata": {
+        "message": "Version 1.0.0 Release",
+        "description": "App update details",
+        "changelog": "- Test",
+        "timestamp": "2025-09-10T06:24:45.588Z",
+        "version": "1.0.0"
+      }
     },
     "plugins": []
   }
