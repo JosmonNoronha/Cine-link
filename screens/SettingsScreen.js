@@ -358,7 +358,7 @@ const SettingsScreen = () => {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => Alert.alert("Terms of Service", "Feed my Shawarma and biryani")}
+          onPress={() => Alert.alert("Terms of Service", "Feed me Shawarma and biryani and cake")}
           style={styles.legalLink}
         >
           <Text style={[styles.legalText, { color: colors.text }]}>
