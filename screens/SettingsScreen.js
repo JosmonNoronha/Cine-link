@@ -257,7 +257,11 @@ const SettingsScreen = () => {
 
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
-                  <Ionicons name="apps" size={20} color={colors.primary} />
+                  <Ionicons
+                    name="apps"
+                    size={20}
+                    color={colors.primary}
+                  />
                   <View style={styles.updateDetailText}>
                     <Text
                       style={[styles.updateDetailLabel, { color: colors.text }]}
@@ -384,10 +388,18 @@ const SettingsScreen = () => {
             </LinearGradient>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text }]}>
+            <Text
+              style={[styles.profileName, { color: colors.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {user.displayName || "No Username Set"}
             </Text>
-            <Text style={[styles.profileEmail, { color: colors.text }]}>
+            <Text
+              style={[styles.profileEmail, { color: colors.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {user.email}
             </Text>
           </View>

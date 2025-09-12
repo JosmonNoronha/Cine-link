@@ -253,6 +253,7 @@ const AppTabs = () => {
 const RootNavigator = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const { theme } = useCustomTheme();
 
   // Check if this is a fresh installation
@@ -285,7 +286,28 @@ const RootNavigator = () => {
       await checkAppVersion();
       
       const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
-        setUser(firebaseUser);
+        console.log('Auth state changed:', firebaseUser ? 'User logged in' : 'No user');
+        
+        // Only set user if they are verified (for login) or null (for logout)
+        if (firebaseUser) {
+          if (firebaseUser.emailVerified) {
+            setUser(firebaseUser);
+          } else {
+            // For unverified users, don't automatically sign them out
+            // This allows account creation flow to complete properly
+            setUser(null);
+            // Note: We don't call auth.signOut() here anymore to avoid interfering
+            // with account creation. The AuthScreen handles signing out after 
+            // account creation is complete.
+          }
+        } else {
+          setUser(null);
+        }
+        
+        // Set auth as initialized and stop loading
+        if (!authInitialized) {
+          setAuthInitialized(true);
+        }
         setLoading(false);
       });
       
@@ -297,9 +319,10 @@ const RootNavigator = () => {
     return () => {
       cleanup.then(unsubscribe => unsubscribe && unsubscribe());
     };
-  }, []);
+  }, [authInitialized]);
 
-  if (loading) {
+  // Show loading screen until auth is properly initialized
+  if (loading || !authInitialized) {
     return (
       <SafeAreaProvider>
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} translucent={false} />
@@ -308,7 +331,8 @@ const RootNavigator = () => {
     );
   }
 
-  return user ? <AppTabs /> : (
+  // Render based on verified user state
+  return user && user.emailVerified ? <AppTabs /> : (
     <SafeAreaProvider>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} translucent={false} />
       <AuthStack />
