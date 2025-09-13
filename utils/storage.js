@@ -128,7 +128,14 @@ export const getWatchlists = async () => {
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
       console.log("Document:", docSnap.id, "Data:", data);
-      result[docSnap.id] = data.movies || [];
+      
+      // Ensure backward compatibility - add watched: false to existing movies without this property
+      const movies = (data.movies || []).map(movie => ({
+        ...movie,
+        watched: movie.watched !== undefined ? movie.watched : false
+      }));
+      
+      result[docSnap.id] = movies;
     });
     console.log("Retrieved watchlists:", Object.keys(result));
     return result;
@@ -180,8 +187,26 @@ export const addToWatchlist = async (name, movie) => {
   if (!user) return;
   if (!db) throw new Error("Firestore not initialized");
 
+  // Add movie with watched: false by default
+  const movieWithWatchedStatus = {
+    ...movie,
+    watched: false
+  };
+
   const watchlistRef = doc(db, `users/${user.uid}/watchlists/${name}`);
-  await setDoc(watchlistRef, { movies: arrayUnion(movie) }, { merge: true });
+  
+  // Check if movie already exists to avoid duplicates
+  const docSnap = await getDoc(watchlistRef);
+  if (docSnap.exists()) {
+    const movies = docSnap.data().movies || [];
+    const existingMovie = movies.find(m => m.imdbID === movie.imdbID);
+    if (existingMovie) {
+      return false; // Movie already in watchlist
+    }
+  }
+  
+  await setDoc(watchlistRef, { movies: arrayUnion(movieWithWatchedStatus) }, { merge: true });
+  return true;
 };
 
 export const removeFromWatchlist = async (name, imdbID) => {
@@ -201,6 +226,48 @@ export const removeFromWatchlist = async (name, imdbID) => {
   }
 };
 
+// NEW FUNCTION: Toggle watched status
+export const toggleWatchedStatus = async (watchlistName, imdbID) => {
+  try {
+    if (!auth) throw new Error("Authentication not initialized");
+    const user = auth.currentUser;
+    if (!user) return false;
+    if (!db) throw new Error("Firestore not initialized");
+
+    const watchlistRef = doc(db, `users/${user.uid}/watchlists/${watchlistName}`);
+    const docSnap = await getDoc(watchlistRef);
+    
+    if (docSnap.exists()) {
+      const movies = docSnap.data().movies || [];
+      const movieIndex = movies.findIndex(movie => movie.imdbID === imdbID);
+      
+      if (movieIndex !== -1) {
+        const oldMovie = movies[movieIndex];
+        const updatedMovie = {
+          ...oldMovie,
+          watched: !oldMovie.watched
+        };
+        
+        // Remove the old movie and add the updated one
+        await updateDoc(watchlistRef, { 
+          movies: arrayRemove(oldMovie) 
+        });
+        
+        await updateDoc(watchlistRef, { 
+          movies: arrayUnion(updatedMovie) 
+        });
+        
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error toggling watched status:', error);
+    throw error;
+  }
+};
+
 export const isInWatchlist = async (name, imdbID) => {
   if (!auth) throw new Error("Authentication not initialized");
   const user = auth.currentUser;
@@ -213,4 +280,3 @@ export const isInWatchlist = async (name, imdbID) => {
   const movies = docSnap.data().movies || [];
   return movies.some((m) => m.imdbID === imdbID);
 };
-

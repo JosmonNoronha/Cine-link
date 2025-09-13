@@ -1,5 +1,5 @@
-// screens/WatchlistScreen.js
-import React, { useEffect, useState } from "react";
+// Enhanced WatchlistScreen.js with loading states, optimistic updates, and auto swipe-back
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ import {
   addWatchlist,
   removeWatchlist,
   removeFromWatchlist,
+  toggleWatchedStatus,
 } from "../utils/storage";
 
 const WatchlistsScreen = ({ navigation }) => {
@@ -137,12 +139,15 @@ const WatchlistsScreen = ({ navigation }) => {
   };
 
   const renderWatchlistItem = ({ item: name, index }) => {
-    const movieCount = watchlists[name]?.length || 0;
+    const movieList = watchlists[name] || [];
+    const totalCount = movieList.length;
+    const watchedCount = movieList.filter(movie => movie.watched).length;
 
     return (
       <WatchlistCard
         name={name}
-        movieCount={movieCount}
+        movieCount={totalCount}
+        watchedCount={watchedCount}
         index={index}
         onPress={() => navigation.navigate("WatchlistContent", { name })}
         onLongPress={() => handleRemoveWatchlist(name)}
@@ -163,7 +168,7 @@ const WatchlistsScreen = ({ navigation }) => {
           My Watchlists
         </Text>
         <Text style={[styles.subtitle, { color: colors.text }]}>
-          Organize your favorite movies
+          Organize your cinema 
         </Text>
       </View>
 
@@ -184,7 +189,6 @@ const WatchlistsScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* FAB */}
       {watchlistKeys.length > 0 && (
         <TouchableOpacity
           onPress={() => setModalVisible(true)}
@@ -226,6 +230,9 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const { name } = route.params;
   const [movies, setMovies] = useState([]);
   const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const [showWatchedOnly, setShowWatchedOnly] = useState(false);
+  const [loadingStates, setLoadingStates] = useState({});
+  const swipeRefs = useRef({}); // Store refs for each swipeable item
   const { colors } = useTheme();
 
   const showCustomAlert = (config) => {
@@ -259,48 +266,157 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       await removeFromWatchlist(name, imdbID);
       setMovies((prev) => prev.filter((m) => m.imdbID !== imdbID));
       navigation.setParams({ movieRemoved: Date.now() });
+      
+      // Close the swipeable after deletion
+      if (swipeRefs.current[imdbID]) {
+        swipeRefs.current[imdbID].close();
+      }
     } catch (error) {
       console.error("Failed to remove movie:", error);
     }
   };
 
-  const SwipeDeleteAction = ({ dragX, movie, onPress }) => {
-    const scale = dragX.interpolate({
-      inputRange: [-100, 0],
-      outputRange: [1.2, 0.8],
+  const handleToggleWatched = async (movie) => {
+    const movieId = movie.imdbID;
+    
+    try {
+      // Set loading state
+      setLoadingStates(prev => ({ ...prev, [movieId]: true }));
+      
+      // Optimistic update - immediately update UI
+      const newWatchedStatus = !movie.watched;
+      setMovies((prev) => 
+        prev.map((m) => 
+          m.imdbID === movieId 
+            ? { ...m, watched: newWatchedStatus }
+            : m
+        )
+      );
+
+      // Perform actual async operation
+      await toggleWatchedStatus(name, movieId);
+      
+      navigation.setParams({ movieWatchedToggled: Date.now() });
+
+      // Auto close the swipeable after successful toggle with a slight delay
+      setTimeout(() => {
+        if (swipeRefs.current[movieId]) {
+          swipeRefs.current[movieId].close();
+        }
+      }, 300); // Small delay to show the action completed
+      
+    } catch (error) {
+      console.error("Failed to toggle watched status:", error);
+      
+      // Revert optimistic update on error
+      setMovies((prev) => 
+        prev.map((m) => 
+          m.imdbID === movieId 
+            ? { ...m, watched: movie.watched } // Revert to original state
+            : m
+        )
+      );
+      
+      // Show error feedback
+      showCustomAlert({
+        title: "Update Failed",
+        message: "Failed to update watched status. Please try again.",
+        icon: "alert-circle",
+        iconColor: "#f44336",
+        buttons: [{ text: "OK", style: "default" }]
+      });
+    } finally {
+      // Clear loading state
+      setLoadingStates(prev => {
+        const newState = { ...prev };
+        delete newState[movieId];
+        return newState;
+      });
+    }
+  };
+
+  const SwipeActions = ({ dragX, movie, onDelete, onToggleWatched }) => {
+    const isLoading = loadingStates[movie.imdbID];
+    
+    const deleteScale = dragX.interpolate({
+      inputRange: [-180, -90, 0],
+      outputRange: [1.2, 0.8, 0],
       extrapolate: "clamp",
     });
-    const opacity = dragX.interpolate({
-      inputRange: [-100, -20, 0],
-      outputRange: [1, 0.7, 0],
+    
+    const watchedScale = dragX.interpolate({
+      inputRange: [-90, -45, 0],
+      outputRange: [1.2, 0.8, 0],
+      extrapolate: "clamp",
+    });
+
+    const deleteOpacity = dragX.interpolate({
+      inputRange: [-180, -120, -90, 0],
+      outputRange: [1, 0.9, 0.7, 0],
+      extrapolate: "clamp",
+    });
+
+    const watchedOpacity = dragX.interpolate({
+      inputRange: [-90, -60, -30, 0],
+      outputRange: [1, 0.9, 0.7, 0],
       extrapolate: "clamp",
     });
     
     return (
-      <Animated.View style={styles.swipeActionContainer}>
+      <View style={styles.swipeActionsContainer}>
         <TouchableOpacity
-          onPress={onPress}
-          style={styles.swipeDeleteButton}
+          onPress={onToggleWatched}
+          style={[
+            styles.swipeButton, 
+            styles.watchedButton, 
+            { backgroundColor: movie.watched ? '#ff9800' : '#4caf50' },
+            isLoading && styles.buttonDisabled
+          ]}
+          activeOpacity={0.7}
+          disabled={isLoading}
+        >
+          <Animated.View
+            style={[
+              styles.swipeIcon,
+              { transform: [{ scale: watchedScale }], opacity: watchedOpacity }
+            ]}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <Ionicons 
+                name={movie.watched ? "eye-off" : "checkmark"} 
+                size={24} 
+                color="white" 
+              />
+            )}
+          </Animated.View>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          onPress={onDelete}
+          style={[styles.swipeButton, styles.deleteButton]}
           activeOpacity={0.7}
         >
           <Animated.View
             style={[
-              styles.swipeDeleteIcon,
-              { transform: [{ scale }], opacity }
+              styles.swipeIcon,
+              { transform: [{ scale: deleteScale }], opacity: deleteOpacity }
             ]}
           >
-            <Ionicons name="trash" size={28} color="white" />
+            <Ionicons name="trash" size={24} color="white" />
           </Animated.View>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     );
   };
 
   const renderRightActions = (progress, dragX, movie) => (
-    <SwipeDeleteAction
+    <SwipeActions
       dragX={dragX}
       movie={movie}
-      onPress={() =>
+      onToggleWatched={() => handleToggleWatched(movie)}
+      onDelete={() =>
         showCustomAlert({
           title: "Remove from Watchlist",
           message: `Are you sure you want to remove "${movie.Title}" from "${name}"?`,
@@ -319,44 +435,136 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     />
   );
 
-  const renderMovie = ({ item }) => (
-    <Swipeable
-      renderRightActions={(progress, dragX) =>
-        renderRightActions(progress, dragX, item)
-      }
-    >
-      <TouchableOpacity
-        style={[styles.movieCard, { backgroundColor: colors.card }]}
-        onPress={() => navigation.navigate("Details", { imdbID: item.imdbID })}
-        activeOpacity={0.8}
+  const renderMovie = ({ item }) => {
+    const isWatched = item.watched;
+    const isLoading = loadingStates[item.imdbID];
+    
+    return (
+      <Swipeable
+        ref={(ref) => {
+          if (ref) {
+            swipeRefs.current[item.imdbID] = ref;
+          } else {
+            delete swipeRefs.current[item.imdbID];
+          }
+        }}
+        renderRightActions={(progress, dragX) =>
+          renderRightActions(progress, dragX, item)
+        }
+        rightThreshold={40}
+        friction={2}
+        enableTrackpadTwoFingerGesture
       >
-        <Image
-          source={{ uri: item.Poster }}
-          style={styles.moviePoster}
-          resizeMode="cover"
-        />
-        <View style={styles.movieInfo}>
-          <Text
-            style={[styles.movieTitle, { color: colors.text }]}
-            numberOfLines={2}
-          >
-            {item.Title}
-          </Text>
-          <Text style={[styles.movieYear, { color: colors.text }]}>
-            {item.Year}
-          </Text>
-          <View style={styles.movieTypeContainer}>
-            <Text style={styles.movieType}>
-              {item.Type.charAt(0).toUpperCase() + item.Type.slice(1)}
-            </Text>
+        <TouchableOpacity
+          style={[
+            styles.movieCard, 
+            { backgroundColor: colors.card },
+            isWatched && styles.watchedMovieCard,
+            isLoading && styles.loadingCard
+          ]}
+          onPress={() => navigation.navigate("Details", { imdbID: item.imdbID })}
+          activeOpacity={0.8}
+        >
+          <View style={styles.posterContainer}>
+            <Image
+              source={{ uri: item.Poster }}
+              style={[
+                styles.moviePoster,
+                isWatched && styles.watchedPoster
+              ]}
+              resizeMode="cover"
+            />
+            {isWatched && !isLoading && (
+              <View style={styles.watchedOverlay}>
+                <Ionicons name="checkmark-circle" size={32} color="#4caf50" />
+              </View>
+            )}
+            {isLoading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#667eea" />
+              </View>
+            )}
           </View>
-        </View>
-        <View style={styles.movieArrow}>
-          <Ionicons name="chevron-forward" size={20} color={colors.text} />
-        </View>
-      </TouchableOpacity>
-    </Swipeable>
-  );
+          
+          <View style={styles.movieInfo}>
+            <Text
+              style={[
+                styles.movieTitle, 
+                { color: colors.text },
+                isWatched && styles.watchedText,
+                isLoading && styles.loadingText
+              ]}
+              numberOfLines={2}
+            >
+              {item.Title}
+            </Text>
+            <Text 
+              style={[
+                styles.movieYear, 
+                { color: colors.text },
+                isWatched && styles.watchedText,
+                isLoading && styles.loadingText
+              ]}
+            >
+              {item.Year}
+            </Text>
+            <View style={styles.tagsContainer}>
+              <View style={styles.movieTypeContainer}>
+                <Text
+                  style={[
+                    styles.movieType,
+                    isWatched && styles.watchedTypeText,
+                    isLoading && styles.loadingTypeText,
+                  ]}
+                >
+                  {item.Type.charAt(0).toUpperCase() + item.Type.slice(1)}
+                </Text>
+              </View>
+              {isWatched && !isLoading && (
+                <View style={styles.watchedBadge}>
+                  <Text style={styles.watchedBadgeText}>Watched</Text>
+                </View>
+              )}
+              {isLoading && (
+                <View style={styles.loadingBadge}>
+                  <ActivityIndicator size="small" color="#667eea" />
+                  <Text style={styles.loadingBadgeText}>Updating...</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          
+          <View style={styles.movieArrow}>
+            <Ionicons 
+              name="chevron-forward" 
+              size={20} 
+              color={isWatched ? colors.text + '60' : colors.text} 
+            />
+          </View>
+          {isWatched && !isLoading && (
+            <View style={styles.cardOverlay} />
+          )}
+        </TouchableOpacity>
+      </Swipeable>
+    );
+  };
+
+  // Clean up refs when movies change
+  useEffect(() => {
+    const currentMovieIds = new Set(movies.map(movie => movie.imdbID));
+    Object.keys(swipeRefs.current).forEach(id => {
+      if (!currentMovieIds.has(id)) {
+        delete swipeRefs.current[id];
+      }
+    });
+  }, [movies]);
+
+  const filteredMovies = showWatchedOnly 
+    ? movies.filter(movie => movie.watched)
+    : movies;
+
+  const watchedCount = movies.filter(movie => movie.watched).length;
+  const totalCount = movies.length;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -375,20 +583,46 @@ const WatchlistContentScreen = ({ route, navigation }) => {
             {name}
           </Text>
           <Text style={[styles.movieCountText, { color: colors.text }]}>
-            {movies.length} {movies.length === 1 ? "movie" : "movies"}
+            {totalCount} {totalCount === 1 ? "movie" : "movies"}
+            {watchedCount > 0 && (
+              <Text style={styles.watchedCountText}>
+                {" • "}
+                <Text style={styles.watchedCountHighlight}>{watchedCount} watched</Text>
+              </Text>
+            )}
           </Text>
         </View>
+        
+        {watchedCount > 0 && (
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              showWatchedOnly && styles.filterButtonActive
+            ]}
+            onPress={() => setShowWatchedOnly(!showWatchedOnly)}
+          >
+            <Ionicons 
+              name={showWatchedOnly ? "eye" : "eye-off"} 
+              size={20} 
+              color={showWatchedOnly ? "#4caf50" : colors.text} 
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {movies.length === 0 ? (
+      {filteredMovies.length === 0 ? (
         <EmptyState
-          icon="videocam-outline"
-          title="No Movies Yet"
-          subtitle={`Add movies to "${name}" from the search screen`}
+          icon={showWatchedOnly ? "eye" : "videocam-outline"}
+          title={showWatchedOnly ? "No Watched Movies" : "No Movies Yet"}
+          subtitle={
+            showWatchedOnly 
+              ? "You haven't marked any movies as watched yet" 
+              : `Add movies to "${name}" from the search screen`
+          }
         />
       ) : (
         <FlatList
-          data={movies}
+          data={filteredMovies}
           keyExtractor={(item) => item.imdbID}
           renderItem={renderMovie}
           contentContainerStyle={styles.movieListContainer}
@@ -452,7 +686,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // WatchlistContent styles
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -475,6 +708,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
   },
+  watchedCountText: {
+    opacity: 0.8,
+  },
+  watchedCountHighlight: {
+    color: "#4caf50",
+    fontWeight: "600",
+  },
+  filterButton: {
+    padding: 8,
+    marginLeft: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  filterButtonActive: {
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderColor: "#4caf50",
+  },
   movieCard: {
     flexDirection: "row",
     borderRadius: 16,
@@ -486,9 +737,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
+  watchedMovieCard: {
+    // Keep existing styles
+  },
+  loadingCard: {
+    opacity: 0.8,
+  },
+  posterContainer: {
+    position: "relative",
+    width: 80,
+    height: 120,
+  },
   moviePoster: {
     width: 80,
     height: 120,
+  },
+  watchedPoster: {
+    opacity: 0.5,
+  },
+  watchedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(102, 126, 234, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   movieInfo: {
     flex: 1,
@@ -501,6 +786,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     lineHeight: 20,
   },
+  watchedText: {
+    opacity: 0.6,
+  },
+  loadingText: {
+    opacity: 0.7,
+  },
   movieYear: {
     fontSize: 14,
     opacity: 0.7,
@@ -508,6 +799,7 @@ const styles = StyleSheet.create({
   },
   movieTypeContainer: {
     alignSelf: "flex-start",
+    marginBottom: 4,
   },
   movieType: {
     fontSize: 12,
@@ -518,6 +810,44 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
+  watchedTypeText: {
+    color: "#999",
+    backgroundColor: "rgba(153, 153, 153, 0.1)",
+  },
+  loadingTypeText: {
+    color: "#667eea",
+    backgroundColor: "rgba(102, 126, 234, 0.05)",
+  },
+  watchedBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  watchedBadgeText: {
+    fontSize: 10,
+    color: "#4caf50",
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  loadingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(102, 126, 234, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+    gap: 4,
+  },
+  loadingBadgeText: {
+    fontSize: 10,
+    color: "#667eea",
+    fontWeight: "600",
+  },
   movieArrow: {
     justifyContent: "center",
     paddingRight: 16,
@@ -525,34 +855,49 @@ const styles = StyleSheet.create({
   movieListContainer: {
     paddingBottom: 20,
   },
-  swipeActionContainer: {
-    justifyContent: "center",
+  swipeActionsContainer: {
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "transparent",
-    width: 90,
     height: 120,
   },
-  swipeDeleteButton: {
-    backgroundColor: "#e74c3c",
+  swipeButton: {
     justifyContent: "center",
     alignItems: "center",
-    width: 90,
+    width: 80,
     height: "90%",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  watchedButton: {
+    backgroundColor: "#4caf50",
+  },
+  deleteButton: {
+    backgroundColor: "#e74c3c",
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  swipeDeleteIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "rgba(255,255,255,0.13)",
+  swipeIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,255,255,0.15)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    borderRadius: 16,
   },
 });
 
