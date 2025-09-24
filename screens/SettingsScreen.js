@@ -19,6 +19,7 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { auth } from "../firebaseConfig";
+import { getBackendStatus, retestBackendConnection } from "../services/api";
 
 const SettingsScreen = () => {
   const { colors } = useTheme();
@@ -30,6 +31,7 @@ const SettingsScreen = () => {
   const [isExpoGo, setIsExpoGo] = useState(false);
   const [user, setUser] = useState(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [backendStatus, setBackendStatus] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -46,6 +48,21 @@ const SettingsScreen = () => {
       setUser(user);
     });
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    // Check backend status
+    const checkBackendStatus = () => {
+      const status = getBackendStatus();
+      setBackendStatus(status);
+    };
+
+    checkBackendStatus();
+    const statusInterval = setInterval(checkBackendStatus, 5000); // Check every 5 seconds
+
+    return () => {
+      clearInterval(statusInterval);
+    };
   }, []);
 
   const checkForUpdates = async () => {
@@ -162,6 +179,30 @@ const SettingsScreen = () => {
     return date.toLocaleDateString() + " at " + date.toLocaleTimeString();
   };
 
+  const handleRetestBackend = async () => {
+    try {
+      setBackendStatus({ ...backendStatus, testing: true });
+      await retestBackendConnection();
+      const newStatus = getBackendStatus();
+      setBackendStatus(newStatus);
+
+      Alert.alert(
+        "Backend Test",
+        newStatus.available
+          ? "Backend is available!"
+          : "Backend is still unavailable"
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to test backend connection");
+    } finally {
+      // Ensure testing state is reset even if there's an error
+      setTimeout(() => {
+        const currentStatus = getBackendStatus();
+        setBackendStatus({ ...currentStatus, testing: false });
+      }, 500);
+    }
+  };
+
   const UpdateDetailsModal = () => (
     <Modal
       visible={showUpdateDetails}
@@ -257,11 +298,7 @@ const SettingsScreen = () => {
 
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
-                  <Ionicons
-                    name="apps"
-                    size={20}
-                    color={colors.primary}
-                  />
+                  <Ionicons name="apps" size={20} color={colors.primary} />
                   <View style={styles.updateDetailText}>
                     <Text
                       style={[styles.updateDetailLabel, { color: colors.text }]}
@@ -474,6 +511,69 @@ const SettingsScreen = () => {
     </SectionCard>
   );
 
+  // Add Backend Status section before App Updates
+  const BackendStatusSection = () => (
+    <SectionCard title="Backend Status">
+      <View style={styles.backendStatusContainer}>
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusLabel, { color: colors.text }]}>
+            Connection Status
+          </Text>
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor:
+                  backendStatus?.available === true ? "#10B981" : "#EF4444",
+              },
+            ]}
+          >
+            <Text style={styles.statusBadgeText}>
+              {backendStatus?.available ? "Connected" : "Disconnected"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusLabel, { color: colors.text }]}>
+            Base URL
+          </Text>
+          <Text
+            style={[styles.statusValue, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {backendStatus?.baseUrl || "Unknown"}
+          </Text>
+        </View>
+
+        <View style={styles.statusRow}>
+          <Text style={[styles.statusLabel, { color: colors.text }]}>
+            Last Tested
+          </Text>
+          <Text style={[styles.statusValue, { color: colors.text }]}>
+            {backendStatus?.tested ? "Yes" : "No"}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.testButton, { backgroundColor: colors.primary }]}
+          onPress={handleRetestBackend}
+          disabled={backendStatus?.testing}
+        >
+          <Ionicons
+            name="refresh"
+            size={20}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.buttonText}>
+            {backendStatus?.testing ? "Testing..." : "Test Connection"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SectionCard>
+  );
+
   return (
     <>
       <ScrollView
@@ -484,6 +584,8 @@ const SettingsScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <ProfileSection />
+
+        <BackendStatusSection />
 
         {/* App Updates */}
         <SectionCard title="App Updates">
@@ -960,6 +1062,46 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
+  },
+  backendStatusContainer: {
+    paddingVertical: 10,
+  },
+  statusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#ccc",
+  },
+  statusLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    flex: 1,
+  },
+  statusValue: {
+    fontSize: 12,
+    opacity: 0.7,
+    flex: 1,
+    textAlign: "right",
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  testButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 10,
   },
 });
 

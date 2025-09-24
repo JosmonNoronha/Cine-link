@@ -11,12 +11,17 @@ import {
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { searchMovies, getRecommendations } from "../services/api";
+import {
+  searchMovies,
+  getRecommendations,
+  getBackendStatus,
+} from "../services/api";
 import MovieCard from "../components/HomeMovieCard";
 import ShimmerMovieCard from "../components/ShimmerHomeMovieCard";
 import RecommendationCard from "../components/RecommendationCard";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { getFavorites, getWatchlists } from "../utils/storage";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
 // Fetch recommendation map (example for Firebase hosting JSON)
 const fetchRecommendationsMap = async () => {
@@ -32,15 +37,19 @@ const HomeScreen = ({ navigation }) => {
   const [featuredMovie, setFeaturedMovie] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [recommendedMovies, setRecommendedMovies] = useState([]);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] =
+    useState(false);
   const [lastDataHash, setLastDataHash] = useState(null);
-  
+  const [backendError, setBackendError] = useState(false);
+
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
 
   // Fetch static movie data (trending, popular, etc.)
   const fetchStaticMovies = async () => {
     setIsLoading(true);
+    setBackendError(false);
+
     try {
       const trendingData = await searchMovies("2023");
       const trending = trendingData.slice(0, 10);
@@ -54,6 +63,13 @@ const HomeScreen = ({ navigation }) => {
       setYouMayLike(shuffled.slice(0, 5));
     } catch (error) {
       console.error("Error fetching static movies:", error);
+      setBackendError(true);
+
+      // Check if it's a backend connection issue
+      const backendStatus = getBackendStatus();
+      if (!backendStatus.available) {
+        console.log("Backend unavailable, but fallback should work");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -61,12 +77,15 @@ const HomeScreen = ({ navigation }) => {
 
   // Generate a simple hash from favorites and watchlists data
   const generateDataHash = (favorites, watchlists) => {
-    const favIds = favorites.map(m => m.imdbID).sort().join(',');
+    const favIds = favorites
+      .map((m) => m.imdbID)
+      .sort()
+      .join(",");
     const watchlistIds = Object.values(watchlists)
       .flat()
-      .map(m => m.imdbID)
+      .map((m) => m.imdbID)
       .sort()
-      .join(',');
+      .join(",");
     return `${favIds}|${watchlistIds}`;
   };
 
@@ -77,19 +96,19 @@ const HomeScreen = ({ navigation }) => {
         getFavorites(),
         getWatchlists(),
       ]);
-      
+
       const currentHash = generateDataHash(favorites, watchlists);
-      
+
       // Only fetch recommendations if data has actually changed
       if (currentHash !== lastDataHash) {
-        console.log('Data changed, updating recommendations...');
+        console.log("Data changed, updating recommendations...");
         setLastDataHash(currentHash);
         await fetchRecommendations(favorites, watchlists);
       } else {
-        console.log('No data changes, keeping existing recommendations');
+        console.log("No data changes, keeping existing recommendations");
       }
     } catch (error) {
-      console.error('Error checking for recommendation updates:', error);
+      console.error("Error checking for recommendation updates:", error);
     }
   };
 
@@ -98,10 +117,11 @@ const HomeScreen = ({ navigation }) => {
     setIsLoadingRecommendations(true);
     try {
       // Use provided data or fetch fresh data
-      const [favs, lists] = favorites && watchlists ? 
-        [favorites, watchlists] : 
-        await Promise.all([getFavorites(), getWatchlists()]);
-      
+      const [favs, lists] =
+        favorites && watchlists
+          ? [favorites, watchlists]
+          : await Promise.all([getFavorites(), getWatchlists()]);
+
       const favTitles = favs.map((m) => m.Title);
       const watchlistTitles = Object.values(lists)
         .flat()
@@ -110,26 +130,28 @@ const HomeScreen = ({ navigation }) => {
 
       if (allTitles.length > 0) {
         // Get recommendations based on multiple titles for better variety
-        const recommendationPromises = allTitles.slice(0, 3).map(title => 
-          getRecommendations(title).catch(err => {
+        const recommendationPromises = allTitles.slice(0, 3).map((title) =>
+          getRecommendations(title).catch((err) => {
             console.warn(`Failed to get recommendations for ${title}:`, err);
             return [];
           })
         );
-        
+
         const allRecommendations = await Promise.all(recommendationPromises);
-        
+
         // Flatten and deduplicate recommendations
         const flatRecommendations = allRecommendations.flat();
-        const uniqueRecommendations = flatRecommendations.filter((movie, index, self) => 
-          movie.imdbID && self.findIndex(m => m.imdbID === movie.imdbID) === index
+        const uniqueRecommendations = flatRecommendations.filter(
+          (movie, index, self) =>
+            movie.imdbID &&
+            self.findIndex((m) => m.imdbID === movie.imdbID) === index
         );
-        
+
         // Limit to 10 recommendations and shuffle for variety
         const shuffledRecommendations = uniqueRecommendations
           .sort(() => 0.5 - Math.random())
           .slice(0, 10);
-          
+
         setRecommendedMovies(shuffledRecommendations);
       } else {
         setRecommendedMovies([]);
@@ -150,7 +172,7 @@ const HomeScreen = ({ navigation }) => {
 
   // Listen for screen focus to update recommendations only if data changed
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       // Check if recommendations need updating when returning to home screen
       checkAndUpdateRecommendations();
     });
@@ -258,7 +280,11 @@ const HomeScreen = ({ navigation }) => {
     {
       key: "featured",
       render: () =>
-        isLoading ? <View style={styles.featuredShimmer} /> : renderFeaturedBanner(),
+        isLoading ? (
+          <View style={styles.featuredShimmer} />
+        ) : (
+          renderFeaturedBanner()
+        ),
     },
     {
       key: "featuredThisWeek",
@@ -273,7 +299,12 @@ const HomeScreen = ({ navigation }) => {
     {
       key: "popularHits",
       render: () =>
-        renderHorizontalSection("Popular Hits", popularHits, "popular", isLoading),
+        renderHorizontalSection(
+          "Popular Hits",
+          popularHits,
+          "popular",
+          isLoading
+        ),
     },
     {
       key: "youMayLike",
@@ -284,9 +315,10 @@ const HomeScreen = ({ navigation }) => {
       key: "personalRecommendations",
       render: () => {
         // Show section if we have recommendations or if we're loading them
-        const hasValidRecommendations = recommendedMovies.length > 0 && 
+        const hasValidRecommendations =
+          recommendedMovies.length > 0 &&
           recommendedMovies.some((movie) => movie.imdbID);
-        
+
         if (hasValidRecommendations || isLoadingRecommendations) {
           return renderRecommendationSection(
             "Recommended For You",
@@ -298,6 +330,20 @@ const HomeScreen = ({ navigation }) => {
       },
     },
   ];
+
+  // Add backend error banner
+  const renderBackendError = () => {
+    if (!backendError) return null;
+
+    return (
+      <View style={styles.errorBanner}>
+        <Ionicons name="warning" size={20} color="#ff6b35" />
+        <Text style={[styles.errorText, { color: colors.text }]}>
+          Using cached data. Check connection in Settings.
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView
@@ -323,8 +369,9 @@ const HomeScreen = ({ navigation }) => {
               Your Movie Heaven
             </Text>
           </View>
-          
         </View>
+
+        {renderBackendError()}
 
         {/* Main List */}
         <FlatList
@@ -414,6 +461,23 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginHorizontal: 15,
     marginBottom: 25,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 107, 53, 0.1)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: "#ff6b35",
+  },
+  errorText: {
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
   },
 });
 
