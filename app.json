@@ -55,8 +55,8 @@
       "FIREBASE_MEASUREMENT_ID": "G-1HG3P6E0QX",
       "updateMetadata": {
         "message": "Version 1.0.0 Release",
-        "description": "Lot of improvemennts",
-        "changelog": "- Email Verification\n -Smart search\n -Watchlists tracking",
+        "description": "Added backend for caching",
+        "changelog": "- Backend Caching\n -Improved Performance",
         "version": "1.0.0"
       }
     },
