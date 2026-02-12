@@ -1,5 +1,8 @@
-CineLink
-CineLink is a mobile application built with Expo React Native that allows users to explore, search, and manage their favorite movies and TV series. The app features a dynamic theme switcher (light/dark mode), OTA (over-the-air) updates, and a modern UI with animated components. It leverages the OMDB API for movie data and YouTube API for trailers.
+# CineLink
+
+> **🔒 SECURITY NOTICE**: If you cloned or forked this repository before January 31, 2026, please read [SECURITY_INSTRUCTIONS.md](SECURITY_INSTRUCTIONS.md) immediately. API keys were previously exposed and must be rotated.
+
+CineLink is a mobile application built with Expo React Native that allows users to explore, search, and manage their favorite movies and TV series. The app features a dynamic theme switcher (light/dark mode), OTA (over-the-air) updates, and a modern UI with animated components. It leverages the TMDB API for movie data and has a Node.js backend for caching and user management.
 Features
 
 Movie & Series Exploration: Browse trending movies, popular hits, and personalized recommendations.
@@ -18,24 +21,115 @@ Git
 An OMDB API key (for movie data)
 A YouTube API key (for trailers, stored in a .env file)
 
-Installation
-Clone the Repository
+## Installation
+
+### ⚠️ Security First!
+
+**CRITICAL**: This project previously had exposed API keys. If you're a collaborator or forking this repo, please read [SECURITY_INSTRUCTIONS.md](SECURITY_INSTRUCTIONS.md) immediately.
+
+### Prerequisites
+
+- Node.js (v14 or later)
+- Expo CLI (npm install -g expo-cli or npm install -g @expo/cli)
+- Git
+- A TMDB API key (for backend - [Get it here](https://www.themoviedb.org/settings/api))
+- An OMDB API key (optional - [Get it here](http://www.omdbapi.com/apikey.aspx))
+- Firebase project ([Create one here](https://console.firebase.google.com/))
+
+### Clone the Repository
+```bash
 git clone https://github.com/JosmonNoronha/Cine-link.git
 cd CineLink
+```
 
-Install Dependencies
+### Install Dependencies
+
+#### Frontend
+```bash
 npm install
+```
 
-Set Up Environment Variables
+#### Backend
+```bash
+cd backend
+npm install
+cd ..
+```
 
-Create a .env file in the root directory.
-Add the following variables (replace with your actual keys):YOUTUBE_API_KEY=your_youtube_api_key
-OMDB_API_KEY=your_omdb_api_key
+### Set Up Environment Variables
 
-Note: .env is gitignored to protect sensitive data.
+#### Frontend Setup
 
-Start the Development Server
+1. Copy the environment template:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your credentials:
+   ```bash
+   # Get these from Firebase Console → Project Settings
+   FIREBASE_API_KEY=your_firebase_api_key
+   FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   FIREBASE_PROJECT_ID=your-project-id
+   FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+   FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   FIREBASE_APP_ID=your_app_id
+   FIREBASE_MEASUREMENT_ID=your_measurement_id
+   
+   # Get from http://www.omdbapi.com/apikey.aspx
+   OMDB_API_KEY=your_omdb_api_key
+   
+   # Backend URLs
+   EXPO_PUBLIC_API_BASE_URL=http://localhost:5001/api
+   EXPO_PUBLIC_PRODUCTION_API_URL=https://your-backend-url.com/api
+   ```
+
+3. **Never commit your `.env` file!** It's already in `.gitignore`.
+
+#### Backend Setup
+
+1. Navigate to backend and copy template:
+   ```bash
+   cd backend
+   cp .env.example .env
+   ```
+
+2. Edit `backend/.env`:
+   ```bash
+   # Get from https://www.themoviedb.org/settings/api
+   TMDB_API_KEY=your_tmdb_api_key
+   
+   # Get Firebase Admin Service Account:
+   # Firebase Console → Project Settings → Service Accounts → Generate New Private Key
+   FIREBASE_SERVICE_ACCOUNT_JSON_PATH=./firebase-service-account.json
+   
+   # Optional: Redis for caching
+   # REDIS_URL=redis://localhost:6379
+   ```
+
+3. Download Firebase Service Account JSON:
+   - Go to [Firebase Console](https://console.firebase.google.com/)
+   - Project Settings → Service Accounts
+   - Click "Generate New Private Key"
+   - Save as `backend/firebase-service-account.json`
+
+4. **Important**: The service account file is gitignored - never commit it!
+
+### Start the Development Server
+
+#### Start Backend (Required)
+```bash
+cd backend
+npm run dev
+```
+Backend will run on http://localhost:5001
+
+#### Start Frontend
+In a new terminal:
+```bash
+cd CineLink  # (root directory)
 npx expo start
+```
 
 Use the Expo Go app on your mobile device or an emulator to run the app.
 Press a to open in an Android emulator, i for iOS simulator, or scan the QR code with Expo Go.
@@ -90,3 +184,38 @@ React Native Community for libraries and support.
 
 Contact
 For questions or support, reach out to Josmon Noronha at josmonnoronha2004@gmail.com.
+
+---
+
+## Backend API (Render)
+
+This repo now includes a Node/Express backend in the `backend/` folder that the mobile app can talk to at `/api/*`.
+
+### Deploy on Render
+
+- This repo includes a Render Blueprint at [render.yaml](render.yaml).
+- In Render: **New +** → **Blueprint** → select the repo → apply.
+
+### Required environment variables (Render)
+
+- `TMDB_API_KEY` (required)
+
+### Optional environment variables
+
+- `CORS_ORIGIN` (comma-separated allowlist; empty means allow all)
+- `REDIS_URL` (enables Redis cache)
+- `SENTRY_DSN` and `SENTRY_TRACES_SAMPLE_RATE`
+
+### Firebase Admin (required only for `/api/user/*` routes)
+
+Pick one option:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (recommended; paste the service account JSON as a single env var)
+
+OR
+
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY` (replace newlines with `\n`)
+
+If you don’t set Firebase Admin credentials, unauthenticated endpoints (like `/api/health` and movie/search endpoints) still work, but `/api/user/*` will fail.

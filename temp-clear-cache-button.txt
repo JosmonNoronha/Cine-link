@@ -1,0 +1,17 @@
+// Add this button temporarily to SearchScreen for testing
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Add this function
+const clearCacheQuick = async () => {
+  await AsyncStorage.removeItem('movieCache');
+  alert('Cache cleared! Try searching again.');
+};
+
+// Add this button in your SearchScreen JSX (temporary):
+<TouchableOpacity 
+  onPress={clearCacheQuick}
+  style={{ padding: 10, backgroundColor: 'red' }}
+>
+  <Text style={{ color: 'white' }}>Clear Cache (Debug)</Text>
+</TouchableOpacity>
