@@ -13,9 +13,6 @@
       },
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      },
-      "npm": {
-        "installCommand": "npm install --legacy-peer-deps"
       }
     },
     "preview": {
@@ -26,9 +23,6 @@
       },
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      },
-      "npm": {
-        "installCommand": "npm install --legacy-peer-deps"
       }
     },
     "production": {
@@ -39,9 +33,6 @@
       },
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      },
-      "npm": {
-        "installCommand": "npm install --legacy-peer-deps"
       }
     }
   },
