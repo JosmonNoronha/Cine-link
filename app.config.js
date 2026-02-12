@@ -13,7 +13,7 @@ module.exports = () => {
     expo: {
       name: "CineLink",
       slug: "CineLink",
-      version: "1.0.0",
+      version: "2.0.0",
       orientation: "portrait",
       icon: "./assets/icon.png",
       userInterfaceStyle: "automatic",
@@ -21,40 +21,38 @@ module.exports = () => {
       splash: {
         image: "./assets/splash-icon.png",
         resizeMode: "contain",
-        backgroundColor: "#ffffff"
+        backgroundColor: "#ffffff",
       },
       updates: {
         enabled: true,
         fallbackToCacheTimeout: 0,
-        url: "https://u.expo.dev/7892f2fc-684a-4de4-a501-6214b9fafb05"
+        url: "https://u.expo.dev/7892f2fc-684a-4de4-a501-6214b9fafb05",
       },
       runtimeVersion: {
-        policy: "sdkVersion"
+        policy: "sdkVersion",
       },
       sdkVersion: "53.0.0",
       ios: {
         supportsTablet: true,
         bundleIdentifier: "com.josmon2004.CineLink",
         infoPlist: {
-          ITSAppUsesNonExemptEncryption: false
-        }
+          ITSAppUsesNonExemptEncryption: false,
+        },
       },
       android: {
         adaptiveIcon: {
           foregroundImage: "./assets/adaptive-icon.png",
-          backgroundColor: "#ffffff"
+          backgroundColor: "#ffffff",
         },
         package: "com.josmon2004.CineLink",
-        permissions: [
-          "android.permission.INTERNET"
-        ]
+        permissions: ["android.permission.INTERNET"],
       },
       web: {
-        favicon: "./assets/favicon.png"
+        favicon: "./assets/favicon.png",
       },
       extra: {
         eas: {
-          projectId: "7892f2fc-684a-4de4-a501-6214b9fafb05"
+          projectId: "7892f2fc-684a-4de4-a501-6214b9fafb05",
         },
         // Environment variables securely loaded
         FIREBASE_API_KEY,
@@ -66,13 +64,14 @@ module.exports = () => {
         FIREBASE_MEASUREMENT_ID,
         OMDB_API_KEY,
         updateMetadata: {
-          message: "Version 1.0.0 Release",
-          description: "Added backend for caching",
-          changelog: "- Backend Caching\n -Improved Performance",
-          version: "1.0.0"
-        }
+          message: "Version 2.0.0 - Major Update",
+          description: "Complete app restructure with backend integration",
+          changelog:
+            "- Backend Caching\n- Improved Performance\n- New UI\n- Redis Integration",
+          version: "2.0.0",
+        },
       },
-      plugins: []
-    }
+      plugins: [],
+    },
   };
 };
