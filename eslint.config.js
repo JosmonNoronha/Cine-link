@@ -1,10 +1,28 @@
-// https://docs.expo.dev/guides/using-eslint/
-const { defineConfig } = require('eslint/config');
-const expoConfig = require("eslint-config-expo/flat");
-
-module.exports = defineConfig([
-  expoConfig,
+// Simple ESLint 9 flat config for Expo
+module.exports = [
   {
-    ignores: ["dist/*"],
-  }
-]);
+    ignores: ["dist/*", "node_modules/*", "*.config.js"],
+  },
+  {
+    languageOptions: {
+      ecmaVersion: 2021,
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        __DEV__: "readonly",
+        require: "readonly",
+        module: "readonly",
+        process: "readonly",
+        console: "readonly",
+      },
+    },
+    rules: {
+      "no-unused-vars": "warn",
+      "no-console": "off",
+    },
+  },
+];
