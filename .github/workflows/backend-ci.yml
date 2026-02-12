@@ -17,7 +17,11 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
 
       - name: Use Node.js 20
         uses: actions/setup-node@v4
