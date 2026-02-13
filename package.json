@@ -15,22 +15,22 @@
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
     "@expo/vector-icons": "^14.1.0",
-    "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/bottom-tabs": "^7.3.9",
     "@react-navigation/native": "^7.1.5",
     "@react-navigation/native-stack": "^7.3.8",
     "@react-navigation/stack": "^7.2.3",
     "@reduxjs/toolkit": "^2.11.2",
-    "@sentry/react-native": "^7.11.0",
+    "@sentry/react-native": "~6.14.0",
     "axios": "^1.8.4",
-    "expo": "53.0.12",
+    "expo": "~53.0.27",
     "expo-application": "~6.1.5",
     "expo-av": "~15.1.6",
     "expo-constants": "~17.1.6",
-    "expo-device": "^8.0.10",
+    "expo-device": "~7.1.4",
     "expo-font": "~13.3.2",
-    "expo-image": "~2.3.0",
+    "expo-image": "~2.4.1",
     "expo-linear-gradient": "~14.1.5",
     "expo-status-bar": "~2.2.3",
     "expo-updates": "~0.28.15",
@@ -39,10 +39,10 @@
     "fuse.js": "^7.1.0",
     "lodash": "^4.17.21",
     "lodash.debounce": "^4.0.8",
-    "lottie-react-native": "^7.2.2",
+    "lottie-react-native": "7.2.2",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-native": "0.79.4",
+    "react-native": "0.79.6",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-modal": "^14.0.0-rc.1",
     "react-native-paper": "^5.13.1",
@@ -64,7 +64,19 @@
     "@types/react": "~19.0.10",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~9.2.0",
-    "typescript": "^5.8.3"
+    "typescript": "~5.8.3"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "expo-av",
+          "react-native-shimmer-placeholder",
+          "react-native-switch"
+        ],
+        "listUnknownPackages": false
+      }
+    }
   },
   "private": true
 }
