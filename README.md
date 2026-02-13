@@ -37,6 +37,7 @@ A YouTube API key (for trailers, stored in a .env file)
 - Firebase project ([Create one here](https://console.firebase.google.com/))
 
 ### Clone the Repository
+
 ```bash
 git clone https://github.com/JosmonNoronha/Cine-link.git
 cd CineLink
@@ -55,11 +56,13 @@ npm install
 #### Frontend Setup
 
 1. Copy the environment template:
+
    ```bash
    cp .env.example .env
    ```
 
 2. Edit `.env` with your credentials:
+
    ```bash
    # Get these from Firebase Console → Project Settings
    FIREBASE_API_KEY=your_firebase_api_key
@@ -69,10 +72,10 @@ npm install
    FIREBASE_MESSAGING_SENDER_ID=your_sender_id
    FIREBASE_APP_ID=your_app_id
    FIREBASE_MEASUREMENT_ID=your_measurement_id
-   
+
    # Get from http://www.omdbapi.com/apikey.aspx
    OMDB_API_KEY=your_omdb_api_key
-   
+
    # Backend URL (deployed to Render)
    EXPO_PUBLIC_API_BASE_URL=https://your-backend-url.onrender.com/api
    EXPO_PUBLIC_PRODUCTION_API_URL=https://your-backend-url.onrender.com/api
@@ -85,6 +88,7 @@ npm install
 The backend is deployed separately to Render. If you want to run it locally:
 
 1. Clone the backend repository:
+
    ```bash
    git clone https://github.com/JosmonNoronha/CineLink-backend-N.git backend
    cd backend

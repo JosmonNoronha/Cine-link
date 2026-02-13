@@ -5,125 +5,140 @@
  * Checks if environment variables are properly configured
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-console.log('🔍 CineLink Security Verification\n');
+console.log("🔍 CineLink Security Verification\n");
 
 let hasErrors = false;
 const warnings = [];
 
 // Check if .env exists
-const envPath = path.join(__dirname, '.env');
+const envPath = path.join(__dirname, ".env");
 if (!fs.existsSync(envPath)) {
-  console.error('❌ ERROR: .env file not found!');
-  console.error('   Run: cp .env.example .env');
-  console.error('   Then fill in your actual credentials.\n');
+  console.error("❌ ERROR: .env file not found!");
+  console.error("   Run: cp .env.example .env");
+  console.error("   Then fill in your actual credentials.\n");
   hasErrors = true;
 } else {
-  console.log('✅ .env file exists');
-  
+  console.log("✅ .env file exists");
+
   // Check for example values still in .env
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  if (envContent.includes('your_') || envContent.includes('_here')) {
-    warnings.push('⚠️  WARNING: .env file contains placeholder values');
-    warnings.push('   Make sure to replace all "your_*" values with actual credentials');
+  const envContent = fs.readFileSync(envPath, "utf8");
+  if (envContent.includes("your_") || envContent.includes("_here")) {
+    warnings.push("⚠️  WARNING: .env file contains placeholder values");
+    warnings.push(
+      '   Make sure to replace all "your_*" values with actual credentials',
+    );
   }
 }
 
 // Check backend .env (optional - backend is deployed separately)
-const backendEnvPath = path.join(__dirname, 'backend', '.env');
-if (fs.existsSync(path.join(__dirname, 'backend'))) {
+const backendEnvPath = path.join(__dirname, "backend", ".env");
+if (fs.existsSync(path.join(__dirname, "backend"))) {
   if (!fs.existsSync(backendEnvPath)) {
-    warnings.push('⚠️  WARNING: backend/.env file not found!');
-    warnings.push('   If testing locally: cd backend && cp .env.example .env');
+    warnings.push("⚠️  WARNING: backend/.env file not found!");
+    warnings.push("   If testing locally: cd backend && cp .env.example .env");
   } else {
-    console.log('✅ backend/.env file exists');
-    
-    const backendEnvContent = fs.readFileSync(backendEnvPath, 'utf8');
-    if (backendEnvContent.includes('your-') || backendEnvContent.includes('your_')) {
-      warnings.push('⚠️  WARNING: backend/.env contains placeholder values');
+    console.log("✅ backend/.env file exists");
+
+    const backendEnvContent = fs.readFileSync(backendEnvPath, "utf8");
+    if (
+      backendEnvContent.includes("your-") ||
+      backendEnvContent.includes("your_")
+    ) {
+      warnings.push("⚠️  WARNING: backend/.env contains placeholder values");
     }
   }
 } else {
-  console.log('ℹ️  Backend folder not found (deployed separately to Render)');
+  console.log("ℹ️  Backend folder not found (deployed separately to Render)");
 }
 
 // Check if app.json still has hardcoded keys
-const appJsonPath = path.join(__dirname, 'app.json');
+const appJsonPath = path.join(__dirname, "app.json");
 if (fs.existsSync(appJsonPath)) {
-  const appJson = JSON.parse(fs.readFileSync(appJsonPath, 'utf8'));
+  const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
   const extra = appJson.expo?.extra || {};
-  
+
   if (extra.FIREBASE_API_KEY || extra.OMDB_API_KEY) {
-    console.error('❌ ERROR: app.json still contains hardcoded API keys!');
-    console.error('   These should be removed and moved to .env');
+    console.error("❌ ERROR: app.json still contains hardcoded API keys!");
+    console.error("   These should be removed and moved to .env");
     hasErrors = true;
   }
 }
 
 // Check eas.json
-const easJsonPath = path.join(__dirname, 'eas.json');
+const easJsonPath = path.join(__dirname, "eas.json");
 if (fs.existsSync(easJsonPath)) {
-  const easJson = JSON.parse(fs.readFileSync(easJsonPath, 'utf8'));
+  const easJson = JSON.parse(fs.readFileSync(easJsonPath, "utf8"));
   const prodEnv = easJson.build?.production?.env || {};
-  
-  if (prodEnv.FIREBASE_API_KEY && !prodEnv.FIREBASE_API_KEY.startsWith('$')) {
-    console.error('❌ ERROR: eas.json contains hardcoded production keys!');
-    console.error('   Use EAS secrets instead: eas secret:create');
+
+  if (prodEnv.FIREBASE_API_KEY && !prodEnv.FIREBASE_API_KEY.startsWith("$")) {
+    console.error("❌ ERROR: eas.json contains hardcoded production keys!");
+    console.error("   Use EAS secrets instead: eas secret:create");
     hasErrors = true;
   }
 }
 
 // Check Firebase service account (optional - only needed for local backend)
-if (fs.existsSync(path.join(__dirname, 'backend'))) {
-  const serviceAccountPath = path.join(__dirname, 'backend', 'firebase-service-account.json');
+if (fs.existsSync(path.join(__dirname, "backend"))) {
+  const serviceAccountPath = path.join(
+    __dirname,
+    "backend",
+    "firebase-service-account.json",
+  );
   if (!fs.existsSync(serviceAccountPath)) {
-    warnings.push('⚠️  WARNING: backend/firebase-service-account.json not found');
-    warnings.push('   Only needed for local backend development');
-    warnings.push('   Download from Firebase Console → Project Settings → Service Accounts');
+    warnings.push(
+      "⚠️  WARNING: backend/firebase-service-account.json not found",
+    );
+    warnings.push("   Only needed for local backend development");
+    warnings.push(
+      "   Download from Firebase Console → Project Settings → Service Accounts",
+    );
   }
 }
 
 // Check .gitignore
-const gitignorePath = path.join(__dirname, '.gitignore');
+const gitignorePath = path.join(__dirname, ".gitignore");
 if (fs.existsSync(gitignorePath)) {
-  const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
-  const requiredEntries = ['.env', '*.env', 'firebase-service-account*.json'];
-  const missingEntries = requiredEntries.filter(entry => !gitignoreContent.includes(entry));
-  
+  const gitignoreContent = fs.readFileSync(gitignorePath, "utf8");
+  const requiredEntries = [".env", "*.env", "firebase-service-account*.json"];
+  const missingEntries = requiredEntries.filter(
+    (entry) => !gitignoreContent.includes(entry),
+  );
+
   if (missingEntries.length > 0) {
-    console.error('❌ ERROR: .gitignore is missing critical entries:');
-    missingEntries.forEach(entry => console.error(`   - ${entry}`));
+    console.error("❌ ERROR: .gitignore is missing critical entries:");
+    missingEntries.forEach((entry) => console.error(`   - ${entry}`));
     hasErrors = true;
   } else {
-    console.log('✅ .gitignore properly configured');
+    console.log("✅ .gitignore properly configured");
   }
 }
 
-console.log('');
+console.log("");
 
 // Print warnings
 if (warnings.length > 0) {
-  warnings.forEach(w => console.log(w));
-  console.log('');
+  warnings.forEach((w) => console.log(w));
+  console.log("");
 }
 
 // Final result
 if (hasErrors) {
-  console.log('❌ Security verification FAILED');
-  console.log('📖 Read SECURITY_INSTRUCTIONS.md for detailed setup guide');
+  console.log("❌ Security verification FAILED");
+  console.log("📖 Read SECURITY_INSTRUCTIONS.md for detailed setup guide");
   process.exit(1);
 } else if (warnings.length > 0) {
-  console.log('⚠️  Security verification completed with warnings');
-  console.log('📖 Check warnings above and read SECURITY_INSTRUCTIONS.md');
+  console.log("⚠️  Security verification completed with warnings");
+  console.log("📖 Check warnings above and read SECURITY_INSTRUCTIONS.md");
   process.exit(0);
 } else {
-  console.log('✅ Security verification PASSED');
-  console.log('🚀 You\'re ready to start development!');
-  console.log('');
-  console.log('Next steps:');
-  console.log('  1. npx expo start');
-  console.log('  (Backend is deployed separately to Render)');
+  console.log("✅ Security verification PASSED");
+  console.log("🚀 You're ready to start development!");
+  console.log("");
+  console.log("Next steps:");
+  console.log("  1. npx expo start");
+  console.log("  (Backend is deployed separately to Render)");
   process.exit(0);
 }
