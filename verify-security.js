@@ -31,20 +31,22 @@ if (!fs.existsSync(envPath)) {
   }
 }
 
-// Check backend .env
+// Check backend .env (optional - backend is deployed separately)
 const backendEnvPath = path.join(__dirname, 'backend', '.env');
-if (!fs.existsSync(backendEnvPath)) {
-  console.error('❌ ERROR: backend/.env file not found!');
-  console.error('   Run: cd backend && cp .env.example .env');
-  console.error('   Then fill in your actual credentials.\n');
-  hasErrors = true;
-} else {
-  console.log('✅ backend/.env file exists');
-  
-  const backendEnvContent = fs.readFileSync(backendEnvPath, 'utf8');
-  if (backendEnvContent.includes('your-') || backendEnvContent.includes('your_')) {
-    warnings.push('⚠️  WARNING: backend/.env contains placeholder values');
+if (fs.existsSync(path.join(__dirname, 'backend'))) {
+  if (!fs.existsSync(backendEnvPath)) {
+    warnings.push('⚠️  WARNING: backend/.env file not found!');
+    warnings.push('   If testing locally: cd backend && cp .env.example .env');
+  } else {
+    console.log('✅ backend/.env file exists');
+    
+    const backendEnvContent = fs.readFileSync(backendEnvPath, 'utf8');
+    if (backendEnvContent.includes('your-') || backendEnvContent.includes('your_')) {
+      warnings.push('⚠️  WARNING: backend/.env contains placeholder values');
+    }
   }
+} else {
+  console.log('ℹ️  Backend folder not found (deployed separately to Render)');
 }
 
 // Check if app.json still has hardcoded keys
@@ -73,12 +75,14 @@ if (fs.existsSync(easJsonPath)) {
   }
 }
 
-// Check Firebase service account
-const serviceAccountPath = path.join(__dirname, 'backend', 'firebase-service-account.json');
-if (!fs.existsSync(serviceAccountPath)) {
-  warnings.push('⚠️  WARNING: backend/firebase-service-account.json not found');
-  warnings.push('   Backend authentication will not work without this file');
-  warnings.push('   Download from Firebase Console → Project Settings → Service Accounts');
+// Check Firebase service account (optional - only needed for local backend)
+if (fs.existsSync(path.join(__dirname, 'backend'))) {
+  const serviceAccountPath = path.join(__dirname, 'backend', 'firebase-service-account.json');
+  if (!fs.existsSync(serviceAccountPath)) {
+    warnings.push('⚠️  WARNING: backend/firebase-service-account.json not found');
+    warnings.push('   Only needed for local backend development');
+    warnings.push('   Download from Firebase Console → Project Settings → Service Accounts');
+  }
 }
 
 // Check .gitignore
@@ -119,7 +123,7 @@ if (hasErrors) {
   console.log('🚀 You\'re ready to start development!');
   console.log('');
   console.log('Next steps:');
-  console.log('  1. cd backend && npm run dev');
-  console.log('  2. In another terminal: npx expo start');
+  console.log('  1. npx expo start');
+  console.log('  (Backend is deployed separately to Render)');
   process.exit(0);
 }

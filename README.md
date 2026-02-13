@@ -44,17 +44,11 @@ cd CineLink
 
 ### Install Dependencies
 
-#### Frontend
 ```bash
 npm install
 ```
 
-#### Backend
-```bash
-cd backend
-npm install
-cd ..
-```
+> **Note**: The backend is deployed separately to Render. For local backend development, clone the [backend repository](https://github.com/JosmonNoronha/CineLink-backend-N) separately.
 
 ### Set Up Environment Variables
 
@@ -79,57 +73,36 @@ cd ..
    # Get from http://www.omdbapi.com/apikey.aspx
    OMDB_API_KEY=your_omdb_api_key
    
-   # Backend URLs
-   EXPO_PUBLIC_API_BASE_URL=http://localhost:5001/api
-   EXPO_PUBLIC_PRODUCTION_API_URL=https://your-backend-url.com/api
+   # Backend URL (deployed to Render)
+   EXPO_PUBLIC_API_BASE_URL=https://your-backend-url.onrender.com/api
+   EXPO_PUBLIC_PRODUCTION_API_URL=https://your-backend-url.onrender.com/api
    ```
 
 3. **Never commit your `.env` file!** It's already in `.gitignore`.
 
-#### Backend Setup
+#### Backend Setup (Optional - for local development only)
 
-1. Navigate to backend and copy template:
+The backend is deployed separately to Render. If you want to run it locally:
+
+1. Clone the backend repository:
    ```bash
+   git clone https://github.com/JosmonNoronha/CineLink-backend-N.git backend
    cd backend
+   npm install
    cp .env.example .env
    ```
 
-2. Edit `backend/.env`:
-   ```bash
-   # Get from https://www.themoviedb.org/settings/api
-   TMDB_API_KEY=your_tmdb_api_key
-   
-   # Get Firebase Admin Service Account:
-   # Firebase Console → Project Settings → Service Accounts → Generate New Private Key
-   FIREBASE_SERVICE_ACCOUNT_JSON_PATH=./firebase-service-account.json
-   
-   # Optional: Redis for caching
-   # REDIS_URL=redis://localhost:6379
-   ```
-
-3. Download Firebase Service Account JSON:
-   - Go to [Firebase Console](https://console.firebase.google.com/)
-   - Project Settings → Service Accounts
-   - Click "Generate New Private Key"
-   - Save as `backend/firebase-service-account.json`
-
-4. **Important**: The service account file is gitignored - never commit it!
+2. Follow the backend repository's README for setup instructions.
 
 ### Start the Development Server
 
-#### Start Backend (Required)
 ```bash
-cd backend
-npm run dev
-```
-Backend will run on http://localhost:5001
-
-#### Start Frontend
-In a new terminal:
-```bash
-cd CineLink  # (root directory)
 npx expo start
 ```
+
+The app will connect to the backend deployed on Render.
+
+> **Local Backend (Optional)**: If you cloned the backend repo and want to test locally, start it with `cd backend && npm run dev` and update your `.env` to use `http://localhost:5001/api`.
 
 Use the Expo Go app on your mobile device or an emulator to run the app.
 Press a to open in an Android emulator, i for iOS simulator, or scan the QR code with Expo Go.

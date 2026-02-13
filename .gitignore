@@ -44,6 +44,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Backend (deployed separately to Render)
+backend/
+
 # Credentials & Keys (SECURITY)
 firebase-service-account*.json
 *-credentials.json
