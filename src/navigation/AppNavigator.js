@@ -134,7 +134,10 @@ const SettingsStack = () => (
     }}
   >
     <Stack.Screen name="Settings" component={SettingsScreen} />
-    <Stack.Screen name="ManageSubscriptions" component={ManageSubscriptionsScreen} />
+    <Stack.Screen
+      name="ManageSubscriptions"
+      component={ManageSubscriptionsScreen}
+    />
   </Stack.Navigator>
 );
 
@@ -251,12 +254,12 @@ const AppTabs = () => {
           }}
         >
           <Tab.Screen name="Home" component={HomeStack} />
-        <Tab.Screen name="Search" component={SearchStack} />
-        <Tab.Screen name="Favorites" component={FavoritesStack} />
-        <Tab.Screen name="Watchlist" component={WatchlistStack} />
-        <Tab.Screen name="Settings" component={SettingsStack} />
-      </Tab.Navigator>
-    </SafeAreaProvider>
+          <Tab.Screen name="Search" component={SearchStack} />
+          <Tab.Screen name="Favorites" component={FavoritesStack} />
+          <Tab.Screen name="Watchlist" component={WatchlistStack} />
+          <Tab.Screen name="Settings" component={SettingsStack} />
+        </Tab.Navigator>
+      </SafeAreaProvider>
     </FavoritesProvider>
   );
 };
@@ -277,8 +280,8 @@ const RootNavigator = () => {
         // This is either first install or a version change
         console.log("Fresh installation detected, clearing auth state");
 
-        // Sign out any existing user
-        if (auth.currentUser) {
+        // Sign out any existing user (if auth is available)
+        if (auth && auth.currentUser) {
           await auth.signOut();
         }
 

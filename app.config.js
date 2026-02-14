@@ -46,6 +46,7 @@ module.exports = () => {
         },
         package: "com.josmon2004.CineLink",
         permissions: ["android.permission.INTERNET"],
+        jsEngine: "hermes",
       },
       web: {
         favicon: "./assets/favicon.png",

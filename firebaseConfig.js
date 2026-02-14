@@ -64,9 +64,29 @@ if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
     db = firebase.firestore();
   } catch (error) {
     console.error("❌ Firebase init error:", error);
+    authInstance = null;
+    db = null;
+    firebaseApp = null;
   }
 } else {
   console.warn("⚠️  Firebase not initialized - missing configuration");
+  // Provide mock auth instance to prevent crashes
+  authInstance = {
+    currentUser: null,
+    onAuthStateChanged: (callback) => {
+      setTimeout(() => callback(null), 0);
+      return () => {}; // Return unsubscribe function
+    },
+    signOut: async () => {
+      console.warn("Firebase auth not available");
+    },
+    signInWithEmailAndPassword: async () => {
+      throw new Error("Firebase auth not configured");
+    },
+    createUserWithEmailAndPassword: async () => {
+      throw new Error("Firebase auth not configured");
+    },
+  };
 }
 
 export const auth = authInstance;

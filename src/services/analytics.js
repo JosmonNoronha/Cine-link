@@ -1,24 +1,32 @@
-import * as Sentry from '@sentry/react-native';
-import * as Device from 'expo-device';
-import * as Application from 'expo-application';
-import { Platform } from 'react-native';
-import axios from 'axios';
+import * as Sentry from "@sentry/react-native";
+import * as Device from "expo-device";
+import * as Application from "expo-application";
+import { Platform } from "react-native";
+import axios from "axios";
 
 // Initialize Sentry
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || '';
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || "";
+let SENTRY_INITIALIZED = false;
 
 if (SENTRY_DSN && !__DEV__) {
-  Sentry.init({
-    dsn: SENTRY_DSN,
-    environment: __DEV__ ? 'development' : 'production',
-    enableAutoSessionTracking: true,
-    sessionTrackingIntervalMillis: 30000,
-    tracesSampleRate: __DEV__ ? 1.0 : 0.2,
-    enableNative: true,
-    enableNativeCrashHandling: true,
-    attachStacktrace: true,
-    enableAutoPerformanceTracing: true,
-  });
+  try {
+    Sentry.init({
+      dsn: SENTRY_DSN,
+      environment: __DEV__ ? "development" : "production",
+      enableAutoSessionTracking: true,
+      sessionTrackingIntervalMillis: 30000,
+      tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+      enableNative: true,
+      enableNativeCrashHandling: true,
+      attachStacktrace: true,
+      enableAutoPerformanceTracing: true,
+    });
+    SENTRY_INITIALIZED = true;
+  } catch (error) {
+    console.warn("Failed to initialize Sentry:", error);
+  }
+} else if (!SENTRY_DSN && !__DEV__) {
+  console.warn("Sentry DSN not configured - error tracking disabled");
 }
 
 /**
@@ -46,7 +54,7 @@ class AnalyticsService {
     // Set device context
     this.setDeviceContext();
 
-    console.log('📊 Analytics service initialized');
+    console.log("📊 Analytics service initialized");
   }
 
   /**
@@ -70,9 +78,9 @@ class AnalyticsService {
       },
     };
 
-    if (SENTRY_DSN) {
-      Sentry.setContext('device', context.device);
-      Sentry.setContext('app', context.app);
+    if (SENTRY_INITIALIZED) {
+      Sentry.setContext("device", context.device);
+      Sentry.setContext("app", context.app);
     }
   }
 
@@ -82,7 +90,7 @@ class AnalyticsService {
   setUser(user) {
     this.userId = user?.uid || null;
 
-    if (SENTRY_DSN && user) {
+    if (SENTRY_INITIALIZED && user) {
       Sentry.setUser({
         id: user.uid,
         email: user.email,
@@ -96,7 +104,7 @@ class AnalyticsService {
   clearUser() {
     this.userId = null;
 
-    if (SENTRY_DSN) {
+    if (SENTRY_INITIALIZED) {
       Sentry.setUser(null);
     }
   }
@@ -112,16 +120,16 @@ class AnalyticsService {
    * Track screen view
    */
   trackScreenView(screenName, params = {}) {
-    this.trackEvent('screen_view', {
+    this.trackEvent("screen_view", {
       screen_name: screenName,
       ...params,
     });
 
-    if (SENTRY_DSN) {
+    if (SENTRY_INITIALIZED) {
       Sentry.addBreadcrumb({
-        category: 'navigation',
+        category: "navigation",
         message: `Viewed screen: ${screenName}`,
-        level: 'info',
+        level: "info",
         data: params,
       });
     }
@@ -131,16 +139,16 @@ class AnalyticsService {
    * Track user action
    */
   trackAction(action, data = {}) {
-    this.trackEvent('user_action', {
+    this.trackEvent("user_action", {
       action,
       ...data,
     });
 
-    if (SENTRY_DSN) {
+    if (SENTRY_INITIALIZED) {
       Sentry.addBreadcrumb({
-        category: 'action',
+        category: "action",
         message: action,
-        level: 'info',
+        level: "info",
         data,
       });
     }
@@ -150,7 +158,7 @@ class AnalyticsService {
    * Track search query
    */
   trackSearch(query, resultsCount = 0) {
-    this.trackEvent('search', {
+    this.trackEvent("search", {
       query,
       results_count: resultsCount,
     });
@@ -160,7 +168,7 @@ class AnalyticsService {
    * Track content view
    */
   trackContentView(type, id, title) {
-    this.trackEvent('content_view', {
+    this.trackEvent("content_view", {
       content_type: type, // 'movie' or 'tv'
       content_id: id,
       content_title: title,
@@ -171,7 +179,7 @@ class AnalyticsService {
    * Track watchlist action
    */
   trackWatchlistAction(action, itemId, itemTitle) {
-    this.trackEvent('watchlist_action', {
+    this.trackEvent("watchlist_action", {
       action, // 'add' or 'remove'
       item_id: itemId,
       item_title: itemTitle,
@@ -182,7 +190,7 @@ class AnalyticsService {
    * Track favorite action
    */
   trackFavoriteAction(action, itemId, itemTitle) {
-    this.trackEvent('favorite_action', {
+    this.trackEvent("favorite_action", {
       action, // 'add' or 'remove'
       item_id: itemId,
       item_title: itemTitle,
@@ -193,15 +201,15 @@ class AnalyticsService {
    * Track error
    */
   trackError(error, context = {}) {
-    console.error('Analytics: Error tracked', error, context);
+    console.error("Analytics: Error tracked", error, context);
 
-    if (SENTRY_DSN) {
+    if (SENTRY_INITIALIZED) {
       Sentry.captureException(error, {
         contexts: { custom: context },
       });
     }
 
-    this.trackEvent('error', {
+    this.trackEvent("error", {
       error_message: error.message || String(error),
       error_stack: error.stack,
       ...context,
@@ -212,7 +220,7 @@ class AnalyticsService {
    * Track API call
    */
   trackApiCall(endpoint, method, statusCode, duration) {
-    this.trackEvent('api_call', {
+    this.trackEvent("api_call", {
       endpoint,
       method,
       status_code: statusCode,
@@ -223,8 +231,8 @@ class AnalyticsService {
   /**
    * Track performance metric
    */
-  trackPerformance(metric, value, unit = 'ms') {
-    this.trackEvent('performance', {
+  trackPerformance(metric, value, unit = "ms") {
+    this.trackEvent("performance", {
       metric,
       value,
       unit,
@@ -236,7 +244,7 @@ class AnalyticsService {
    */
   trackEvent(eventType, data = {}) {
     if (!this.isInitialized) {
-      console.warn('Analytics not initialized');
+      console.warn("Analytics not initialized");
       return;
     }
 
@@ -257,7 +265,7 @@ class AnalyticsService {
       this.flushEvents();
     }
 
-    console.log('📊 Event tracked:', eventType, data);
+    console.log("📊 Event tracked:", eventType, data);
   }
 
   /**
@@ -279,10 +287,10 @@ class AnalyticsService {
         })
         .catch((err) => {
           // Silently fail - analytics shouldn't break the app
-          console.warn('Failed to send analytics events:', err.message);
+          console.warn("Failed to send analytics events:", err.message);
         });
     } catch (error) {
-      console.warn('Failed to flush analytics:', error.message);
+      console.warn("Failed to flush analytics:", error.message);
     }
   }
 
@@ -308,4 +316,4 @@ const analyticsService = new AnalyticsService();
 export default analyticsService;
 
 // Export Sentry for manual error reporting if needed
-export { Sentry };
+export { Sentry, SENTRY_INITIALIZED };

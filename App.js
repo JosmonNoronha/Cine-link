@@ -127,5 +127,14 @@ const styles = StyleSheet.create({
   },
 });
 
-// Wrap with Sentry for error tracking (only if initialized)
-export default __DEV__ ? App : Sentry.wrap ? Sentry.wrap(App) : App;
+// Only wrap with Sentry if it's initialized and available
+let ExportedApp = App;
+if (!__DEV__ && Sentry && typeof Sentry.wrap === "function") {
+  try {
+    ExportedApp = Sentry.wrap(App);
+  } catch (e) {
+    console.warn("Sentry wrap failed:", e);
+  }
+}
+
+export default ExportedApp;
