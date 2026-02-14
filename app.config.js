@@ -47,6 +47,7 @@ module.exports = () => {
         package: "com.josmon2004.CineLink",
         permissions: ["android.permission.INTERNET"],
         jsEngine: "hermes",
+        edgeToEdgeEnabled: true,
       },
       web: {
         favicon: "./assets/favicon.png",
@@ -72,7 +73,20 @@ module.exports = () => {
           version: "2.0.0",
         },
       },
-      plugins: [],
+      plugins: [
+        "expo-system-ui",
+        "@sentry/react-native/expo",
+        "expo-updates",
+        [
+          "expo-build-properties",
+          {
+            android: {
+              enableProguardInReleaseBuilds: true,
+              enableShrinkResourcesInReleaseBuilds: true,
+            },
+          },
+        ],
+      ],
     },
   };
 };
