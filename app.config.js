@@ -75,7 +75,6 @@ module.exports = () => {
       },
       plugins: [
         "expo-system-ui",
-        "@sentry/react-native/expo",
         "expo-updates",
         [
           "expo-build-properties",
