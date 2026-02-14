@@ -3,7 +3,10 @@ import "firebase/compat/auth";
 import "firebase/compat/firestore";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth/react-native";
+import {
+  initializeAuth,
+  getReactNativePersistence,
+} from "firebase/auth/react-native";
 
 // Read from environment variables instead of hardcoded extra config
 const {
@@ -18,9 +21,14 @@ const {
 
 // Validate required Firebase configuration
 if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
-  throw new Error(
-    "Firebase configuration is missing. Please ensure FIREBASE_API_KEY, FIREBASE_PROJECT_ID, and FIREBASE_APP_ID are set in your .env file."
+  console.error(
+    "⚠️  Firebase configuration is missing. Auth features will be disabled.",
   );
+  console.error("Missing keys:", {
+    hasApiKey: !!FIREBASE_API_KEY,
+    hasProjectId: !!FIREBASE_PROJECT_ID,
+    hasAppId: !!FIREBASE_APP_ID,
+  });
 }
 
 const firebaseConfig = {
@@ -35,24 +43,32 @@ const firebaseConfig = {
 
 let firebaseApp;
 let authInstance;
+let db;
 
-try {
-  if (!firebase.apps.length) {
-    firebaseApp = firebase.initializeApp(firebaseConfig);
-    console.log("Firebase initialized successfully");
+// Only initialize if we have valid config
+if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
+  try {
+    if (!firebase.apps.length) {
+      firebaseApp = firebase.initializeApp(firebaseConfig);
+      console.log("✅ Firebase initialized successfully");
 
-    authInstance = initializeAuth(firebaseApp, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-  } else {
-    firebaseApp = firebase.app();
-    authInstance = firebase.auth();
-    console.log("Using existing Firebase app");
+      authInstance = initializeAuth(firebaseApp, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } else {
+      firebaseApp = firebase.app();
+      authInstance = firebase.auth();
+      console.log("Using existing Firebase app");
+    }
+
+    db = firebase.firestore();
+  } catch (error) {
+    console.error("❌ Firebase init error:", error);
   }
-} catch (error) {
-  console.error("Firebase init error:", error);
-  throw error;
+} else {
+  console.warn("⚠️  Firebase not initialized - missing configuration");
 }
 
 export const auth = authInstance;
-export const db = firebaseApp.firestore();
+export { db };
+export default firebaseApp;

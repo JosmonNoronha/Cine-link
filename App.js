@@ -1,15 +1,53 @@
-import React, { useRef } from "react";
+import React, { useRef, Component } from "react";
 import {
   NavigationContainer,
   DefaultTheme,
   DarkTheme,
 } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { View, Text, StyleSheet } from "react-native";
 import RootNavigator from "./src/navigation/AppNavigator";
 import { ThemeProvider, useCustomTheme } from "./src/contexts/ThemeContext";
-import { AnalyticsProvider, getActiveRouteName } from "./src/contexts/AnalyticsContext";
+import {
+  AnalyticsProvider,
+  getActiveRouteName,
+} from "./src/contexts/AnalyticsContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import analyticsService, { Sentry } from "./src/services/analytics";
+
+// Error Boundary Component
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("App Error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorText}>
+            {this.state.error?.message || "Unknown error"}
+          </Text>
+          <Text style={styles.errorHint}>
+            Please restart the app or check your internet connection.
+          </Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const AppContent = () => {
   const { theme } = useCustomTheme();
@@ -30,7 +68,7 @@ const AppContent = () => {
   };
 
   return (
-    <NavigationContainer 
+    <NavigationContainer
       theme={navigationTheme}
       onStateChange={handleNavigationStateChange}
       onReady={() => {
@@ -48,17 +86,46 @@ const AppContent = () => {
 
 function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AnalyticsProvider>
-          <ThemeProvider>
-            <AppContent />
-          </ThemeProvider>
-        </AnalyticsProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <AnalyticsProvider>
+            <ThemeProvider>
+              <AppContent />
+            </ThemeProvider>
+          </AnalyticsProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 
-// Wrap with Sentry for error tracking
-export default Sentry.wrap(App);
+const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#fff",
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#e74c3c",
+  },
+  errorText: {
+    fontSize: 16,
+    marginBottom: 20,
+    textAlign: "center",
+    color: "#333",
+  },
+  errorHint: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+  },
+});
+
+// Wrap with Sentry for error tracking (only if initialized)
+export default __DEV__ ? App : Sentry.wrap ? Sentry.wrap(App) : App;
