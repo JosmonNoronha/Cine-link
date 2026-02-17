@@ -8,16 +8,25 @@ import {
   getReactNativePersistence,
 } from "firebase/auth/react-native";
 
-// Read from environment variables instead of hardcoded extra config
-const {
-  FIREBASE_API_KEY = process.env.FIREBASE_API_KEY,
-  FIREBASE_AUTH_DOMAIN = process.env.FIREBASE_AUTH_DOMAIN,
-  FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID,
-  FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET,
-  FIREBASE_MESSAGING_SENDER_ID = process.env.FIREBASE_MESSAGING_SENDER_ID,
-  FIREBASE_APP_ID = process.env.FIREBASE_APP_ID,
-  FIREBASE_MEASUREMENT_ID = process.env.FIREBASE_MEASUREMENT_ID,
-} = Constants?.expoConfig?.extra || {};
+// Debug: Log what's available
+console.log(
+  "🔍 Debug - Constants.expoConfig available:",
+  !!Constants?.expoConfig,
+);
+console.log(
+  "🔍 Debug - Constants.expoConfig.extra available:",
+  !!Constants?.expoConfig?.extra,
+);
+
+// Read from Constants.expoConfig.extra (populated by app.config.js during build)
+const extra = Constants?.expoConfig?.extra || {};
+const FIREBASE_API_KEY = extra.FIREBASE_API_KEY;
+const FIREBASE_AUTH_DOMAIN = extra.FIREBASE_AUTH_DOMAIN;
+const FIREBASE_PROJECT_ID = extra.FIREBASE_PROJECT_ID;
+const FIREBASE_STORAGE_BUCKET = extra.FIREBASE_STORAGE_BUCKET;
+const FIREBASE_MESSAGING_SENDER_ID = extra.FIREBASE_MESSAGING_SENDER_ID;
+const FIREBASE_APP_ID = extra.FIREBASE_APP_ID;
+const FIREBASE_MEASUREMENT_ID = extra.FIREBASE_MEASUREMENT_ID;
 
 // Validate required Firebase configuration
 if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
@@ -29,6 +38,7 @@ if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
     hasProjectId: !!FIREBASE_PROJECT_ID,
     hasAppId: !!FIREBASE_APP_ID,
   });
+  console.error("Available extra keys:", Object.keys(extra));
 }
 
 const firebaseConfig = {

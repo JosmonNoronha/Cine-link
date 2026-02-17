@@ -23,6 +23,7 @@ import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import analyticsService from "../services/analytics";
+import Constants from "expo-constants";
 import {
   getMovieDetails,
   getSeasonDetails,
@@ -60,7 +61,9 @@ import ReviewsSection from "../components/ReviewsSection";
 import { StatusBar } from "expo-status-bar";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
-const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
+const YOUTUBE_API_KEY =
+  process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ||
+  Constants?.expoConfig?.extra?.YOUTUBE_API_KEY;
 
 // Simple Toast Component
 const Toast = React.memo(({ visible, message, type, onHide }) => {

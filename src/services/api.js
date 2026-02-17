@@ -23,6 +23,7 @@ const normalizeDevBaseUrl = (url) => {
 // Production and development URL configuration
 const PRODUCTION_BASE_URL =
   process.env.EXPO_PUBLIC_PRODUCTION_API_URL ||
+  Constants?.expoConfig?.extra?.PRODUCTION_API_URL ||
   "https://cinelink-backend-n.onrender.com";
 const EXPLICIT_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
