@@ -106,9 +106,9 @@ module.exports = () => {
           "expo-build-properties",
           {
             android: {
-              enableProguardInReleaseBuilds: true,
-              enableShrinkResourcesInReleaseBuilds: true,
-              enableMinifyInReleaseBuilds: true,
+              enableProguardInReleaseBuilds: false,
+              enableShrinkResourcesInReleaseBuilds: false,
+              enableMinifyInReleaseBuilds: false,
             },
           },
         ],

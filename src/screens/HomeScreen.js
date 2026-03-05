@@ -31,7 +31,7 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { getWatchlists } from "../utils/storage";
 import { useUserProfile } from "../hooks/useUserProfile";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 
 const HomeScreen = ({ navigation }) => {
   // State management

@@ -154,16 +154,56 @@ const AuthStack = () => (
 );
 
 /* ---------- CUSTOM TAB BAR ---------- */
+
+// Individual tab item component to properly use hooks per-item
+const TabItem = ({ route, index, isFocused, onPress, colors, theme }) => {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const iconName = {
+    Home: isFocused ? "home" : "home-outline",
+    Search: isFocused ? "search-sharp" : "search-outline",
+    Favorites: isFocused ? "heart" : "heart-outline",
+    Watchlist: isFocused ? "bookmark" : "bookmark-outline",
+    Settings: isFocused ? "settings" : "settings-outline",
+  }[route.name];
+
+  return (
+    <TouchableOpacity
+      key={route.key}
+      onPress={onPress}
+      onPressIn={() => (scale.value = withSpring(0.95))}
+      onPressOut={() => (scale.value = withSpring(1))}
+      style={styles.tabItem}
+      activeOpacity={0.7}
+    >
+      <Animated.View style={[styles.tabContent, animatedStyle]}>
+        <Ionicons
+          name={iconName}
+          size={28}
+          color={isFocused ? colors.primary : colors.text}
+        />
+        <Text
+          style={[
+            styles.tabLabel,
+            {
+              color: isFocused ? colors.primary : colors.text,
+              fontWeight: isFocused ? "bold" : "normal",
+            },
+          ]}
+        >
+          {route.name}
+        </Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
 const CustomTabBar = ({ state, descriptors, navigation }) => {
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
-
-  const scalesRef = useRef(state.routes.map(() => useSharedValue(1)));
-  const animatedStylesRef = useRef(
-    scalesRef.current.map((scale) =>
-      useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })),
-    ),
-  );
 
   return (
     <View
@@ -189,46 +229,16 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
           }
         };
 
-        const iconName = {
-          Home: isFocused ? "home" : "home-outline",
-          Search: isFocused ? "search-sharp" : "search-outline",
-          Favorites: isFocused ? "heart" : "heart-outline",
-          Watchlist: isFocused ? "bookmark" : "bookmark-outline",
-          Settings: isFocused ? "settings" : "settings-outline",
-        }[route.name];
-
         return (
-          <TouchableOpacity
+          <TabItem
             key={route.key}
+            route={route}
+            index={index}
+            isFocused={isFocused}
             onPress={onPress}
-            onPressIn={() =>
-              (scalesRef.current[index].value = withSpring(0.95))
-            }
-            onPressOut={() => (scalesRef.current[index].value = withSpring(1))}
-            style={styles.tabItem}
-            activeOpacity={0.7}
-          >
-            <Animated.View
-              style={[styles.tabContent, animatedStylesRef.current[index]]}
-            >
-              <Ionicons
-                name={iconName}
-                size={28}
-                color={isFocused ? colors.primary : colors.text}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  {
-                    color: isFocused ? colors.primary : colors.text,
-                    fontWeight: isFocused ? "bold" : "normal",
-                  },
-                ]}
-              >
-                {route.name}
-              </Text>
-            </Animated.View>
-          </TouchableOpacity>
+            colors={colors}
+            theme={theme}
+          />
         );
       })}
     </View>

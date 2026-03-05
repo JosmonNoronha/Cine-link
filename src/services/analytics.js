@@ -1,15 +1,16 @@
-import * as Sentry from "@sentry/react-native";
 import * as Device from "expo-device";
 import * as Application from "expo-application";
 import { Platform } from "react-native";
 import axios from "axios";
 
-// Initialize Sentry
+// Lazy-load Sentry to avoid native module crash when not configured
+let Sentry = null;
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || "";
 let SENTRY_INITIALIZED = false;
 
 if (SENTRY_DSN && !__DEV__) {
   try {
+    Sentry = require("@sentry/react-native");
     Sentry.init({
       dsn: SENTRY_DSN,
       environment: __DEV__ ? "development" : "production",
@@ -24,6 +25,7 @@ if (SENTRY_DSN && !__DEV__) {
     SENTRY_INITIALIZED = true;
   } catch (error) {
     console.warn("Failed to initialize Sentry:", error);
+    Sentry = null;
   }
 } else if (!SENTRY_DSN && !__DEV__) {
   console.warn("Sentry DSN not configured - error tracking disabled");

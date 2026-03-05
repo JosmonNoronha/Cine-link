@@ -20,7 +20,7 @@ import {
   getActiveRouteName,
 } from "./src/contexts/AnalyticsContext";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import analyticsService, { Sentry } from "./src/services/analytics";
+import analyticsService, { Sentry, SENTRY_INITIALIZED } from "./src/services/analytics";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 
@@ -252,9 +252,9 @@ const styles = StyleSheet.create({
   },
 });
 
-// Only wrap with Sentry if it's initialized and available
+// Only wrap with Sentry if it's actually initialized and available
 let ExportedApp = App;
-if (!__DEV__ && Sentry && typeof Sentry.wrap === "function") {
+if (!__DEV__ && SENTRY_INITIALIZED && Sentry && typeof Sentry.wrap === "function") {
   try {
     ExportedApp = Sentry.wrap(App);
   } catch (e) {

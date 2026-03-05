@@ -3,10 +3,19 @@ import "firebase/compat/auth";
 import "firebase/compat/firestore";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  initializeAuth,
-  getReactNativePersistence,
-} from "firebase/auth/react-native";
+import { initializeAuth } from "firebase/auth";
+import { Platform } from "react-native";
+
+// getReactNativePersistence only exists in native bundles (not web)
+let getReactNativePersistence;
+if (Platform.OS !== "web") {
+  try {
+    getReactNativePersistence =
+      require("firebase/auth/react-native").getReactNativePersistence;
+  } catch (e) {
+    console.warn("getReactNativePersistence not available:", e.message);
+  }
+}
 
 // Debug: Log what's available
 console.log(
@@ -51,6 +60,24 @@ const firebaseConfig = {
   measurementId: FIREBASE_MEASUREMENT_ID,
 };
 
+// Helper to create a mock auth instance that won't crash callers
+const createMockAuth = () => ({
+  currentUser: null,
+  onAuthStateChanged: (callback) => {
+    setTimeout(() => callback(null), 0);
+    return () => {}; // Return unsubscribe function
+  },
+  signOut: async () => {
+    console.warn("Firebase auth not available");
+  },
+  signInWithEmailAndPassword: async () => {
+    throw new Error("Firebase auth not configured");
+  },
+  createUserWithEmailAndPassword: async () => {
+    throw new Error("Firebase auth not configured");
+  },
+});
+
 let firebaseApp;
 let authInstance;
 let db;
@@ -62,9 +89,15 @@ if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
       firebaseApp = firebase.initializeApp(firebaseConfig);
       console.log("✅ Firebase initialized successfully");
 
-      authInstance = initializeAuth(firebaseApp, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
+      // Use React Native persistence on native, skip on web
+      if (Platform.OS !== "web" && getReactNativePersistence) {
+        authInstance = initializeAuth(firebaseApp, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      } else {
+        // On web, use default browser persistence via compat API
+        authInstance = firebase.auth();
+      }
     } else {
       firebaseApp = firebase.app();
       authInstance = firebase.auth();
@@ -74,29 +107,13 @@ if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
     db = firebase.firestore();
   } catch (error) {
     console.error("❌ Firebase init error:", error);
-    authInstance = null;
+    authInstance = createMockAuth();
     db = null;
     firebaseApp = null;
   }
 } else {
   console.warn("⚠️  Firebase not initialized - missing configuration");
-  // Provide mock auth instance to prevent crashes
-  authInstance = {
-    currentUser: null,
-    onAuthStateChanged: (callback) => {
-      setTimeout(() => callback(null), 0);
-      return () => {}; // Return unsubscribe function
-    },
-    signOut: async () => {
-      console.warn("Firebase auth not available");
-    },
-    signInWithEmailAndPassword: async () => {
-      throw new Error("Firebase auth not configured");
-    },
-    createUserWithEmailAndPassword: async () => {
-      throw new Error("Firebase auth not configured");
-    },
-  };
+  authInstance = createMockAuth();
 }
 
 export const auth = authInstance;
