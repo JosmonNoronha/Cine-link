@@ -168,8 +168,11 @@ const startPeriodicHealthCheck = () => {
   }, 30000); // Check every 30 seconds
 };
 
-// Clean up interval on app unload (if applicable)
-if (typeof window !== "undefined") {
+// Clean up interval on app unload (if applicable – browser only)
+if (
+  typeof window !== "undefined" &&
+  typeof window.addEventListener === "function"
+) {
   window.addEventListener("beforeunload", () => {
     if (periodicHealthCheckInterval) {
       clearInterval(periodicHealthCheckInterval);
