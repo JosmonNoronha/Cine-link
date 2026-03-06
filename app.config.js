@@ -91,13 +91,6 @@ module.exports = () => {
         OMDB_API_KEY,
         YOUTUBE_API_KEY,
         PRODUCTION_API_URL,
-        updateMetadata: {
-          message: "Version 2.0.0 - Major Update",
-          description: "Complete app restructure with backend integration",
-          changelog:
-            "- Backend Caching\n- Improved Performance\n- New UI\n- Redis Integration",
-          version: "2.0.0",
-        },
       },
       plugins: [
         "expo-system-ui",

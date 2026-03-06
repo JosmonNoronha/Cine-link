@@ -18,6 +18,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
+import installedUpdateInfo from "../config/updateInfo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "../../firebaseConfig";
 import { getBackendStatus, retestBackendConnection } from "../services/api";
@@ -76,20 +77,21 @@ const SettingsScreen = ({ navigation }) => {
       setUpdateAvailable(update.isAvailable);
 
       if (update.isAvailable) {
-        console.log("Update available:", update);
-        console.log("Update manifest:", update.manifest);
+        // manifest.metadata is populated when eas update is invoked with --metadata
+        // push-update.js also embeds info in the bundle via src/config/updateInfo.js
+        const pendingMessage =
+          update.manifest?.metadata?.message ||
+          update.manifest?.extra?.updateMessage ||
+          "New update available";
+        const pendingChangelog = update.manifest?.metadata?.changelog || null;
 
         const updateDetails = {
           id: update.updateId,
           createdAt: update.createdAt,
-          // Try to get message from various sources
-          message: getUpdateMessage(update.updateId, update.manifest),
-          version: Constants.expoConfig.version,
+          message: pendingMessage,
+          changelog: pendingChangelog,
+          version: Constants.expoConfig?.version,
           runtimeVersion: update.manifest?.runtimeVersion,
-          bundleUrl: update.bundleUrl,
-          // Check for custom metadata in app config
-          description: Constants.expoConfig.extra?.updateMetadata?.description,
-          changelog: Constants.expoConfig.extra?.updateMetadata?.changelog,
         };
         setUpdateInfo(updateDetails);
       }
@@ -100,35 +102,10 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const getUpdateMessage = (updateId, manifest) => {
-    // Check various possible locations for update message
-    if (manifest?.metadata?.message) return manifest.metadata.message;
-    if (manifest?.extra?.updateMessage) return manifest.extra.updateMessage;
-
-    // Check app config for custom metadata
-    if (Constants.expoConfig.extra?.updateMetadata?.message) {
-      return Constants.expoConfig.extra.updateMetadata.message;
-    }
-
-    // Fallback to meaningful messages based on time or version
-    const fallbackMessages = [
-      "Latest bug fixes and performance improvements",
-      "New features and enhanced user experience",
-      "Security updates and stability improvements",
-      "UI enhancements and bug fixes",
-      "Performance optimizations and new features",
-    ];
-
-    if (updateId) {
-      const hash = updateId.split("").reduce((a, b) => {
-        a = (a << 5) - a + b.charCodeAt(0);
-        return a & a;
-      }, 0);
-      const index = Math.abs(hash) % fallbackMessages.length;
-      return fallbackMessages[index];
-    }
-
-    return "Update available with improvements";
+  // Format changelog string into bullet lines for display
+  const parseChangelog = (text) => {
+    if (!text) return [];
+    return text.split("\n").filter((l) => l.trim().length > 0);
   };
 
   const handleUpdate = async () => {
@@ -233,6 +210,7 @@ const SettingsScreen = ({ navigation }) => {
         <ScrollView style={styles.modalContent}>
           {updateInfo && (
             <>
+              {/* Message */}
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
                   <Ionicons
@@ -244,7 +222,7 @@ const SettingsScreen = ({ navigation }) => {
                     <Text
                       style={[styles.updateDetailLabel, { color: colors.text }]}
                     >
-                      Update Message
+                      Update
                     </Text>
                     <Text
                       style={[styles.updateDetailValue, { color: colors.text }]}
@@ -255,6 +233,44 @@ const SettingsScreen = ({ navigation }) => {
                 </View>
               </View>
 
+              {/* Changelog bullets */}
+              {updateInfo.changelog && (
+                <View style={styles.updateDetailCard}>
+                  <View
+                    style={{ flexDirection: "row", alignItems: "flex-start" }}
+                  >
+                    <Ionicons
+                      name="list"
+                      size={20}
+                      color={colors.primary}
+                      style={{ marginRight: 10, marginTop: 2 }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.updateDetailLabel,
+                          { color: colors.text, marginBottom: 8 },
+                        ]}
+                      >
+                        What's new
+                      </Text>
+                      {parseChangelog(updateInfo.changelog).map((line, i) => (
+                        <Text
+                          key={i}
+                          style={[
+                            styles.updateDetailValue,
+                            { color: colors.text, marginBottom: 4 },
+                          ]}
+                        >
+                          {line.startsWith("-") ? line : `• ${line}`}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Release date */}
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
                   <Ionicons name="calendar" size={20} color={colors.primary} />
@@ -262,7 +278,7 @@ const SettingsScreen = ({ navigation }) => {
                     <Text
                       style={[styles.updateDetailLabel, { color: colors.text }]}
                     >
-                      Release Date
+                      Released
                     </Text>
                     <Text
                       style={[styles.updateDetailValue, { color: colors.text }]}
@@ -273,31 +289,7 @@ const SettingsScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              <View style={styles.updateDetailCard}>
-                <View style={styles.updateDetailRow}>
-                  <Ionicons
-                    name="code-working"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <View style={styles.updateDetailText}>
-                    <Text
-                      style={[styles.updateDetailLabel, { color: colors.text }]}
-                    >
-                      Update ID
-                    </Text>
-                    <Text
-                      style={[
-                        styles.updateDetailValueMono,
-                        { color: colors.text },
-                      ]}
-                    >
-                      {updateInfo.id?.substring(0, 8)}...
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
+              {/* Version + ID */}
               <View style={styles.updateDetailCard}>
                 <View style={styles.updateDetailRow}>
                   <Ionicons name="apps" size={20} color={colors.primary} />
@@ -316,11 +308,11 @@ const SettingsScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              {updateInfo.description && (
+              {updateInfo.id && (
                 <View style={styles.updateDetailCard}>
                   <View style={styles.updateDetailRow}>
                     <Ionicons
-                      name="document-text"
+                      name="code-working"
                       size={20}
                       color={colors.primary}
                     />
@@ -331,41 +323,15 @@ const SettingsScreen = ({ navigation }) => {
                           { color: colors.text },
                         ]}
                       >
-                        Description
+                        Update ID
                       </Text>
                       <Text
                         style={[
-                          styles.updateDetailValue,
+                          styles.updateDetailValueMono,
                           { color: colors.text },
                         ]}
                       >
-                        {updateInfo.description}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {updateInfo.changelog && (
-                <View style={styles.updateDetailCard}>
-                  <View style={styles.updateDetailRow}>
-                    <Ionicons name="list" size={20} color={colors.primary} />
-                    <View style={styles.updateDetailText}>
-                      <Text
-                        style={[
-                          styles.updateDetailLabel,
-                          { color: colors.text },
-                        ]}
-                      >
-                        Changelog
-                      </Text>
-                      <Text
-                        style={[
-                          styles.updateDetailValue,
-                          { color: colors.text },
-                        ]}
-                      >
-                        {updateInfo.changelog}
+                        {updateInfo.id?.substring(0, 8)}…
                       </Text>
                     </View>
                   </View>
@@ -724,6 +690,62 @@ const SettingsScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Currently installed update info */}
+              <View
+                style={[
+                  styles.installedCard,
+                  {
+                    backgroundColor:
+                      theme === "dark"
+                        ? "rgba(255,255,255,0.05)"
+                        : "rgba(0,0,0,0.04)",
+                    borderColor:
+                      theme === "dark"
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.08)",
+                  },
+                ]}
+              >
+                <View style={styles.installedHeader}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color={theme === "dark" ? "#60a5fa" : "#2563eb"}
+                  />
+                  <Text
+                    style={[
+                      styles.installedTitle,
+                      { color: theme === "dark" ? "#60a5fa" : "#2563eb" },
+                    ]}
+                  >
+                    Installed: v{installedUpdateInfo.version}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.installedMessage, { color: colors.text }]}
+                  numberOfLines={2}
+                >
+                  {installedUpdateInfo.message}
+                </Text>
+                {installedUpdateInfo.changelog && (
+                  <>
+                    {parseChangelog(installedUpdateInfo.changelog)
+                      .slice(0, 3)
+                      .map((line, i) => (
+                        <Text
+                          key={i}
+                          style={[
+                            styles.installedChangeLine,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {line.startsWith("-") ? line : `• ${line}`}
+                        </Text>
+                      ))}
+                  </>
+                )}
+              </View>
 
               <TouchableOpacity
                 style={[
@@ -1138,6 +1160,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 14,
     borderRadius: 12,
+  },
+  installedCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  installedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 6,
+  },
+  installedTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  installedMessage: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 6,
+    opacity: 0.9,
+  },
+  installedChangeLine: {
+    fontSize: 13,
+    opacity: 0.65,
+    lineHeight: 20,
   },
   backendStatusContainer: {
     paddingVertical: 10,
