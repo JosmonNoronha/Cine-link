@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -29,6 +30,15 @@ import {
   removeFromWatchlist,
   toggleWatchedStatus,
 } from "../utils/storage";
+import {
+  getGamificationState,
+  getLevelInfo,
+  recordMovieWatched,
+  recordMovieUnwatched,
+  recordListCreated,
+  recordListCompleted,
+  ACHIEVEMENTS,
+} from "../utils/gamification";
 
 const WatchlistsScreen = ({ navigation }) => {
   const [watchlists, setWatchlists] = useState({});
@@ -36,7 +46,16 @@ const WatchlistsScreen = ({ navigation }) => {
   const [newName, setNewName] = useState("");
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
+  const [gamification, setGamification] = useState(null);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [latestAchievement, setLatestAchievement] = useState(null);
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  const loadGamification = useCallback(async () => {
+    const state = await getGamificationState();
+    setGamification(state);
+  }, []);
 
   const showCustomAlert = (config) => {
     setAlertConfig({ ...config, visible: true });
@@ -58,9 +77,13 @@ const WatchlistsScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchWatchlists();
-    const unsubscribe = navigation.addListener("focus", fetchWatchlists);
+    loadGamification();
+    const unsubscribe = navigation.addListener("focus", () => {
+      fetchWatchlists();
+      loadGamification();
+    });
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, loadGamification]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
@@ -97,8 +120,16 @@ const WatchlistsScreen = ({ navigation }) => {
       setTimeout(fetchWatchlists, 100);
       navigation.setParams({ watchlistsModified: Date.now() });
 
+      // Record gamification
+      const { newAchievements } = await recordListCreated();
+      loadGamification();
+      if (newAchievements.length > 0) {
+        setLatestAchievement(newAchievements[0]);
+        setShowAchievementModal(true);
+      }
+
       showCustomAlert({
-        title: "Watchlist Created!",
+        title: "Watchlist Created! +15 XP",
         message: `"${name}" has been successfully created.`,
         icon: "checkmark-circle",
         iconColor: "#4caf50",
@@ -160,9 +191,24 @@ const WatchlistsScreen = ({ navigation }) => {
 
   const watchlistKeys = Object.keys(watchlists);
 
+  const levelInfo = gamification ? getLevelInfo(gamification.xp) : null;
+
+  // Count total stats across all watchlists
+  const totalMovies = Object.values(watchlists).reduce(
+    (sum, list) => sum + list.length,
+    0,
+  );
+  const totalWatchedInLists = Object.values(watchlists).reduce(
+    (sum, list) => sum + list.filter((m) => m.watched).length,
+    0,
+  );
+
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: insets.top },
+      ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.headerContainer}>
@@ -173,6 +219,91 @@ const WatchlistsScreen = ({ navigation }) => {
           Organize your cinema
         </Text>
       </View>
+
+      {/* Gamification Stats Card */}
+      {gamification && levelInfo && (
+        <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
+          <View style={styles.statsRow}>
+            <View style={styles.levelBadge}>
+              <Text style={styles.levelIcon}>{levelInfo.current.icon}</Text>
+              <View>
+                <Text style={[styles.levelTitle, { color: colors.text }]}>
+                  {levelInfo.current.title}
+                </Text>
+                <Text style={[styles.levelSubtext, { color: colors.text }]}>
+                  Level {levelInfo.current.level}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.xpContainer}>
+              <Text style={styles.xpText}>{gamification.xp} XP</Text>
+            </View>
+          </View>
+
+          {/* XP Progress Bar */}
+          {levelInfo.next && (
+            <View style={styles.xpBarContainer}>
+              <View style={styles.xpBarTrack}>
+                <LinearGradient
+                  colors={["#667eea", "#764ba2"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[
+                    styles.xpBarFill,
+                    { width: `${Math.max(5, levelInfo.progress * 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.xpBarLabel, { color: colors.text }]}>
+                {levelInfo.xpInLevel}/{levelInfo.xpForNext} to{" "}
+                {levelInfo.next.title}
+              </Text>
+            </View>
+          )}
+
+          {/* Quick Stats Row */}
+          <View style={styles.quickStats}>
+            {gamification.currentStreak > 0 && (
+              <View style={styles.quickStat}>
+                <Text style={styles.quickStatIcon}>🔥</Text>
+                <Text style={[styles.quickStatValue, { color: colors.text }]}>
+                  {gamification.currentStreak}
+                </Text>
+                <Text style={[styles.quickStatLabel, { color: colors.text }]}>
+                  Streak
+                </Text>
+              </View>
+            )}
+            <View style={styles.quickStat}>
+              <Text style={styles.quickStatIcon}>🎬</Text>
+              <Text style={[styles.quickStatValue, { color: colors.text }]}>
+                {totalMovies}
+              </Text>
+              <Text style={[styles.quickStatLabel, { color: colors.text }]}>
+                Movies
+              </Text>
+            </View>
+            <View style={styles.quickStat}>
+              <Text style={styles.quickStatIcon}>✅</Text>
+              <Text style={[styles.quickStatValue, { color: colors.text }]}>
+                {totalWatchedInLists}
+              </Text>
+              <Text style={[styles.quickStatLabel, { color: colors.text }]}>
+                Watched
+              </Text>
+            </View>
+            <View style={styles.quickStat}>
+              <Text style={styles.quickStatIcon}>🏆</Text>
+              <Text style={[styles.quickStatValue, { color: colors.text }]}>
+                {gamification.unlockedAchievements.length}
+              </Text>
+              <Text style={[styles.quickStatLabel, { color: colors.text }]}>
+                Badges
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       <FlatList
         data={watchlistKeys}
@@ -224,6 +355,48 @@ const WatchlistsScreen = ({ navigation }) => {
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
+
+      {/* Achievement Unlocked Modal */}
+      <Modal
+        visible={showAchievementModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAchievementModal(false)}
+      >
+        <View style={styles.achievementOverlay}>
+          <View
+            style={[styles.achievementCard, { backgroundColor: colors.card }]}
+          >
+            <Text style={styles.achievementUnlockedText}>
+              🎉 Achievement Unlocked!
+            </Text>
+            {latestAchievement && (
+              <>
+                <Text style={styles.achievementBigIcon}>
+                  {latestAchievement.icon}
+                </Text>
+                <Text style={[styles.achievementTitle, { color: colors.text }]}>
+                  {latestAchievement.title}
+                </Text>
+                <Text style={[styles.achievementDesc, { color: colors.text }]}>
+                  {latestAchievement.desc}
+                </Text>
+              </>
+            )}
+            <TouchableOpacity
+              style={styles.achievementButton}
+              onPress={() => setShowAchievementModal(false)}
+            >
+              <LinearGradient
+                colors={["#667eea", "#764ba2"]}
+                style={styles.achievementButtonGradient}
+              >
+                <Text style={styles.achievementButtonText}>Awesome!</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -234,6 +407,11 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [showWatchedOnly, setShowWatchedOnly] = useState(false);
   const [loadingStates, setLoadingStates] = useState({});
+  const [xpToast, setXpToast] = useState(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [latestAchievement, setLatestAchievement] = useState(null);
+  const xpToastAnim = useRef(new Animated.Value(0)).current;
   const swipeRefs = useRef({}); // Store refs for each swipeable item
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -244,6 +422,27 @@ const WatchlistContentScreen = ({ route, navigation }) => {
 
   const hideAlert = () => {
     setAlertConfig({ visible: false });
+  };
+
+  const showXpToast = (xpGained, streakDays) => {
+    const msg =
+      streakDays > 1
+        ? `+${xpGained} XP  🔥 ${streakDays} day streak!`
+        : `+${xpGained} XP`;
+    setXpToast(msg);
+    Animated.sequence([
+      Animated.timing(xpToastAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(1500),
+      Animated.timing(xpToastAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setXpToast(null));
   };
 
   const fetchMovies = async () => {
@@ -298,6 +497,36 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       await toggleWatchedStatus(name, movieId);
 
       navigation.setParams({ movieWatchedToggled: Date.now() });
+
+      // Gamification: record watch/unwatch
+      if (newWatchedStatus) {
+        const { state, newAchievements, xpGained } = await recordMovieWatched();
+        showXpToast(xpGained, state.currentStreak);
+
+        // Check if the entire list is now complete
+        const updatedMovies = movies.map((m) =>
+          m.imdbID === movieId ? { ...m, watched: true } : m,
+        );
+        const allWatched =
+          updatedMovies.length > 0 && updatedMovies.every((m) => m.watched);
+        if (allWatched) {
+          const completionResult = await recordListCompleted();
+          setTimeout(() => setShowCelebration(true), 500);
+          if (completionResult.newAchievements.length > 0) {
+            setTimeout(() => {
+              setLatestAchievement(completionResult.newAchievements[0]);
+              setShowAchievementModal(true);
+            }, 2500);
+          }
+        } else if (newAchievements.length > 0) {
+          setTimeout(() => {
+            setLatestAchievement(newAchievements[0]);
+            setShowAchievementModal(true);
+          }, 2000);
+        }
+      } else {
+        await recordMovieUnwatched();
+      }
 
       // Auto close the swipeable after successful toggle with a slight delay
       setTimeout(() => {
@@ -643,6 +872,108 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
+
+      {/* XP Toast */}
+      {xpToast && (
+        <Animated.View
+          style={[
+            styles.xpToast,
+            {
+              opacity: xpToastAnim,
+              transform: [
+                {
+                  translateY: xpToastAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={["#667eea", "#764ba2"]}
+            style={styles.xpToastGradient}
+          >
+            <Text style={styles.xpToastText}>{xpToast}</Text>
+          </LinearGradient>
+        </Animated.View>
+      )}
+
+      {/* List Completion Celebration */}
+      <Modal
+        visible={showCelebration}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCelebration(false)}
+      >
+        <View style={styles.achievementOverlay}>
+          <View
+            style={[styles.celebrationCard, { backgroundColor: colors.card }]}
+          >
+            <Text style={styles.celebrationEmoji}>🎬🏆🎉</Text>
+            <Text style={[styles.celebrationTitle, { color: colors.text }]}>
+              Watchlist Complete!
+            </Text>
+            <Text style={[styles.celebrationSubtitle, { color: colors.text }]}>
+              You finished every movie in "{name}"!{"\n"}+100 XP bonus!
+            </Text>
+            <TouchableOpacity
+              style={styles.achievementButton}
+              onPress={() => setShowCelebration(false)}
+            >
+              <LinearGradient
+                colors={["#4caf50", "#2e7d32"]}
+                style={styles.achievementButtonGradient}
+              >
+                <Text style={styles.achievementButtonText}>Amazing! 🎉</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Achievement Modal */}
+      <Modal
+        visible={showAchievementModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAchievementModal(false)}
+      >
+        <View style={styles.achievementOverlay}>
+          <View
+            style={[styles.achievementCard, { backgroundColor: colors.card }]}
+          >
+            <Text style={styles.achievementUnlockedText}>
+              🎉 Achievement Unlocked!
+            </Text>
+            {latestAchievement && (
+              <>
+                <Text style={styles.achievementBigIcon}>
+                  {latestAchievement.icon}
+                </Text>
+                <Text style={[styles.achievementTitle, { color: colors.text }]}>
+                  {latestAchievement.title}
+                </Text>
+                <Text style={[styles.achievementDesc, { color: colors.text }]}>
+                  {latestAchievement.desc}
+                </Text>
+              </>
+            )}
+            <TouchableOpacity
+              style={styles.achievementButton}
+              onPress={() => setShowAchievementModal(false)}
+            >
+              <LinearGradient
+                colors={["#667eea", "#764ba2"]}
+                style={styles.achievementButtonGradient}
+              >
+                <Text style={styles.achievementButtonText}>Awesome!</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -902,6 +1233,191 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "rgba(0, 0, 0, 0.25)",
     borderRadius: 16,
+  },
+
+  // ─── GAMIFICATION STYLES ──────────────────────────────────
+  statsCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  levelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  levelIcon: {
+    fontSize: 32,
+  },
+  levelTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  levelSubtext: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  xpContainer: {
+    backgroundColor: "rgba(102, 126, 234, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  xpText: {
+    color: "#667eea",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  xpBarContainer: {
+    marginBottom: 12,
+  },
+  xpBarTrack: {
+    height: 6,
+    backgroundColor: "rgba(102, 126, 234, 0.15)",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  xpBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  xpBarLabel: {
+    fontSize: 11,
+    opacity: 0.5,
+    textAlign: "right",
+  },
+  quickStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  quickStat: {
+    alignItems: "center",
+    minWidth: 55,
+  },
+  quickStatIcon: {
+    fontSize: 18,
+    marginBottom: 2,
+  },
+  quickStatValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  quickStatLabel: {
+    fontSize: 10,
+    opacity: 0.5,
+  },
+
+  // Achievement Modal
+  achievementOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  achievementCard: {
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+    elevation: 10,
+  },
+  achievementUnlockedText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#667eea",
+    marginBottom: 16,
+  },
+  achievementBigIcon: {
+    fontSize: 56,
+    marginBottom: 12,
+  },
+  achievementTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  achievementDesc: {
+    fontSize: 14,
+    opacity: 0.7,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  achievementButton: {
+    borderRadius: 25,
+    overflow: "hidden",
+    width: "100%",
+  },
+  achievementButtonGradient: {
+    paddingVertical: 14,
+    alignItems: "center",
+    borderRadius: 25,
+  },
+  achievementButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+
+  // Celebration
+  celebrationCard: {
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+    elevation: 10,
+  },
+  celebrationEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+    letterSpacing: 8,
+  },
+  celebrationTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  celebrationSubtitle: {
+    fontSize: 14,
+    opacity: 0.7,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+
+  // XP Toast
+  xpToast: {
+    position: "absolute",
+    top: 50,
+    alignSelf: "center",
+    zIndex: 999,
+  },
+  xpToastGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+    elevation: 6,
+  },
+  xpToastText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 15,
   },
 });
 
