@@ -3,7 +3,6 @@ import "firebase/compat/auth";
 import "firebase/compat/firestore";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initializeAuth } from "firebase/auth";
 import { Platform } from "react-native";
 
 // getReactNativePersistence only exists in native bundles (not web)
@@ -89,14 +88,15 @@ if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
       firebaseApp = firebase.initializeApp(firebaseConfig);
       console.log("✅ Firebase initialized successfully");
 
-      // Use React Native persistence on native, skip on web
+      authInstance = firebase.auth();
+
+      // Set React Native persistence if available
       if (Platform.OS !== "web" && getReactNativePersistence) {
-        authInstance = initializeAuth(firebaseApp, {
-          persistence: getReactNativePersistence(AsyncStorage),
-        });
-      } else {
-        // On web, use default browser persistence via compat API
-        authInstance = firebase.auth();
+        try {
+          authInstance.setPersistence(getReactNativePersistence(AsyncStorage));
+        } catch (e) {
+          console.warn("Failed to set RN auth persistence:", e.message);
+        }
       }
     } else {
       firebaseApp = firebase.app();

@@ -11,15 +11,7 @@ import {
   Modal,
 } from "react-native";
 import { auth, db } from "../../firebaseConfig";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  sendEmailVerification,
-  reload,
-} from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { serverTimestamp } from "firebase/firestore";
+import firebase from "firebase/compat/app";
 import analyticsService from "../services/analytics";
 
 const AuthScreen = () => {
@@ -81,8 +73,7 @@ const AuthScreen = () => {
     setIsLoading(true);
     try {
       // Sign in temporarily to resend verification
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
+      const userCredential = await auth.signInWithEmailAndPassword(
         verificationEmail,
         password,
       );
@@ -99,7 +90,7 @@ const AuthScreen = () => {
         return;
       }
 
-      await sendEmailVerification(user);
+      await user.sendEmailVerification();
       await auth.signOut();
 
       startCooldown();
@@ -118,15 +109,14 @@ const AuthScreen = () => {
   const checkEmailVerification = async (userEmail, userPassword) => {
     try {
       // Sign in to check verification status
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
+      const userCredential = await auth.signInWithEmailAndPassword(
         userEmail,
         userPassword,
       );
       const user = userCredential.user;
 
       // Reload user to get latest verification status
-      await reload(user);
+      await user.reload();
 
       if (user.emailVerified) {
         return true; // Email is verified, login successful
@@ -154,14 +144,14 @@ const AuthScreen = () => {
       username: username,
       email: user.email,
       uid: user.uid,
-      createdAt: serverTimestamp(),
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
 
     console.log("Data to save:", userData);
     console.log("Document path:", `users/${user.uid}`);
 
     try {
-      await setDoc(doc(db, "users", user.uid), userData);
+      await db.collection("users").doc(user.uid).set(userData);
       console.log("✅ Firestore save successful");
       return true;
     } catch (firestoreError) {
@@ -192,15 +182,14 @@ const AuthScreen = () => {
         // If we reach here, user is verified and logged in
         // Track login
         analyticsService.setUser(auth.currentUser);
-        analyticsService.trackAction('user_login', { method: 'email' });
+        analyticsService.trackAction("user_login", { method: "email" });
       } else {
         // Create account
         console.log("=== ACCOUNT CREATION DEBUG ===");
         console.log("Email:", email);
         console.log("Username:", username);
 
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
+        const userCredential = await auth.createUserWithEmailAndPassword(
           email,
           password,
         );
@@ -210,7 +199,7 @@ const AuthScreen = () => {
         // First, update profile
         try {
           console.log("Updating profile with displayName:", username);
-          await updateProfile(user, {
+          await user.updateProfile({
             displayName: username,
           });
           console.log("✅ Profile updated successfully");
@@ -231,7 +220,7 @@ const AuthScreen = () => {
         // Send verification email
         try {
           console.log("Sending verification email...");
-          await sendEmailVerification(user);
+          await user.sendEmailVerification();
           console.log("✅ Verification email sent");
         } catch (emailError) {
           console.error("❌ Verification email failed:", emailError);
@@ -243,9 +232,9 @@ const AuthScreen = () => {
         console.log("✅ User signed out");
 
         // Show verification modal
-        
+
         // Track signup
-        analyticsService.trackAction('user_signup', { method: 'email' });
+        analyticsService.trackAction("user_signup", { method: "email" });
         setVerificationEmail(email);
         setShowVerificationModal(true);
         setErrorMessage("");
