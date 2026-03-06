@@ -26,15 +26,25 @@ console.log(
   !!Constants?.expoConfig?.extra,
 );
 
-// Read from Constants.expoConfig.extra (populated by app.config.js during build)
+// Read config: EXPO_PUBLIC_ env vars (available in OTA updates) → Constants.expoConfig.extra (native build)
 const extra = Constants?.expoConfig?.extra || {};
-const FIREBASE_API_KEY = extra.FIREBASE_API_KEY;
-const FIREBASE_AUTH_DOMAIN = extra.FIREBASE_AUTH_DOMAIN;
-const FIREBASE_PROJECT_ID = extra.FIREBASE_PROJECT_ID;
-const FIREBASE_STORAGE_BUCKET = extra.FIREBASE_STORAGE_BUCKET;
-const FIREBASE_MESSAGING_SENDER_ID = extra.FIREBASE_MESSAGING_SENDER_ID;
-const FIREBASE_APP_ID = extra.FIREBASE_APP_ID;
-const FIREBASE_MEASUREMENT_ID = extra.FIREBASE_MEASUREMENT_ID;
+const FIREBASE_API_KEY =
+  process.env.EXPO_PUBLIC_FIREBASE_API_KEY || extra.FIREBASE_API_KEY;
+const FIREBASE_AUTH_DOMAIN =
+  process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || extra.FIREBASE_AUTH_DOMAIN;
+const FIREBASE_PROJECT_ID =
+  process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || extra.FIREBASE_PROJECT_ID;
+const FIREBASE_STORAGE_BUCKET =
+  process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  extra.FIREBASE_STORAGE_BUCKET;
+const FIREBASE_MESSAGING_SENDER_ID =
+  process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
+  extra.FIREBASE_MESSAGING_SENDER_ID;
+const FIREBASE_APP_ID =
+  process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra.FIREBASE_APP_ID;
+const FIREBASE_MEASUREMENT_ID =
+  process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID ||
+  extra.FIREBASE_MEASUREMENT_ID;
 
 // Validate required Firebase configuration
 if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
