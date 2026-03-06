@@ -11,10 +11,12 @@ import {
   Modal,
 } from "react-native";
 import { auth, db } from "../../firebaseConfig";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import firebase from "firebase/compat/app";
 import analyticsService from "../services/analytics";
 
 const AuthScreen = () => {
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -260,7 +262,7 @@ const AuthScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

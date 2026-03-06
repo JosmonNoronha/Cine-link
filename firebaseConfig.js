@@ -1,20 +1,11 @@
 import firebase from "firebase/compat/app";
 import "firebase/compat/auth";
 import "firebase/compat/firestore";
+import { initializeAuth } from "firebase/auth";
+import { getReactNativePersistence } from "firebase/auth/react-native";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-
-// getReactNativePersistence only exists in native bundles (not web)
-let getReactNativePersistence;
-if (Platform.OS !== "web") {
-  try {
-    getReactNativePersistence =
-      require("firebase/auth/react-native").getReactNativePersistence;
-  } catch (e) {
-    console.warn("getReactNativePersistence not available:", e.message);
-  }
-}
 
 // Debug: Log what's available
 console.log(
@@ -98,16 +89,19 @@ if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
       firebaseApp = firebase.initializeApp(firebaseConfig);
       console.log("✅ Firebase initialized successfully");
 
-      authInstance = firebase.auth();
-
-      // Set React Native persistence if available
-      if (Platform.OS !== "web" && getReactNativePersistence) {
+      // Initialize auth with React Native persistence BEFORE calling firebase.auth()
+      if (Platform.OS !== "web") {
         try {
-          authInstance.setPersistence(getReactNativePersistence(AsyncStorage));
+          initializeAuth(firebaseApp, {
+            persistence: getReactNativePersistence(AsyncStorage),
+          });
+          console.log("✅ Auth persistence set with AsyncStorage");
         } catch (e) {
-          console.warn("Failed to set RN auth persistence:", e.message);
+          console.warn("Failed to set auth persistence:", e.message);
         }
       }
+
+      authInstance = firebase.auth();
     } else {
       firebaseApp = firebase.app();
       authInstance = firebase.auth();

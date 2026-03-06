@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   ScrollView,
   ActionSheetIOS,
@@ -16,6 +15,7 @@ import {
   Modal,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { Ionicons } from "@expo/vector-icons";

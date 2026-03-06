@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Swipeable } from "react-native-gesture-handler";
@@ -235,6 +236,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const [loadingStates, setLoadingStates] = useState({});
   const swipeRefs = useRef({}); // Store refs for each swipeable item
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const showCustomAlert = (config) => {
     setAlertConfig({ ...config, visible: true });
@@ -562,7 +564,12 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const totalCount = movies.length;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, paddingTop: insets.top },
+      ]}
+    >
       <View style={styles.headerRow}>
         <TouchableOpacity
           style={styles.backButton}

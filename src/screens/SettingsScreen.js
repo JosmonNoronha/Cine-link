@@ -18,12 +18,14 @@ import NetInfo from "@react-native-community/netinfo";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "../../firebaseConfig";
 import { getBackendStatus, retestBackendConnection } from "../services/api";
 
 const SettingsScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { theme, toggleTheme } = useCustomTheme();
+  const insets = useSafeAreaInsets();
   const [updateOverWifi, setUpdateOverWifi] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -474,20 +476,21 @@ const SettingsScreen = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.manageSubscriptionsButton,
-            { 
-              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-            }
+            {
+              borderColor:
+                theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+            },
           ]}
-          onPress={() => navigation.navigate('ManageSubscriptions')}
+          onPress={() => navigation.navigate("ManageSubscriptions")}
           activeOpacity={0.6}
         >
           <View style={styles.buttonContent}>
             <View style={styles.buttonLeft}>
-              <Ionicons 
-                name="tv-outline" 
-                size={20} 
-                color={colors.text} 
-                style={{ opacity: 0.6, marginRight: 12 }} 
+              <Ionicons
+                name="tv-outline"
+                size={20}
+                color={colors.text}
+                style={{ opacity: 0.6, marginRight: 12 }}
               />
               <View>
                 <Text style={[styles.buttonTitle, { color: colors.text }]}>
@@ -498,11 +501,11 @@ const SettingsScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            <Ionicons 
-              name="chevron-forward" 
-              size={18} 
-              color={colors.text} 
-              style={{ opacity: 0.3 }} 
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={colors.text}
+              style={{ opacity: 0.3 }}
             />
           </View>
         </TouchableOpacity>
@@ -621,7 +624,10 @@ const SettingsScreen = ({ navigation }) => {
       <ScrollView
         style={[
           styles.container,
-          { backgroundColor: theme === "dark" ? "#121212" : "#f2f2f7" },
+          {
+            backgroundColor: theme === "dark" ? "#121212" : "#f2f2f7",
+            paddingTop: insets.top,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -1174,6 +1180,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
 });
-
 
 export default SettingsScreen;

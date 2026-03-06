@@ -3,13 +3,13 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  SafeAreaView,
   StatusBar,
   Keyboard,
   Alert,
   StyleSheet,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import analyticsService from "../services/analytics";
 
