@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+﻿import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import CustomAlert from "../components/CustomAlert";
 import WatchlistCard from "../components/WatchlistCard";
 import EmptyState from "../components/EmptyState";
 import CreateWatchlistModal from "../components/CreateWatchlistModal";
+import BadgesModal from "../components/BadgesModal";
 
 import {
   getWatchlists,
@@ -37,7 +38,6 @@ import {
   recordMovieUnwatched,
   recordListCreated,
   recordListCompleted,
-  ACHIEVEMENTS,
 } from "../utils/gamification";
 
 const WatchlistsScreen = ({ navigation }) => {
@@ -47,8 +47,19 @@ const WatchlistsScreen = ({ navigation }) => {
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
   const [gamification, setGamification] = useState(null);
-  const [showAchievementModal, setShowAchievementModal] = useState(false);
-  const [latestAchievement, setLatestAchievement] = useState(null);
+  const [badgesModalVisible, setBadgesModalVisible] = useState(false);
+  const xpBlockAnims = useRef(
+    Array.from({ length: 20 }, () => new Animated.Value(0)),
+  ).current;
+  const chipEnterAnims = useRef(
+    Array.from({ length: 4 }, () => ({
+      opacity: new Animated.Value(0),
+      ty: new Animated.Value(10),
+    })),
+  ).current;
+  const cursorBlink = useRef(new Animated.Value(1)).current;
+  const scanAnim = useRef(new Animated.Value(0)).current;
+  const hudAnimated = useRef(false);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -92,6 +103,66 @@ const WatchlistsScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation]);
 
+  useEffect(() => {
+    if (!gamification || hudAnimated.current) return;
+    hudAnimated.current = true;
+    const li = getLevelInfo(gamification.xp);
+    const filled = li.next ? Math.round(li.progress * 20) : 20;
+
+    Animated.timing(scanAnim, {
+      toValue: 1,
+      duration: 900,
+      useNativeDriver: true,
+    }).start();
+
+    Animated.stagger(
+      38,
+      xpBlockAnims.map((a, i) =>
+        Animated.spring(a, {
+          toValue: i < filled ? 1 : 0.45,
+          useNativeDriver: true,
+          tension: 220,
+          friction: 11,
+        }),
+      ),
+    ).start();
+
+    Animated.stagger(
+      65,
+      chipEnterAnims.map(({ opacity, ty }) =>
+        Animated.parallel([
+          Animated.spring(opacity, {
+            toValue: 1,
+            useNativeDriver: true,
+            tension: 120,
+            friction: 8,
+          }),
+          Animated.spring(ty, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 150,
+            friction: 10,
+          }),
+        ]),
+      ),
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(cursorBlink, {
+          toValue: 0,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cursorBlink, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [gamification]);
+
   const handleAddWatchlist = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -121,12 +192,8 @@ const WatchlistsScreen = ({ navigation }) => {
       navigation.setParams({ watchlistsModified: Date.now() });
 
       // Record gamification
-      const { newAchievements } = await recordListCreated();
+      await recordListCreated();
       loadGamification();
-      if (newAchievements.length > 0) {
-        setLatestAchievement(newAchievements[0]);
-        setShowAchievementModal(true);
-      }
 
       showCustomAlert({
         title: "Watchlist Created! +15 XP",
@@ -211,96 +278,161 @@ const WatchlistsScreen = ({ navigation }) => {
       ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.headerContainer}>
-        <Text style={[styles.header, { color: colors.text }]}>
-          My Watchlists
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.text }]}>
-          Organize your cinema
+      {/* ─── Clean Page Header ─── */}
+      <View style={styles.pageHeader}>
+        <Text style={[styles.pageTitle, { color: colors.text }]}>
+          MY WATCHLISTS
         </Text>
       </View>
 
-      {/* Gamification Stats Card */}
+      {/* ─── Gamification HUD Panel ─── */}
       {gamification && levelInfo && (
-        <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
-          <View style={styles.statsRow}>
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelIcon}>{levelInfo.current.icon}</Text>
-              <View>
-                <Text style={[styles.levelTitle, { color: colors.text }]}>
-                  {levelInfo.current.title}
-                </Text>
-                <Text style={[styles.levelSubtext, { color: colors.text }]}>
-                  Level {levelInfo.current.level}
+        <View style={styles.hudPanel}>
+          <View style={styles.hudCornerTL} />
+          <View style={styles.hudCornerTR} />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.hudScanLine,
+              {
+                transform: [
+                  {
+                    translateX: scanAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-60, 600],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+          {/* Level chip + XP bar in one row */}
+          <View style={styles.hudTopRow}>
+            <View style={styles.hudLvlChip}>
+              <Text style={styles.hudLvlChipEmoji}>
+                {levelInfo.current.icon}
+              </Text>
+              <Text style={styles.hudLvlChipText}>
+                LVL {levelInfo.current.level}
+              </Text>
+              <Animated.Text
+                style={[styles.hudCursor, { opacity: cursorBlink }]}
+              >
+                █
+              </Animated.Text>
+            </View>
+            {levelInfo.next ? (
+              <View style={styles.hudXpBarInline}>
+                <View style={styles.hudXpSegments}>
+                  {Array.from({ length: 20 }, (_, i) => (
+                    <Animated.View
+                      key={i}
+                      style={[
+                        styles.hudXpBlock,
+                        i / 20 < levelInfo.progress
+                          ? styles.hudXpBlockFilled
+                          : styles.hudXpBlockEmpty,
+                        { transform: [{ scaleY: xpBlockAnims[i] }] },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.hudXpMetaText, { color: colors.text }]}>
+                  {levelInfo.xpInLevel}/{levelInfo.xpForNext} XP
                 </Text>
               </View>
-            </View>
-            <View style={styles.xpContainer}>
-              <Text style={styles.xpText}>{gamification.xp} XP</Text>
-            </View>
+            ) : (
+              <Text style={styles.hudMaxLvlText}>■ MAX LEVEL</Text>
+            )}
           </View>
 
-          {/* XP Progress Bar */}
-          {levelInfo.next && (
-            <View style={styles.xpBarContainer}>
-              <View style={styles.xpBarTrack}>
-                <LinearGradient
-                  colors={["#667eea", "#764ba2"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[
-                    styles.xpBarFill,
-                    { width: `${Math.max(5, levelInfo.progress * 100)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.xpBarLabel, { color: colors.text }]}>
-                {levelInfo.xpInLevel}/{levelInfo.xpForNext} to{" "}
-                {levelInfo.next.title}
-              </Text>
-            </View>
-          )}
-
-          {/* Quick Stats Row */}
-          <View style={styles.quickStats}>
+          {/* Stats chips */}
+          <View style={styles.hudChipsRow}>
             {gamification.currentStreak > 0 && (
-              <View style={styles.quickStat}>
-                <Text style={styles.quickStatIcon}>🔥</Text>
-                <Text style={[styles.quickStatValue, { color: colors.text }]}>
+              <Animated.View
+                style={[
+                  styles.hudChip,
+                  {
+                    opacity: chipEnterAnims[0].opacity,
+                    transform: [{ translateY: chipEnterAnims[0].ty }],
+                  },
+                ]}
+              >
+                <View style={styles.hudChipCornerTL} />
+                <View style={styles.hudChipCornerTR} />
+                <View style={styles.hudChipCornerBL} />
+                <View style={styles.hudChipCornerBR} />
+                <Ionicons name="flame" size={14} color="#E50914" />
+                <Text style={[styles.hudChipVal, { color: colors.text }]}>
                   {gamification.currentStreak}
                 </Text>
-                <Text style={[styles.quickStatLabel, { color: colors.text }]}>
-                  Streak
-                </Text>
-              </View>
+                <Text style={styles.hudChipLbl}>STREAK</Text>
+              </Animated.View>
             )}
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatIcon}>🎬</Text>
-              <Text style={[styles.quickStatValue, { color: colors.text }]}>
+            <Animated.View
+              style={[
+                styles.hudChip,
+                {
+                  opacity: chipEnterAnims[1].opacity,
+                  transform: [{ translateY: chipEnterAnims[1].ty }],
+                },
+              ]}
+            >
+              <View style={styles.hudChipCornerTL} />
+              <View style={styles.hudChipCornerTR} />
+              <View style={styles.hudChipCornerBL} />
+              <View style={styles.hudChipCornerBR} />
+              <Ionicons name="film-outline" size={14} color="#E50914" />
+              <Text style={[styles.hudChipVal, { color: colors.text }]}>
                 {totalMovies}
               </Text>
-              <Text style={[styles.quickStatLabel, { color: colors.text }]}>
-                Movies
-              </Text>
-            </View>
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatIcon}>✅</Text>
-              <Text style={[styles.quickStatValue, { color: colors.text }]}>
+              <Text style={styles.hudChipLbl}>LISTED</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.hudChip,
+                {
+                  opacity: chipEnterAnims[2].opacity,
+                  transform: [{ translateY: chipEnterAnims[2].ty }],
+                },
+              ]}
+            >
+              <View style={styles.hudChipCornerTL} />
+              <View style={styles.hudChipCornerTR} />
+              <View style={styles.hudChipCornerBL} />
+              <View style={styles.hudChipCornerBR} />
+              <Ionicons name="eye-outline" size={14} color="#E50914" />
+              <Text style={[styles.hudChipVal, { color: colors.text }]}>
                 {totalWatchedInLists}
               </Text>
-              <Text style={[styles.quickStatLabel, { color: colors.text }]}>
-                Watched
-              </Text>
-            </View>
-            <View style={styles.quickStat}>
-              <Text style={styles.quickStatIcon}>🏆</Text>
-              <Text style={[styles.quickStatValue, { color: colors.text }]}>
-                {gamification.unlockedAchievements.length}
-              </Text>
-              <Text style={[styles.quickStatLabel, { color: colors.text }]}>
-                Badges
-              </Text>
-            </View>
+              <Text style={styles.hudChipLbl}>WATCHED</Text>
+            </Animated.View>
+            <TouchableOpacity
+              onPress={() => setBadgesModalVisible(true)}
+              activeOpacity={0.75}
+              style={{ flex: 1 }}
+            >
+              <Animated.View
+                style={[
+                  styles.hudChip,
+                  { flex: undefined },
+                  {
+                    opacity: chipEnterAnims[3].opacity,
+                    transform: [{ translateY: chipEnterAnims[3].ty }],
+                  },
+                ]}
+              >
+                <View style={styles.hudChipCornerTL} />
+                <View style={styles.hudChipCornerTR} />
+                <View style={styles.hudChipCornerBL} />
+                <View style={styles.hudChipCornerBR} />
+                <Ionicons name="trophy-outline" size={14} color="#E50914" />
+                <Text style={[styles.hudChipVal, { color: colors.text }]}>
+                  {gamification.unlockedAchievements.length}
+                </Text>
+                <Text style={styles.hudChipLbl}>BADGES</Text>
+              </Animated.View>
+            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -356,47 +488,12 @@ const WatchlistsScreen = ({ navigation }) => {
         iconColor={alertConfig.iconColor}
       />
 
-      {/* Achievement Unlocked Modal */}
-      <Modal
-        visible={showAchievementModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAchievementModal(false)}
-      >
-        <View style={styles.achievementOverlay}>
-          <View
-            style={[styles.achievementCard, { backgroundColor: colors.card }]}
-          >
-            <Text style={styles.achievementUnlockedText}>
-              🎉 Achievement Unlocked!
-            </Text>
-            {latestAchievement && (
-              <>
-                <Text style={styles.achievementBigIcon}>
-                  {latestAchievement.icon}
-                </Text>
-                <Text style={[styles.achievementTitle, { color: colors.text }]}>
-                  {latestAchievement.title}
-                </Text>
-                <Text style={[styles.achievementDesc, { color: colors.text }]}>
-                  {latestAchievement.desc}
-                </Text>
-              </>
-            )}
-            <TouchableOpacity
-              style={styles.achievementButton}
-              onPress={() => setShowAchievementModal(false)}
-            >
-              <LinearGradient
-                colors={["#667eea", "#764ba2"]}
-                style={styles.achievementButtonGradient}
-              >
-                <Text style={styles.achievementButtonText}>Awesome!</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <BadgesModal
+        visible={badgesModalVisible}
+        onClose={() => setBadgesModalVisible(false)}
+        unlockedAchievements={gamification?.unlockedAchievements || []}
+        colors={colors}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -409,9 +506,17 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const [loadingStates, setLoadingStates] = useState({});
   const [xpToast, setXpToast] = useState(null);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [showAchievementModal, setShowAchievementModal] = useState(false);
-  const [latestAchievement, setLatestAchievement] = useState(null);
+  const [achievementToast, setAchievementToast] = useState({
+    visible: false,
+    achievement: null,
+  });
+  const [levelUpBanner, setLevelUpBanner] = useState({
+    visible: false,
+    level: null,
+  });
   const xpToastAnim = useRef(new Animated.Value(0)).current;
+  const achToastAnim = useRef(new Animated.Value(0)).current;
+  const levelUpBannerAnim = useRef(new Animated.Value(0)).current;
   const swipeRefs = useRef({}); // Store refs for each swipeable item
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -425,6 +530,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   };
 
   const showXpToast = (xpGained, streakDays) => {
+    if (!xpGained) return; // no toast when XP was blocked by cooldown
     const msg =
       streakDays > 1
         ? `+${xpGained} XP  🔥 ${streakDays} day streak!`
@@ -436,13 +542,51 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         duration: 300,
         useNativeDriver: true,
       }),
-      Animated.delay(1500),
+      Animated.delay(1600),
       Animated.timing(xpToastAnim, {
         toValue: 0,
         duration: 300,
         useNativeDriver: true,
       }),
     ]).start(() => setXpToast(null));
+  };
+
+  const showAchievementToast = (achievement) => {
+    setAchievementToast({ visible: true, achievement });
+    achToastAnim.setValue(0);
+    Animated.sequence([
+      Animated.spring(achToastAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 10,
+      }),
+      Animated.delay(3000),
+      Animated.timing(achToastAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setAchievementToast({ visible: false, achievement: null }));
+  };
+
+  const showLevelUpBanner = (level) => {
+    setLevelUpBanner({ visible: true, level });
+    levelUpBannerAnim.setValue(0);
+    Animated.sequence([
+      Animated.spring(levelUpBannerAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 10,
+      }),
+      Animated.delay(2500),
+      Animated.timing(levelUpBannerAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setLevelUpBanner({ visible: false, level: null }));
   };
 
   const fetchMovies = async () => {
@@ -500,8 +644,13 @@ const WatchlistContentScreen = ({ route, navigation }) => {
 
       // Gamification: record watch/unwatch
       if (newWatchedStatus) {
-        const { state, newAchievements, xpGained } = await recordMovieWatched();
+        const { state, newAchievements, xpGained, leveledUp } =
+          await recordMovieWatched(movie.imdbID);
         showXpToast(xpGained, state.currentStreak);
+
+        if (leveledUp) {
+          setTimeout(() => showLevelUpBanner(leveledUp), 1800);
+        }
 
         // Check if the entire list is now complete
         const updatedMovies = movies.map((m) =>
@@ -510,22 +659,27 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         const allWatched =
           updatedMovies.length > 0 && updatedMovies.every((m) => m.watched);
         if (allWatched) {
-          const completionResult = await recordListCompleted();
-          setTimeout(() => setShowCelebration(true), 500);
+          const completionResult = await recordListCompleted(name);
+          if (!completionResult.alreadyCompleted) {
+            setTimeout(() => setShowCelebration(true), 500);
+          }
           if (completionResult.newAchievements.length > 0) {
-            setTimeout(() => {
-              setLatestAchievement(completionResult.newAchievements[0]);
-              setShowAchievementModal(true);
-            }, 2500);
+            setTimeout(
+              () => showAchievementToast(completionResult.newAchievements[0]),
+              2500,
+            );
+          }
+          if (completionResult.leveledUp) {
+            setTimeout(
+              () => showLevelUpBanner(completionResult.leveledUp),
+              4200,
+            );
           }
         } else if (newAchievements.length > 0) {
-          setTimeout(() => {
-            setLatestAchievement(newAchievements[0]);
-            setShowAchievementModal(true);
-          }, 2000);
+          setTimeout(() => showAchievementToast(newAchievements[0]), 2000);
         }
       } else {
-        await recordMovieUnwatched();
+        await recordMovieUnwatched(movie.imdbID);
       }
 
       // Auto close the swipeable after successful toggle with a slight delay
@@ -877,26 +1031,34 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       {xpToast && (
         <Animated.View
           style={[
-            styles.xpToast,
+            styles.pixelToast,
             {
               opacity: xpToastAnim,
               transform: [
                 {
                   translateY: xpToastAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [-20, 0],
+                    outputRange: [-24, 0],
                   }),
                 },
               ],
             },
           ]}
+          pointerEvents="none"
         >
-          <LinearGradient
-            colors={["#667eea", "#764ba2"]}
-            style={styles.xpToastGradient}
+          <View
+            style={[styles.pixelToastInner, { backgroundColor: colors.card }]}
           >
-            <Text style={styles.xpToastText}>{xpToast}</Text>
-          </LinearGradient>
+            <Ionicons
+              name="flash"
+              size={14}
+              color="#E50914"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.pixelToastText, { color: colors.text }]}>
+              {xpToast}
+            </Text>
+          </View>
         </Animated.View>
       )}
 
@@ -907,73 +1069,111 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         animationType="fade"
         onRequestClose={() => setShowCelebration(false)}
       >
-        <View style={styles.achievementOverlay}>
+        <View style={styles.pixelModalOverlay}>
           <View
-            style={[styles.celebrationCard, { backgroundColor: colors.card }]}
+            style={[styles.pixelModalCard, { backgroundColor: colors.card }]}
           >
-            <Text style={styles.celebrationEmoji}>🎬🏆🎉</Text>
-            <Text style={[styles.celebrationTitle, { color: colors.text }]}>
-              Watchlist Complete!
+            <View
+              style={[styles.pixelModalTopBar, { backgroundColor: "#10B981" }]}
+            />
+            <Text style={[styles.pixelModalLabel, { color: "#10B981" }]}>
+              WATCHLIST COMPLETE
             </Text>
-            <Text style={[styles.celebrationSubtitle, { color: colors.text }]}>
-              You finished every movie in "{name}"!{"\n"}+100 XP bonus!
+            <View style={styles.pixelAchIconBox}>
+              <Text style={styles.pixelAchIconEmoji}>🏆</Text>
+            </View>
+            <Text style={[styles.pixelAchTitle, { color: colors.text }]}>
+              {name}
+            </Text>
+            <Text style={[styles.pixelAchDesc, { color: colors.text }]}>
+              All titles marked as watched{"\n"}+100 XP awarded
             </Text>
             <TouchableOpacity
-              style={styles.achievementButton}
+              style={[styles.pixelButton, { backgroundColor: "#10B981" }]}
               onPress={() => setShowCelebration(false)}
+              activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={["#4caf50", "#2e7d32"]}
-                style={styles.achievementButtonGradient}
-              >
-                <Text style={styles.achievementButtonText}>Amazing! 🎉</Text>
-              </LinearGradient>
+              <Text style={styles.pixelButtonText}>CONTINUE</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Achievement Modal */}
-      <Modal
-        visible={showAchievementModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAchievementModal(false)}
-      >
-        <View style={styles.achievementOverlay}>
+      {/* Achievement Toast — slides up from bottom */}
+      {achievementToast.visible && (
+        <Animated.View
+          style={[
+            styles.achToast,
+            {
+              opacity: achToastAnim,
+              transform: [
+                {
+                  translateY: achToastAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [80, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents="none"
+        >
           <View
-            style={[styles.achievementCard, { backgroundColor: colors.card }]}
+            style={[styles.achToastInner, { backgroundColor: colors.card }]}
           >
-            <Text style={styles.achievementUnlockedText}>
-              🎉 Achievement Unlocked!
+            <View style={styles.achToastLeft}>
+              <Text style={styles.achToastLabel}>BADGE EARNED</Text>
+              <Text style={[styles.achToastTitle, { color: colors.text }]}>
+                {achievementToast.achievement?.title}
+              </Text>
+              <Text style={styles.achToastDesc}>
+                {achievementToast.achievement?.desc}
+              </Text>
+            </View>
+            <Text style={styles.achToastIcon}>
+              {achievementToast.achievement?.icon}
             </Text>
-            {latestAchievement && (
-              <>
-                <Text style={styles.achievementBigIcon}>
-                  {latestAchievement.icon}
-                </Text>
-                <Text style={[styles.achievementTitle, { color: colors.text }]}>
-                  {latestAchievement.title}
-                </Text>
-                <Text style={[styles.achievementDesc, { color: colors.text }]}>
-                  {latestAchievement.desc}
-                </Text>
-              </>
-            )}
-            <TouchableOpacity
-              style={styles.achievementButton}
-              onPress={() => setShowAchievementModal(false)}
-            >
-              <LinearGradient
-                colors={["#667eea", "#764ba2"]}
-                style={styles.achievementButtonGradient}
-              >
-                <Text style={styles.achievementButtonText}>Awesome!</Text>
-              </LinearGradient>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Animated.View>
+      )}
+
+      {/* Level-Up Banner — slides down from top */}
+      {levelUpBanner.visible && (
+        <Animated.View
+          style={[
+            styles.levelUpBanner,
+            {
+              opacity: levelUpBannerAnim,
+              transform: [
+                {
+                  translateY: levelUpBannerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-80, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <View
+            style={[
+              styles.levelUpBannerInner,
+              { backgroundColor: colors.card },
+            ]}
+          >
+            <View>
+              <Text style={styles.levelUpLabel}>LEVEL UP ▲</Text>
+              <Text style={[styles.levelUpTitle, { color: colors.text }]}>
+                {levelUpBanner.level?.icon} {levelUpBanner.level?.title}
+              </Text>
+            </View>
+            <Text style={styles.levelUpLvlTag}>
+              LVL {levelUpBanner.level?.level}
+            </Text>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 };
@@ -984,21 +1184,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
   },
-  headerContainer: {
-    alignItems: "center",
-    marginBottom: 24,
-    paddingTop: 10,
-  },
   header: {
-    fontSize: 32,
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    opacity: 0.7,
-    textAlign: "center",
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   listContainer: {
     paddingBottom: 100,
@@ -1235,189 +1424,409 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
 
-  // ─── GAMIFICATION STYLES ──────────────────────────────────
-  statsCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+  // ─── PIXEL HUD STYLES ────────────────────────────────────
+  pageHeader: {
+    paddingHorizontal: 4,
+    paddingBottom: 6,
+    marginBottom: 14,
   },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
-  levelBadge: {
+  hudPanel: {
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.22)",
+    borderRadius: 0,
+    backgroundColor: "rgba(229,9,20,0.02)",
+    padding: 12,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  hudTopRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    marginBottom: 10,
   },
-  levelIcon: {
-    fontSize: 32,
+  hudXpBarInline: {
+    flex: 1,
+    gap: 4,
   },
-  levelTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
+  hudHeader: {
+    paddingBottom: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: "rgba(229,9,20,0.2)",
+    marginBottom: 14,
   },
-  levelSubtext: {
-    fontSize: 12,
-    opacity: 0.6,
+  hudTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
-  xpContainer: {
-    backgroundColor: "rgba(102, 126, 234, 0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  hudLvlChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 2,
+    borderColor: "#E50914",
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 0,
+    backgroundColor: "rgba(229,9,20,0.06)",
   },
-  xpText: {
-    color: "#667eea",
-    fontWeight: "bold",
-    fontSize: 14,
+  hudLvlChipEmoji: { fontSize: 13 },
+  hudLvlChipText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#E50914",
+    letterSpacing: 1.2,
   },
-  xpBarContainer: {
-    marginBottom: 12,
+  hudXpBarOuter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
   },
-  xpBarTrack: {
-    height: 6,
-    backgroundColor: "rgba(102, 126, 234, 0.15)",
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 4,
+  hudXpSegments: {
+    flexDirection: "row",
+    gap: 3,
+    flex: 1,
   },
-  xpBarFill: {
-    height: "100%",
-    borderRadius: 3,
+  hudXpBlock: {
+    flex: 1,
+    height: 16,
+    borderRadius: 0,
   },
-  xpBarLabel: {
-    fontSize: 11,
-    opacity: 0.5,
+  hudXpBlockFilled: {
+    backgroundColor: "#E50914",
+    borderWidth: 1,
+    borderColor: "rgba(255,60,60,0.7)",
+  },
+  hudXpBlockEmpty: {
+    backgroundColor: "rgba(229,9,20,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.28)",
+  },
+  hudXpMetaText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    opacity: 0.45,
+    minWidth: 72,
     textAlign: "right",
   },
-  quickStats: {
+  hudMaxLvlText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+    color: "#E50914",
+    marginBottom: 10,
+  },
+  hudChipsRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    gap: 6,
   },
-  quickStat: {
-    alignItems: "center",
-    minWidth: 55,
-  },
-  quickStatIcon: {
-    fontSize: 18,
-    marginBottom: 2,
-  },
-  quickStatValue: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  quickStatLabel: {
-    fontSize: 10,
-    opacity: 0.5,
-  },
-
-  // Achievement Modal
-  achievementOverlay: {
+  hudChip: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    borderWidth: 2,
+    borderColor: "rgba(229,9,20,0.35)",
+    borderRadius: 0,
+    paddingVertical: 9,
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(229,9,20,0.03)",
+  },
+  hudChipVal: {
+    fontSize: 15,
+    fontWeight: "800",
+    lineHeight: 17,
+  },
+  hudChipLbl: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: "#E50914",
+    opacity: 0.65,
+  },
+  hudCursor: {
+    fontSize: 9,
+    color: "#E50914",
+    fontWeight: "900",
+    marginLeft: 2,
+  },
+  hudCornerTL: {
+    position: "absolute",
+    top: 10,
+    left: 12,
+    width: 10,
+    height: 10,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderColor: "#E50914",
+    opacity: 0.45,
+  },
+  hudCornerTR: {
+    position: "absolute",
+    top: 10,
+    right: 12,
+    width: 10,
+    height: 10,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderColor: "#E50914",
+    opacity: 0.45,
+  },
+  hudScanLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 50,
+    backgroundColor: "rgba(229,9,20,0.07)",
+    zIndex: 0,
+  },
+  hudChipCornerTL: {
+    position: "absolute",
+    top: 3,
+    left: 3,
+    width: 5,
+    height: 5,
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1.5,
+    borderColor: "#E50914",
+    opacity: 0.55,
+  },
+  hudChipCornerTR: {
+    position: "absolute",
+    top: 3,
+    right: 3,
+    width: 5,
+    height: 5,
+    borderTopWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderColor: "#E50914",
+    opacity: 0.55,
+  },
+  hudChipCornerBL: {
+    position: "absolute",
+    bottom: 3,
+    left: 3,
+    width: 5,
+    height: 5,
+    borderBottomWidth: 1.5,
+    borderLeftWidth: 1.5,
+    borderColor: "#E50914",
+    opacity: 0.55,
+  },
+  hudChipCornerBR: {
+    position: "absolute",
+    bottom: 3,
+    right: 3,
+    width: 5,
+    height: 5,
+    borderBottomWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderColor: "#E50914",
+    opacity: 0.55,
+  },
+  // ─── PIXEL MODAL / TOAST STYLES ───────────────────────────
+  pixelModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 32,
+    padding: 28,
   },
-  achievementCard: {
-    borderRadius: 24,
-    padding: 32,
+  pixelModalCard: {
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.25)",
+    padding: 28,
     alignItems: "center",
     width: "100%",
     maxWidth: 320,
-    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 0,
+    elevation: 8,
   },
-  achievementUnlockedText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#667eea",
+  pixelModalTopBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: "#E50914",
+  },
+  pixelModalLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 2,
+    color: "#E50914",
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  pixelAchIconBox: {
+    width: 72,
+    height: 72,
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.25)",
+    borderRadius: 0,
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
   },
-  achievementBigIcon: {
-    fontSize: 56,
-    marginBottom: 12,
-  },
-  achievementTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 8,
+  pixelAchIconEmoji: { fontSize: 40 },
+  pixelAchTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.5,
     textAlign: "center",
+    marginBottom: 8,
   },
-  achievementDesc: {
-    fontSize: 14,
-    opacity: 0.7,
+  pixelAchDesc: {
+    fontSize: 13,
+    opacity: 0.6,
     textAlign: "center",
     marginBottom: 24,
+    lineHeight: 18,
   },
-  achievementButton: {
-    borderRadius: 25,
-    overflow: "hidden",
+  pixelButton: {
+    backgroundColor: "#E50914",
+    borderRadius: 0,
     width: "100%",
-  },
-  achievementButtonGradient: {
-    paddingVertical: 14,
+    paddingVertical: 13,
     alignItems: "center",
-    borderRadius: 25,
   },
-  achievementButtonText: {
+  pixelButtonText: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-
-  // Celebration
-  celebrationCard: {
-    borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
-    width: "100%",
-    maxWidth: 320,
-    elevation: 10,
-  },
-  celebrationEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
-    letterSpacing: 8,
-  },
-  celebrationTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  celebrationSubtitle: {
-    fontSize: 14,
-    opacity: 0.7,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 20,
+    fontWeight: "800",
+    fontSize: 12,
+    letterSpacing: 2,
   },
 
   // XP Toast
-  xpToast: {
+  pixelToast: {
     position: "absolute",
-    top: 50,
+    top: 48,
     alignSelf: "center",
     zIndex: 999,
   },
-  xpToastGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
+  pixelToastInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.35)",
     elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 0,
   },
-  xpToastText: {
-    color: "#fff",
-    fontWeight: "bold",
+  pixelToastText: { fontWeight: "700", fontSize: 13, letterSpacing: 0.5 },
+
+  // ─── Achievement Toast (slides up from bottom) ─────────
+  achToast: {
+    position: "absolute",
+    bottom: 90,
+    left: 16,
+    right: 16,
+    zIndex: 999,
+  },
+  achToastInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderTopWidth: 3,
+    borderTopColor: "#E50914",
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderLeftColor: "rgba(229,9,20,0.2)",
+    borderRightColor: "rgba(229,9,20,0.2)",
+    borderBottomColor: "rgba(229,9,20,0.2)",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+  },
+  achToastLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  achToastLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 2,
+    color: "#E50914",
+    marginBottom: 3,
+  },
+  achToastTitle: {
     fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+    marginBottom: 2,
+  },
+  achToastDesc: {
+    fontSize: 12,
+    opacity: 0.55,
+    lineHeight: 16,
+  },
+  achToastIcon: {
+    fontSize: 38,
+  },
+
+  // ─── Level-Up Banner (slides down from top) ────────────
+  levelUpBanner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+  },
+  levelUpBannerInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 3,
+    borderBottomColor: "#E50914",
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderLeftColor: "rgba(229,9,20,0.2)",
+    borderRightColor: "rgba(229,9,20,0.2)",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  levelUpLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 2,
+    color: "#E50914",
+    marginBottom: 3,
+  },
+  levelUpTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  levelUpLvlTag: {
+    fontSize: 22,
+    fontWeight: "900",
+    color: "#E50914",
+    letterSpacing: -0.5,
   },
 });
 

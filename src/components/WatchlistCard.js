@@ -18,7 +18,8 @@ const WatchlistCard = ({
     `hsl(${(index * 137.5) % 360}, 60%, 75%)`,
   ];
 
-  const progressPercentage = movieCount > 0 ? (watchedCount / movieCount) * 100 : 0;
+  const progressPercentage =
+    movieCount > 0 ? (watchedCount / movieCount) * 100 : 0;
   const accentColor = `hsl(${(index * 137.5) % 360}, 50%, 40%)`;
 
   return (
@@ -36,12 +37,13 @@ const WatchlistCard = ({
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <View style={[styles.iconContainer, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-              <Ionicons
-                name="film-outline"
-                size={24}
-                color={accentColor}
-              />
+            <View
+              style={[
+                styles.iconContainer,
+                { backgroundColor: "rgba(255,255,255,0.3)" },
+              ]}
+            >
+              <Ionicons name="film-outline" size={24} color={accentColor} />
             </View>
             <TouchableOpacity style={styles.deleteButton} onPress={onDelete}>
               <Ionicons name="trash-outline" size={16} color="#666" />
@@ -59,13 +61,11 @@ const WatchlistCard = ({
                 {movieCount} {movieCount === 1 ? "item" : "items"}
               </Text>
             </View>
-            
+
             {watchedCount > 0 && (
               <View style={styles.watchedStats}>
                 <Ionicons name="checkmark-circle" size={14} color="#4caf50" />
-                <Text style={styles.watchedCount}>
-                  {watchedCount} watched
-                </Text>
+                <Text style={styles.watchedCount}>{watchedCount} watched</Text>
               </View>
             )}
           </View>
@@ -79,7 +79,8 @@ const WatchlistCard = ({
                     styles.progressFill,
                     {
                       width: `${progressPercentage}%`,
-                      backgroundColor: progressPercentage === 100 ? '#4caf50' : accentColor,
+                      backgroundColor:
+                        progressPercentage === 100 ? "#4caf50" : accentColor,
                     },
                   ]}
                 />

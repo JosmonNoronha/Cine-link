@@ -8,12 +8,11 @@
  */
 
 const updateInfo = {
-  message: "Add gamification to watchlists - XP, levels, streaks, achievements",
-  description: "Complete gamification system for watchlists",
-  changelog:
-    "- XP & 8 levels (Newbie → Legend)\n- Watch streaks with daily bonuses\n- 12 unlockable achievements\n- XP toast on movie watched\n- List completion celebration",
+  message: "Gamification v5 - badge icons + details",
+  description: "Gamification v5 - badge icons + details",
+  changelog: "All 20 badges now use contextual Ionicons instead of emojis; tap any badge to open a detail panel showing its title, description, earn criteria, and locked/unlocked status",
   version: "2.0.0",
-  pushedAt: "2026-03-06T00:00:00.000Z",
+  pushedAt: "2026-03-08T07:47:29.469Z",
 };
 
 export default updateInfo;

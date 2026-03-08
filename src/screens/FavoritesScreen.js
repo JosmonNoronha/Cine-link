@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   View,
   Text,
@@ -13,6 +19,7 @@ import {
   Alert,
   Dimensions,
   Modal,
+  Animated,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +27,11 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { Ionicons } from "@expo/vector-icons";
 import AppLoader from "../components/AppLoader";
+import {
+  getGamificationState,
+  getLevelInfo,
+  ACHIEVEMENTS,
+} from "../utils/gamification";
 
 const { width } = Dimensions.get("window");
 
@@ -35,6 +47,15 @@ const FavoritesScreen = ({ navigation }) => {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [gamification, setGamification] = useState(null);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const xpBlockAnims = useRef(
+    Array.from({ length: 20 }, () => new Animated.Value(0)),
+  ).current;
+  const cursorBlink = useRef(new Animated.Value(1)).current;
+  const scanAnim = useRef(new Animated.Value(0)).current;
+  const hudBarAnim = useRef(new Animated.Value(0)).current;
+  const hudAnimated = useRef(false);
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
@@ -44,6 +65,15 @@ const FavoritesScreen = ({ navigation }) => {
     refreshFavorites,
     removeFromFavorites,
   } = useFavorites();
+
+  const loadGamification = useCallback(async () => {
+    const state = await getGamificationState();
+    setGamification(state);
+  }, []);
+
+  useEffect(() => {
+    loadGamification();
+  }, [loadGamification]);
 
   // Track changes for navigation updates
   useEffect(() => {
@@ -62,9 +92,57 @@ const FavoritesScreen = ({ navigation }) => {
       if (hasLoadedOnce.current) {
         refreshFavorites();
       }
+      loadGamification();
     });
     return unsubscribe;
-  }, [navigation, refreshFavorites]);
+  }, [navigation, refreshFavorites, loadGamification]);
+
+  useEffect(() => {
+    if (!gamification || hudAnimated.current) return;
+    hudAnimated.current = true;
+    const li = getLevelInfo(gamification.xp);
+    const filled = li.next ? Math.round(li.progress * 20) : 20;
+
+    Animated.timing(scanAnim, {
+      toValue: 1,
+      duration: 900,
+      useNativeDriver: true,
+    }).start();
+
+    Animated.stagger(
+      38,
+      xpBlockAnims.map((a, i) =>
+        Animated.spring(a, {
+          toValue: i < filled ? 1 : 0.45,
+          useNativeDriver: true,
+          tension: 220,
+          friction: 11,
+        }),
+      ),
+    ).start();
+
+    Animated.spring(hudBarAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 9,
+    }).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(cursorBlink, {
+          toValue: 0,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cursorBlink, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [gamification]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -443,10 +521,10 @@ const FavoritesScreen = ({ navigation }) => {
       />
 
       <View style={styles.container}>
-        {/* Header with view toggle */}
-        <View style={styles.headerRow}>
-          <Text style={[styles.header, { color: colors.text }]}>
-            Your Favorites
+        {/* Clean page header */}
+        <View style={styles.pageHeader}>
+          <Text style={[styles.pageTitle, { color: colors.text }]}>
+            YOUR FAVORITES
           </Text>
           {!initialLoading && favorites.length > 0 && (
             <TouchableOpacity
@@ -461,6 +539,74 @@ const FavoritesScreen = ({ navigation }) => {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Gamification HUD panel */}
+        {gamification &&
+          (() => {
+            const li = getLevelInfo(gamification.xp);
+            return (
+              <View style={styles.hudPanel}>
+                <View style={styles.hudCornerTL} />
+                <View style={styles.hudCornerTR} />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.hudScanLine,
+                    {
+                      transform: [
+                        {
+                          translateX: scanAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-60, 600],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={styles.hudTopRow}>
+                  <View style={styles.hudLvlChip}>
+                    <Text style={styles.hudLvlChipEmoji}>
+                      {li.current.icon}
+                    </Text>
+                    <Text style={styles.hudLvlChipText}>
+                      LVL {li.current.level}
+                    </Text>
+                    <Animated.Text
+                      style={[styles.hudCursor, { opacity: cursorBlink }]}
+                    >
+                      █
+                    </Animated.Text>
+                  </View>
+                  {li.next ? (
+                    <View style={styles.hudXpBarInline}>
+                      <View style={styles.hudXpSegments}>
+                        {Array.from({ length: 20 }, (_, i) => (
+                          <Animated.View
+                            key={i}
+                            style={[
+                              styles.hudXpBlock,
+                              i / 20 < li.progress
+                                ? styles.hudXpBlockFilled
+                                : styles.hudXpBlockEmpty,
+                              { transform: [{ scaleY: xpBlockAnims[i] }] },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                      <Text
+                        style={[styles.hudXpMetaText, { color: colors.text }]}
+                      >
+                        {li.xpInLevel}/{li.xpForNext} XP
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.hudMaxLvlText}>■ MAX LEVEL</Text>
+                  )}
+                </View>
+              </View>
+            );
+          })()}
 
         {initialLoading ? (
           <AppLoader message="Loading Favorites" />
@@ -486,69 +632,99 @@ const FavoritesScreen = ({ navigation }) => {
           </View>
         ) : (
           <>
-            {/* Stats Banner */}
+            {/* Unified Pixel HUD Stats Strip */}
             {stats && (
-              <View
-                style={[styles.statsBanner, { backgroundColor: colors.card }]}
+              <Animated.View
+                style={{
+                  opacity: hudBarAnim,
+                  transform: [
+                    {
+                      translateY: hudBarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [10, 0],
+                      }),
+                    },
+                  ],
+                }}
               >
-                <View style={styles.statsRow}>
-                  <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>
+                <View
+                  style={[styles.pixelHudBar, { backgroundColor: colors.card }]}
+                >
+                  <View style={styles.pixelHudCell}>
+                    <Ionicons name="heart" size={12} color="#E50914" />
+                    <Text style={[styles.pixelHudVal, { color: colors.text }]}>
                       {stats.total}
                     </Text>
-                    <Text style={[styles.statLabel, { color: colors.text }]}>
-                      Total
-                    </Text>
+                    <Text style={styles.pixelHudLbl}>SAVED</Text>
                   </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>
+                  <View style={styles.pixelHudDivider} />
+                  <View style={styles.pixelHudCell}>
+                    <Ionicons name="time-outline" size={12} color="#E50914" />
+                    <Text style={[styles.pixelHudVal, { color: colors.text }]}>
                       ~{stats.estimatedHours}h
                     </Text>
-                    <Text style={[styles.statLabel, { color: colors.text }]}>
-                      Runtime
-                    </Text>
+                    <Text style={styles.pixelHudLbl}>RUNTIME</Text>
                   </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>
+                  <View style={styles.pixelHudDivider} />
+                  <View style={styles.pixelHudCell}>
+                    <Ionicons name="star" size={12} color="#E50914" />
+                    <Text style={[styles.pixelHudVal, { color: colors.text }]}>
                       {stats.avgRating || "N/A"}
                     </Text>
-                    <Text style={[styles.statLabel, { color: colors.text }]}>
-                      Avg Rating
-                    </Text>
+                    <Text style={styles.pixelHudLbl}>AVG</Text>
                   </View>
+                  {gamification && gamification.currentStreak > 0 && (
+                    <>
+                      <View style={styles.pixelHudDivider} />
+                      <View style={styles.pixelHudCell}>
+                        <Ionicons name="flame" size={12} color="#E50914" />
+                        <Text
+                          style={[styles.pixelHudVal, { color: colors.text }]}
+                        >
+                          {gamification.currentStreak}
+                        </Text>
+                        <Text style={styles.pixelHudLbl}>STREAK</Text>
+                      </View>
+                    </>
+                  )}
+                  {gamification && (
+                    <>
+                      <View style={styles.pixelHudDivider} />
+                      <View style={styles.pixelHudCell}>
+                        <Ionicons name="trophy" size={12} color="#E50914" />
+                        <Text
+                          style={[styles.pixelHudVal, { color: colors.text }]}
+                        >
+                          {gamification.unlockedAchievements.length}
+                        </Text>
+                        <Text style={styles.pixelHudLbl}>BADGES</Text>
+                      </View>
+                    </>
+                  )}
                   {stats.topGenre && (
                     <>
-                      <View style={styles.statDivider} />
-                      <View style={styles.statItem}>
+                      <View style={styles.pixelHudDivider} />
+                      <View style={[styles.pixelHudCell, { flex: 1.5 }]}>
+                        <Ionicons
+                          name="musical-notes-outline"
+                          size={12}
+                          color="#E50914"
+                        />
                         <Text
                           style={[
-                            styles.statValue,
-                            { color: colors.text, fontSize: 14 },
+                            styles.pixelHudVal,
+                            { color: colors.text, fontSize: 11 },
                           ]}
                           numberOfLines={1}
                         >
-                          {stats.topGenre}
+                          {stats.topGenre.toUpperCase()}
                         </Text>
-                        <Text
-                          style={[styles.statLabel, { color: colors.text }]}
-                        >
-                          Top Genre
-                        </Text>
+                        <Text style={styles.pixelHudLbl}>TOP GENRE</Text>
                       </View>
                     </>
                   )}
                 </View>
-                <Text
-                  style={[
-                    styles.statsSubtext,
-                    { color: colors.text, opacity: 0.6 },
-                  ]}
-                >
-                  {stats.movies} movies • {stats.series} series
-                </Text>
-              </View>
+              </Animated.View>
             )}
 
             {/* Sort and Filter Dropdowns */}
@@ -777,7 +953,170 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 10,
+  },
+  pageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+    paddingBottom: 6,
+    marginBottom: 14,
+  },
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+  },
+  hudPanel: {
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.22)",
+    borderRadius: 0,
+    backgroundColor: "rgba(229,9,20,0.02)",
+    padding: 12,
     marginBottom: 12,
+    overflow: "hidden",
+  },
+  hudTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  hudXpBarInline: {
+    flex: 1,
+    gap: 4,
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  hudLvlChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 2,
+    borderColor: "#E50914",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 0,
+    backgroundColor: "rgba(229,9,20,0.06)",
+  },
+  hudLvlChipEmoji: { fontSize: 12 },
+  hudLvlChipText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "#E50914",
+    letterSpacing: 1.2,
+  },
+  hudXpBarOuter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  hudXpSegments: {
+    flexDirection: "row",
+    gap: 3,
+    flex: 1,
+  },
+  hudXpBlock: {
+    flex: 1,
+    height: 14,
+    borderRadius: 0,
+  },
+  hudXpBlockFilled: {
+    backgroundColor: "#E50914",
+    borderWidth: 1,
+    borderColor: "rgba(255,60,60,0.7)",
+  },
+  hudXpBlockEmpty: {
+    backgroundColor: "rgba(229,9,20,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.28)",
+  },
+  hudXpMetaText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    opacity: 0.45,
+    minWidth: 64,
+    textAlign: "right",
+  },
+  hudCursor: {
+    fontSize: 9,
+    color: "#E50914",
+    fontWeight: "900",
+    marginLeft: 2,
+  },
+  hudScanLine: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 50,
+    backgroundColor: "rgba(229,9,20,0.07)",
+    zIndex: 0,
+  },
+  hudCornerTL: {
+    position: "absolute",
+    top: 8,
+    left: 0,
+    width: 10,
+    height: 10,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    borderColor: "#E50914",
+    opacity: 0.45,
+  },
+  hudCornerTR: {
+    position: "absolute",
+    top: 8,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderColor: "#E50914",
+    opacity: 0.45,
+  },
+  pixelHudBar: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderWidth: 2,
+    borderColor: "rgba(229,9,20,0.35)",
+    borderRadius: 0,
+    marginBottom: 14,
+    overflow: "hidden",
+  },
+  pixelHudCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+    gap: 2,
+  },
+  pixelHudVal: {
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+    lineHeight: 16,
+  },
+  pixelHudLbl: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: "#E50914",
+    opacity: 0.7,
+  },
+  pixelHudDivider: {
+    width: 2,
+    backgroundColor: "rgba(229,9,20,0.18)",
   },
   header: {
     fontSize: 26,
@@ -806,43 +1145,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginTop: 8,
-  },
-  statsBanner: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 8,
-  },
-  statItem: {
-    alignItems: "center",
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-    opacity: 0.7,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: "#888",
-    opacity: 0.2,
-    marginHorizontal: 8,
-  },
-  statsSubtext: {
-    fontSize: 12,
-    textAlign: "center",
   },
   dropdownContainer: {
     flexDirection: "row",
@@ -1002,6 +1304,8 @@ const styles = StyleSheet.create({
   gridYear: {
     fontSize: 12,
   },
+
+  // ─── PIXEL / MINIMAL GAMIFICATION STYLES ─────────────────
 });
 
 export default FavoritesScreen;
