@@ -1,8 +1,14 @@
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
-import "firebase/compat/firestore";
-import { initializeAuth } from "firebase/auth";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import {
+  initializeAuth,
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 import { getReactNativePersistence } from "firebase/auth/react-native";
+import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
@@ -79,47 +85,62 @@ const createMockAuth = () => ({
 });
 
 let firebaseApp;
-let authInstance;
+let firebaseAuth;
 let db;
 
 // Only initialize if we have valid config
 if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
   try {
-    if (!firebase.apps.length) {
-      firebaseApp = firebase.initializeApp(firebaseConfig);
+    if (!getApps().length) {
+      firebaseApp = initializeApp(firebaseConfig);
       console.log("✅ Firebase initialized successfully");
 
       // Initialize auth with React Native persistence BEFORE calling firebase.auth()
       if (Platform.OS !== "web") {
         try {
-          initializeAuth(firebaseApp, {
+          firebaseAuth = initializeAuth(firebaseApp, {
             persistence: getReactNativePersistence(AsyncStorage),
           });
           console.log("✅ Auth persistence set with AsyncStorage");
         } catch (e) {
           console.warn("Failed to set auth persistence:", e.message);
+          firebaseAuth = getAuth(firebaseApp);
         }
+      } else {
+        firebaseAuth = getAuth(firebaseApp);
       }
-
-      authInstance = firebase.auth();
     } else {
-      firebaseApp = firebase.app();
-      authInstance = firebase.auth();
+      firebaseApp = getApp();
+      firebaseAuth = getAuth(firebaseApp);
       console.log("Using existing Firebase app");
     }
 
-    db = firebase.firestore();
+    db = getFirestore(firebaseApp);
   } catch (error) {
     console.error("❌ Firebase init error:", error);
-    authInstance = createMockAuth();
+    firebaseAuth = null;
     db = null;
     firebaseApp = null;
   }
 } else {
   console.warn("⚠️  Firebase not initialized - missing configuration");
-  authInstance = createMockAuth();
 }
 
-export const auth = authInstance;
-export { db };
+const authFacade = firebaseAuth
+  ? {
+      get currentUser() {
+        return firebaseAuth.currentUser;
+      },
+      onAuthStateChanged: (callback) =>
+        onAuthStateChanged(firebaseAuth, callback),
+      signOut: () => signOut(firebaseAuth),
+      signInWithEmailAndPassword: (email, password) =>
+        signInWithEmailAndPassword(firebaseAuth, email, password),
+      createUserWithEmailAndPassword: (email, password) =>
+        createUserWithEmailAndPassword(firebaseAuth, email, password),
+    }
+  : createMockAuth();
+
+export const auth = authFacade;
+export { db, firebaseAuth };
 export default firebaseApp;

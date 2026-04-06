@@ -75,6 +75,8 @@ const FavoritesScreen = ({ navigation }) => {
     loadGamification();
   }, [loadGamification]);
 
+
+
   // Track changes for navigation updates
   useEffect(() => {
     if (
@@ -98,17 +100,44 @@ const FavoritesScreen = ({ navigation }) => {
   }, [navigation, refreshFavorites, loadGamification]);
 
   useEffect(() => {
-    if (!gamification || hudAnimated.current) return;
-    hudAnimated.current = true;
+    if (!gamification) return;
     const li = getLevelInfo(gamification.xp);
     const filled = li.next ? Math.round(li.progress * 20) : 20;
 
-    Animated.timing(scanAnim, {
-      toValue: 1,
-      duration: 900,
-      useNativeDriver: true,
-    }).start();
+    if (!hudAnimated.current) {
+      // First time: run full intro animation (scan line, bar entrance, cursor)
+      hudAnimated.current = true;
 
+      Animated.timing(scanAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }).start();
+
+      Animated.spring(hudBarAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 9,
+      }).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(cursorBlink, {
+            toValue: 0,
+            duration: 450,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cursorBlink, {
+            toValue: 1,
+            duration: 450,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    }
+
+    // Always update the XP block positions so the bar reflects current XP
     Animated.stagger(
       38,
       xpBlockAnims.map((a, i) =>
@@ -119,28 +148,6 @@ const FavoritesScreen = ({ navigation }) => {
           friction: 11,
         }),
       ),
-    ).start();
-
-    Animated.spring(hudBarAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 9,
-    }).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(cursorBlink, {
-          toValue: 0,
-          duration: 450,
-          useNativeDriver: true,
-        }),
-        Animated.timing(cursorBlink, {
-          toValue: 1,
-          duration: 450,
-          useNativeDriver: true,
-        }),
-      ]),
     ).start();
   }, [gamification]);
 

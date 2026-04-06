@@ -96,6 +96,8 @@ const WatchlistsScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation, loadGamification]);
 
+
+
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
       navigation.setParams({ watchlistsUpdated: Date.now() });
@@ -104,17 +106,57 @@ const WatchlistsScreen = ({ navigation }) => {
   }, [navigation]);
 
   useEffect(() => {
-    if (!gamification || hudAnimated.current) return;
-    hudAnimated.current = true;
+    if (!gamification) return;
     const li = getLevelInfo(gamification.xp);
     const filled = li.next ? Math.round(li.progress * 20) : 20;
 
-    Animated.timing(scanAnim, {
-      toValue: 1,
-      duration: 900,
-      useNativeDriver: true,
-    }).start();
+    if (!hudAnimated.current) {
+      // First time: run full intro animation (scan, chips, cursor)
+      hudAnimated.current = true;
 
+      Animated.timing(scanAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }).start();
+
+      Animated.stagger(
+        65,
+        chipEnterAnims.map(({ opacity, ty }) =>
+          Animated.parallel([
+            Animated.spring(opacity, {
+              toValue: 1,
+              useNativeDriver: true,
+              tension: 120,
+              friction: 8,
+            }),
+            Animated.spring(ty, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 150,
+              friction: 10,
+            }),
+          ]),
+        ),
+      ).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(cursorBlink, {
+            toValue: 0,
+            duration: 450,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cursorBlink, {
+            toValue: 1,
+            duration: 450,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    }
+
+    // Always update the XP block positions so the bar reflects current XP
     Animated.stagger(
       38,
       xpBlockAnims.map((a, i) =>
@@ -125,41 +167,6 @@ const WatchlistsScreen = ({ navigation }) => {
           friction: 11,
         }),
       ),
-    ).start();
-
-    Animated.stagger(
-      65,
-      chipEnterAnims.map(({ opacity, ty }) =>
-        Animated.parallel([
-          Animated.spring(opacity, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 120,
-            friction: 8,
-          }),
-          Animated.spring(ty, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 150,
-            friction: 10,
-          }),
-        ]),
-      ),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(cursorBlink, {
-          toValue: 0,
-          duration: 450,
-          useNativeDriver: true,
-        }),
-        Animated.timing(cursorBlink, {
-          toValue: 1,
-          duration: 450,
-          useNativeDriver: true,
-        }),
-      ]),
     ).start();
   }, [gamification]);
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState } from "react";
 import {
   View,
@@ -10,9 +11,9 @@ import {
   Platform,
   Modal,
 } from "react-native";
-import { auth, db } from "../../firebaseConfig";
+import { auth } from "../../firebaseConfig";
+import { reload, updateProfile, sendEmailVerification } from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import firebase from "firebase/compat/app";
 import analyticsService from "../services/analytics";
 
 const AuthScreen = () => {
@@ -92,7 +93,7 @@ const AuthScreen = () => {
         return;
       }
 
-      await user.sendEmailVerification();
+      await sendEmailVerification(user);
       await auth.signOut();
 
       startCooldown();
@@ -118,7 +119,7 @@ const AuthScreen = () => {
       const user = userCredential.user;
 
       // Reload user to get latest verification status
-      await user.reload();
+      await reload(user);
 
       if (user.emailVerified) {
         return true; // Email is verified, login successful
@@ -131,37 +132,6 @@ const AuthScreen = () => {
       }
     } catch (error) {
       throw error;
-    }
-  };
-
-  const saveUserToFirestore = async (user, username) => {
-    console.log("=== FIRESTORE SAVE DEBUG ===");
-    console.log("User ID:", user.uid);
-    console.log("User Email:", user.email);
-    console.log("Username to save:", username);
-    console.log("Auth current user:", auth.currentUser?.uid);
-    console.log("User email verified:", user.emailVerified);
-
-    const userData = {
-      username: username,
-      email: user.email,
-      uid: user.uid,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    };
-
-    console.log("Data to save:", userData);
-    console.log("Document path:", `users/${user.uid}`);
-
-    try {
-      await db.collection("users").doc(user.uid).set(userData);
-      console.log("✅ Firestore save successful");
-      return true;
-    } catch (firestoreError) {
-      console.error("❌ Firestore save failed:");
-      console.error("Error code:", firestoreError.code);
-      console.error("Error message:", firestoreError.message);
-      console.error("Full error:", firestoreError);
-      throw firestoreError;
     }
   };
 
@@ -201,7 +171,7 @@ const AuthScreen = () => {
         // First, update profile
         try {
           console.log("Updating profile with displayName:", username);
-          await user.updateProfile({
+          await updateProfile(user, {
             displayName: username,
           });
           console.log("✅ Profile updated successfully");
@@ -210,19 +180,10 @@ const AuthScreen = () => {
           // Continue anyway
         }
 
-        // Save to Firestore BEFORE sending verification email or signing out
-        try {
-          await saveUserToFirestore(user, username);
-        } catch (firestoreError) {
-          console.error(
-            "Firestore save failed, but continuing with verification...",
-          );
-        }
-
         // Send verification email
         try {
           console.log("Sending verification email...");
-          await user.sendEmailVerification();
+          await sendEmailVerification(user);
           console.log("✅ Verification email sent");
         } catch (emailError) {
           console.error("❌ Verification email failed:", emailError);

@@ -1,6 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const GAMIFICATION_KEY = "@cinelink_gamification";
+import { getGamificationData, syncGamificationData } from "../services/api";
 
 // ─── XP & LEVELS ───────────────────────────────────────────
 const XP_PER_WATCH = 25;
@@ -223,15 +221,15 @@ const defaultState = () => ({
 
 export const getGamificationState = async () => {
   try {
-    const raw = await AsyncStorage.getItem(GAMIFICATION_KEY);
-    return raw ? { ...defaultState(), ...JSON.parse(raw) } : defaultState();
+    const cloud = await getGamificationData();
+    return cloud ? { ...defaultState(), ...cloud } : defaultState();
   } catch {
     return defaultState();
   }
 };
 
 const saveState = async (state) => {
-  await AsyncStorage.setItem(GAMIFICATION_KEY, JSON.stringify(state));
+  await syncGamificationData(state);
 };
 
 // ─── LEVEL CALCULATIONS ────────────────────────────────────

@@ -57,137 +57,25 @@ const apiClient = axios.create({
   },
 });
 
-// Test backend connectivity with retry logic
-let backendAvailable = false;
-let connectionTested = false;
+let backendAvailable = true;
+let connectionTested = true;
 let actualWorkingURL = API_BASE_URL;
-let consecutiveFailures = 0;
-const MAX_FAILURES_BEFORE_UNAVAILABLE = 3; // Require 3 consecutive failures before marking unavailable
-let periodicHealthCheckInterval = null;
+let lastBackendError = null;
+const MAX_REQUEST_RETRIES = 2;
 
-// Enhanced backend connection testing
-const testBackendConnection = async (retryCount = 0) => {
-  // Test only the configured base URL (skip localhost if not explicitly set in dev)
-  const urlsToTest =
-    isLocalhost && __DEV__
-      ? [NORMALIZED_EXPLICIT_BASE_URL, PRODUCTION_BASE_URL].filter(Boolean)
-      : [PRODUCTION_BASE_URL].filter(Boolean);
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  for (const baseUrl of urlsToTest) {
-    try {
-      console.log(
-        `🔍 Testing backend connection (attempt ${retryCount + 1}) to ${baseUrl}`,
-      );
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s
-      const response = await fetch(`${baseUrl}/health`, {
-        signal: controller.signal,
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-      });
-      clearTimeout(timeoutId);
+const isRetryableError = (error) => {
+  const status = error?.response?.status;
+  const code = error?.code;
+  const message = String(error?.message || "").toLowerCase();
 
-      if (response.ok) {
-        apiClient.defaults.baseURL = baseUrl;
-        actualWorkingURL = baseUrl;
-        backendAvailable = true;
-        connectionTested = true;
-        consecutiveFailures = 0; // Reset failure counter on success
-        console.log("✅ Backend is available and responding");
-
-        // Start periodic health checks if not already running
-        if (!periodicHealthCheckInterval) {
-          startPeriodicHealthCheck();
-        }
-
-        return true;
-      }
-    } catch (error) {
-      console.log(
-        `⚠️ Backend connection failed for ${baseUrl}: ${error.message}`,
-      );
-    }
-  }
-
-  // Retry logic with exponential backoff
-  if (retryCount < 2) {
-    const delay = 2000 * (retryCount + 1);
-    console.log(`🔄 Retrying in ${delay}ms...`);
-    await new Promise((resolve) => setTimeout(resolve, delay));
-    return testBackendConnection(retryCount + 1);
-  }
-
-  backendAvailable = false;
-  connectionTested = true;
-  actualWorkingURL = API_BASE_URL;
-  console.log("❌ Backend unavailable after retries, using fallback mode");
-
-  // Start periodic health checks to auto-recover when backend comes back
-  if (!periodicHealthCheckInterval) {
-    startPeriodicHealthCheck();
-  }
-
+  if (status >= 500) return true;
+  if (code === "ECONNABORTED" || code === "ERR_NETWORK") return true;
+  if (message.includes("timeout") || message.includes("network error"))
+    return true;
   return false;
 };
-
-// Periodic health check to auto-recover when backend becomes available
-const startPeriodicHealthCheck = () => {
-  if (periodicHealthCheckInterval) {
-    clearInterval(periodicHealthCheckInterval);
-  }
-
-  periodicHealthCheckInterval = setInterval(async () => {
-    // Only check if backend is marked unavailable
-    if (!backendAvailable) {
-      console.log("🔄 Automatic health check: Testing backend availability...");
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        const response = await fetch(`${actualWorkingURL}/health`, {
-          signal: controller.signal,
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-        });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          backendAvailable = true;
-          consecutiveFailures = 0;
-          console.log("✅ Backend auto-recovered! Now available again.");
-        }
-      } catch (error) {
-        console.log(`⚠️ Periodic health check failed: ${error.message}`);
-      }
-    }
-  }, 30000); // Check every 30 seconds
-};
-
-// Clean up interval on app unload (if applicable – browser only)
-if (
-  typeof window !== "undefined" &&
-  typeof window.addEventListener === "function"
-) {
-  window.addEventListener("beforeunload", () => {
-    if (periodicHealthCheckInterval) {
-      clearInterval(periodicHealthCheckInterval);
-    }
-  });
-}
-
-// Test connection on app start with a slight delay
-// setTimeout(() => {
-//   if (!connectionTested) {
-//     testBackendConnection();
-//   }
-// }, 1000);
-
-testBackendConnection();
 
 // Add auth token to requests
 apiClient.interceptors.request.use(async (config) => {
@@ -203,6 +91,7 @@ apiClient.interceptors.request.use(async (config) => {
       const token = await user.getIdToken();
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.__retryCount = config.__retryCount || 0;
   } catch (error) {
     console.warn("Failed to get auth token:", error);
   }
@@ -213,12 +102,8 @@ apiClient.interceptors.request.use(async (config) => {
 apiClient.interceptors.response.use(
   (response) => {
     console.log("✅ API Response:", response.config.url, response.data);
-    // Reset consecutive failures on successful response
-    consecutiveFailures = 0;
-    if (!backendAvailable) {
-      backendAvailable = true;
-      console.log("✅ Backend recovered and responding again");
-    }
+    backendAvailable = true;
+    lastBackendError = null;
     // Backend returns a standard envelope: { success: true, data: ... }
     // The app expects OMDb-like objects/arrays directly.
     if (
@@ -261,41 +146,23 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Only mark backend as unavailable after consecutive failures
     if (
-      error.code === "ECONNREFUSED" ||
-      error.code === "ERR_NETWORK" ||
-      error.code === "ECONNABORTED" ||
-      error.message.includes("Network Error") ||
-      error.message.includes("timeout") ||
-      error.response?.status >= 500
+      error.config &&
+      isRetryableError(error) &&
+      (error.config.__retryCount || 0) < MAX_REQUEST_RETRIES
     ) {
-      consecutiveFailures++;
-      console.log(
-        `⚠️ Backend request failed (${consecutiveFailures}/${MAX_FAILURES_BEFORE_UNAVAILABLE}):`,
-        error.message,
-      );
-
-      // Only mark as unavailable after multiple consecutive failures
-      if (consecutiveFailures >= MAX_FAILURES_BEFORE_UNAVAILABLE) {
-        backendAvailable = false;
-        console.log(
-          "🔄 Backend marked as unavailable after multiple failures, switching to fallback",
-        );
-      } else {
-        console.log(
-          `ℹ️ Backend still considered available, will retry on next request`,
-        );
-      }
+      const nextRetry = (error.config.__retryCount || 0) + 1;
+      const backoffMs = 400 * 2 ** (nextRetry - 1);
+      error.config.__retryCount = nextRetry;
+      await wait(backoffMs);
+      return apiClient.request(error.config);
     }
+
+    backendAvailable = false;
+    lastBackendError = error.message || "Request failed";
     return Promise.reject(error);
   },
 );
-
-// Fallback to OMDb API if backend is unavailable
-const OMDB_API_KEY =
-  process.env.EXPO_PUBLIC_OMDB_API_KEY ||
-  Constants?.expoConfig?.extra?.OMDB_API_KEY;
 // Named search function used by hooks expecting OMDb-like shape
 export const searchMovies = async (
   query,
@@ -310,325 +177,237 @@ export const searchMovies = async (
 
   const normType = filter && filter !== "all" ? filter : undefined; // movie|series|episode
 
-  if (backendAvailable) {
-    try {
-      console.log("🎬 Using backend for search:", trimmedQuery, filter, page);
+  try {
+    console.log("🎬 Using backend for search:", trimmedQuery, filter, page);
 
-      // Genre keywords detection
-      const genreKeywords = [
-        "action",
-        "adventure",
-        "animation",
-        "comedy",
-        "crime",
-        "documentary",
-        "drama",
-        "family",
-        "fantasy",
-        "history",
-        "horror",
-        "music",
-        "mystery",
-        "romance",
-        "science fiction",
-        "sci-fi",
-        "sci fi",
-        "scifi",
-        "thriller",
-        "war",
-        "western",
-        "anime",
-        "bollywood",
-        "hollywood",
-        "korean",
-        "japanese",
-        "kids",
-        "reality",
-        "soap",
-        "talk",
-      ];
+    // Genre keywords detection
+    const genreKeywords = [
+      "action",
+      "adventure",
+      "animation",
+      "comedy",
+      "crime",
+      "documentary",
+      "drama",
+      "family",
+      "fantasy",
+      "history",
+      "horror",
+      "music",
+      "mystery",
+      "romance",
+      "science fiction",
+      "sci-fi",
+      "sci fi",
+      "scifi",
+      "thriller",
+      "war",
+      "western",
+      "anime",
+      "bollywood",
+      "hollywood",
+      "korean",
+      "japanese",
+      "kids",
+      "reality",
+      "soap",
+      "talk",
+    ];
 
-      const queryLower = trimmedQuery.toLowerCase().trim();
-      const isGenreSearch = genreKeywords.some(
-        (keyword) => queryLower === keyword || queryLower === keyword + "s",
-      );
+    const queryLower = trimmedQuery.toLowerCase().trim();
+    const isGenreSearch = genreKeywords.some(
+      (keyword) => queryLower === keyword || queryLower === keyword + "s",
+    );
 
-      console.log(`🔍 Genre check: "${queryLower}" | Match: ${isGenreSearch}`);
+    console.log(`🔍 Genre check: "${queryLower}" | Match: ${isGenreSearch}`);
 
-      // If genre search, use genre endpoint
-      if (isGenreSearch) {
-        console.log("🎭 Detected genre search:", trimmedQuery);
-        const genreResult = await apiClient.get("/search/by-genre", {
-          params: { genre: trimmedQuery, type: normType, page },
-          signal: signal,
-        });
-
-        console.log("📦 Genre result structure:", genreResult);
-
-        if (genreResult && genreResult.Search) {
-          console.log(
-            `✅ Genre search returned ${genreResult.Search.length} results`,
-          );
-          return genreResult;
-        } else {
-          console.warn(
-            "⚠️ Genre search returned invalid structure:",
-            genreResult,
-          );
-        }
-      }
-
-      // Regular title search
-      const titleSearch = apiClient.get("/movies/search", {
-        params: { q: trimmedQuery, type: normType, page },
+    // If genre search, use genre endpoint
+    if (isGenreSearch) {
+      console.log("🎭 Detected genre search:", trimmedQuery);
+      const genreResult = await apiClient.get("/search/by-genre", {
+        params: { genre: trimmedQuery, type: normType, page },
         signal: signal,
       });
 
-      // Person search (if query looks like a name - 2+ words, 2+ chars each)
-      const words = trimmedQuery.split(/\s+/);
-      const looksLikeName =
-        words.length >= 2 &&
-        words.every((w) => w.length >= 2 && /^[a-zA-Z]+$/.test(w));
+      console.log("📦 Genre result structure:", genreResult);
 
-      console.log(
-        `🔍 Query analysis: "${trimmedQuery}" | Words: ${words.length} | Looks like name: ${looksLikeName}`,
-      );
+      if (genreResult && genreResult.Search) {
+        console.log(
+          `✅ Genre search returned ${genreResult.Search.length} results`,
+        );
+        return genreResult;
+      } else {
+        console.warn(
+          "⚠️ Genre search returned invalid structure:",
+          genreResult,
+        );
+      }
+    }
 
-      const personSearch =
-        looksLikeName && page === 1
-          ? (async () => {
-              try {
-                console.log("👤 Running person search for:", trimmedQuery);
-                const result = await apiClient.get("/search/by-person", {
-                  params: { query: trimmedQuery, page: 1 },
-                  signal: signal,
-                });
+    // Regular title search
+    const titleSearch = apiClient.get("/movies/search", {
+      params: { q: trimmedQuery, type: normType, page },
+      signal: signal,
+    });
 
-                // Limit initial results to 10, store rest for pagination
-                if (result?.results && result.results.length > 10) {
-                  console.log(
-                    `✅ Person search found ${result.results.length} results, showing first 10`,
-                  );
-                  return {
-                    results: result.results.slice(0, 10),
-                    hasMore: true,
-                    allResults: result.results, // Store for potential "load more"
-                  };
-                }
+    // Person search (if query looks like a name - 2+ words, 2+ chars each)
+    const words = trimmedQuery.split(/\s+/);
+    const looksLikeName =
+      words.length >= 2 &&
+      words.every((w) => w.length >= 2 && /^[a-zA-Z]+$/.test(w));
 
+    console.log(
+      `🔍 Query analysis: "${trimmedQuery}" | Words: ${words.length} | Looks like name: ${looksLikeName}`,
+    );
+
+    const personSearch =
+      looksLikeName && page === 1
+        ? (async () => {
+            try {
+              console.log("👤 Running person search for:", trimmedQuery);
+              const result = await apiClient.get("/search/by-person", {
+                params: { query: trimmedQuery, page: 1 },
+                signal: signal,
+              });
+
+              // Limit initial results to 10, store rest for pagination
+              if (result?.results && result.results.length > 10) {
                 console.log(
-                  `✅ Person search found ${result?.results?.length || 0} results`,
+                  `✅ Person search found ${result.results.length} results, showing first 10`,
                 );
+                return {
+                  results: result.results.slice(0, 10),
+                  hasMore: true,
+                  allResults: result.results, // Store for potential "load more"
+                };
+              }
 
-                // If no results and query has double letters, try correcting common typos
-                if (
-                  (!result?.results || result.results.length === 0) &&
-                  /(.)\1/.test(trimmedQuery)
-                ) {
-                  console.log("🔄 Trying spelling correction...");
-                  // Remove duplicate consecutive letters (bradd -> brad, chrisstopher -> christopher)
-                  const correctedQuery = trimmedQuery.replace(/(.)\1+/g, "$1");
-                  if (correctedQuery !== trimmedQuery) {
+              console.log(
+                `✅ Person search found ${result?.results?.length || 0} results`,
+              );
+
+              // If no results and query has double letters, try correcting common typos
+              if (
+                (!result?.results || result.results.length === 0) &&
+                /(.)\1/.test(trimmedQuery)
+              ) {
+                console.log("🔄 Trying spelling correction...");
+                // Remove duplicate consecutive letters (bradd -> brad, chrisstopher -> christopher)
+                const correctedQuery = trimmedQuery.replace(/(.)\1+/g, "$1");
+                if (correctedQuery !== trimmedQuery) {
+                  console.log(`📝 Trying corrected name: "${correctedQuery}"`);
+                  const correctedResult = await apiClient.get(
+                    "/search/by-person",
+                    {
+                      params: { query: correctedQuery, page: 1 },
+                      signal: signal,
+                    },
+                  );
+                  if (correctedResult?.results?.length > 0) {
                     console.log(
-                      `📝 Trying corrected name: "${correctedQuery}"`,
+                      `✅ Spelling correction worked! Found ${correctedResult.results.length} results`,
                     );
-                    const correctedResult = await apiClient.get(
-                      "/search/by-person",
-                      {
-                        params: { query: correctedQuery, page: 1 },
-                        signal: signal,
-                      },
-                    );
-                    if (correctedResult?.results?.length > 0) {
-                      console.log(
-                        `✅ Spelling correction worked! Found ${correctedResult.results.length} results`,
-                      );
-                      return correctedResult;
-                    }
+                    return correctedResult;
                   }
                 }
-
-                return result;
-              } catch (err) {
-                console.warn("⚠️ Person search failed:", err.message);
-                return { results: [] };
               }
-            })()
-          : Promise.resolve({ results: [] });
 
-      // Wait for both searches
-      const [titleData, personData] = await Promise.all([
-        titleSearch,
-        personSearch,
-      ]);
+              return result;
+            } catch (err) {
+              console.warn("⚠️ Person search failed:", err.message);
+              return { results: [] };
+            }
+          })()
+        : Promise.resolve({ results: [] });
 
-      console.log("✅ Backend search successful");
+    // Wait for both searches
+    const [titleData, personData] = await Promise.all([
+      titleSearch,
+      personSearch,
+    ]);
 
-      // Combine results (person results FIRST for relevance, then title search)
-      let combinedResults = [];
+    console.log("✅ Backend search successful");
 
-      // Add person search results first (more relevant when searching actor/director names)
-      if (
-        personData &&
-        personData.results &&
-        Array.isArray(personData.results)
-      ) {
-        const totalPersonResults =
-          personData.allResults?.length || personData.results.length;
+    // Combine results (person results FIRST for relevance, then title search)
+    let combinedResults = [];
+
+    // Add person search results first (more relevant when searching actor/director names)
+    if (personData && personData.results && Array.isArray(personData.results)) {
+      const totalPersonResults =
+        personData.allResults?.length || personData.results.length;
+      console.log(
+        `📺 Adding ${personData.results.length} results from person search (${totalPersonResults} total available)`,
+      );
+
+      // Filter person results by type if filter is active
+      let filteredPersonResults = personData.results;
+      if (normType) {
+        filteredPersonResults = personData.results.filter(
+          (r) => r.Type === normType,
+        );
         console.log(
-          `📺 Adding ${personData.results.length} results from person search (${totalPersonResults} total available)`,
+          `🎯 Filtered to ${filteredPersonResults.length} ${normType} results`,
         );
-
-        // Filter person results by type if filter is active
-        let filteredPersonResults = personData.results;
-        if (normType) {
-          filteredPersonResults = personData.results.filter(
-            (r) => r.Type === normType,
-          );
-          console.log(
-            `🎯 Filtered to ${filteredPersonResults.length} ${normType} results`,
-          );
-        }
-
-        combinedResults = [...filteredPersonResults];
       }
 
-      // Then add title search results (avoid duplicates by imdbID)
-      const existingIds = new Set(combinedResults.map((r) => r.imdbID));
-
-      if (titleData && Array.isArray(titleData)) {
-        const newResults = titleData.filter((r) => !existingIds.has(r.imdbID));
-        combinedResults = [...combinedResults, ...newResults];
-      } else if (titleData && titleData.Search) {
-        const newResults = titleData.Search.filter(
-          (r) => !existingIds.has(r.imdbID),
-        );
-        combinedResults = [...combinedResults, ...newResults];
-      } else if (titleData && titleData.results) {
-        const newResults = (titleData.results || []).filter(
-          (r) => !existingIds.has(r.imdbID),
-        );
-        combinedResults = [...combinedResults, ...newResults];
-      }
-
-      return {
-        Search: combinedResults,
-        totalResults: String(combinedResults.length),
-        Response: combinedResults.length ? "True" : "False",
-      };
-    } catch (error) {
-      // Re-throw abort errors
-      if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
-        throw error;
-      }
-      console.warn("⚠️ Backend search failed, using fallback");
-      backendAvailable = false;
+      combinedResults = [...filteredPersonResults];
     }
-  }
 
-  console.log("🔄 Using OMDb fallback for search:", trimmedQuery, filter, page);
-  // OMDb paged search uses 's', supports 'type' and 'page'
-  const params = new URLSearchParams({ s: trimmedQuery, apikey: OMDB_API_KEY });
-  if (normType) params.set("type", normType);
-  if (page) params.set("page", String(page));
+    // Then add title search results (avoid duplicates by imdbID)
+    const existingIds = new Set(combinedResults.map((r) => r.imdbID));
 
-  const response = await fetch(
-    `https://www.omdbapi.com/?${params.toString()}`,
-    {
-      signal: signal, // Pass AbortSignal to fetch
-    },
-  );
-  const data = await response.json();
-  if (data.Response === "False") {
-    return { Search: [], totalResults: "0", Response: "False" };
+    if (titleData && Array.isArray(titleData)) {
+      const newResults = titleData.filter((r) => !existingIds.has(r.imdbID));
+      combinedResults = [...combinedResults, ...newResults];
+    } else if (titleData && titleData.Search) {
+      const newResults = titleData.Search.filter(
+        (r) => !existingIds.has(r.imdbID),
+      );
+      combinedResults = [...combinedResults, ...newResults];
+    } else if (titleData && titleData.results) {
+      const newResults = (titleData.results || []).filter(
+        (r) => !existingIds.has(r.imdbID),
+      );
+      combinedResults = [...combinedResults, ...newResults];
+    }
+
+    return {
+      Search: combinedResults,
+      totalResults: String(combinedResults.length),
+      Response: combinedResults.length ? "True" : "False",
+    };
+  } catch (error) {
+    if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
+      throw error;
+    }
+    throw new Error("Backend search unavailable. Please try again.");
   }
-  return data;
 };
 
 export const getMovieDetails = async (imdbID) => {
-  if (backendAvailable) {
-    try {
-      console.log("🎬 Using backend for movie details:", imdbID);
-      const result = await apiClient.get(`/movies/details/${imdbID}`);
-      console.log("✅ Backend details successful");
-      return result;
-    } catch {
-      console.warn("⚠️ Backend details failed, using fallback");
-      backendAvailable = false;
-    }
-  }
-
-  console.log("🔄 Using OMDb fallback for details:", imdbID);
-  const response = await fetch(
-    `https://www.omdbapi.com/?i=${imdbID}&apikey=${OMDB_API_KEY}&plot=full`,
-  );
-  const data = await response.json();
-  if (data.Response === "False") throw new Error(data.Error);
-  return data;
+  console.log("🎬 Using backend for movie details:", imdbID);
+  const result = await apiClient.get(`/movies/details/${imdbID}`);
+  console.log("✅ Backend details successful");
+  return result;
 };
 
 export const getSeasonDetails = async (imdbID, season) => {
-  if (backendAvailable) {
-    try {
-      console.log("🎬 Using backend for season details:", imdbID, season);
-      const result = await apiClient.get(`/movies/season/${imdbID}/${season}`);
-      console.log("✅ Backend season details successful");
-      return result;
-    } catch {
-      console.warn("⚠️ Backend season details failed, using fallback");
-      backendAvailable = false;
-    }
-  }
-
-  console.log("🔄 Using OMDb fallback for season details:", imdbID, season);
-  const response = await fetch(
-    `https://www.omdbapi.com/?i=${imdbID}&Season=${season}&apikey=${OMDB_API_KEY}`,
-  );
-  const data = await response.json();
-  if (data.Response === "False") throw new Error(data.Error);
-  return data;
+  console.log("🎬 Using backend for season details:", imdbID, season);
+  const result = await apiClient.get(`/movies/season/${imdbID}/${season}`);
+  console.log("✅ Backend season details successful");
+  return result;
 };
 
 export const getEpisodeDetails = async (imdbID, season, episode) => {
-  if (backendAvailable) {
-    try {
-      console.log(
-        "🎬 Using backend for episode details:",
-        imdbID,
-        season,
-        episode,
-      );
-      const result = await apiClient.get(
-        `/movies/episode/${imdbID}/${season}/${episode}`,
-      );
-      console.log("✅ Backend episode details successful");
-      return result;
-    } catch {
-      console.warn("⚠️ Backend episode details failed, using fallback");
-      backendAvailable = false;
-    }
-  }
-
-  console.log(
-    "🔄 Using OMDb fallback for episode details:",
-    imdbID,
-    season,
-    episode,
+  console.log("🎬 Using backend for episode details:", imdbID, season, episode);
+  const result = await apiClient.get(
+    `/movies/episode/${imdbID}/${season}/${episode}`,
   );
-  const response = await fetch(
-    `https://www.omdbapi.com/?i=${imdbID}&Season=${season}&Episode=${episode}&apikey=${OMDB_API_KEY}`,
-  );
-  const data = await response.json();
-  if (data.Response === "False") throw new Error(data.Error);
-  return data;
+  console.log("✅ Backend episode details successful");
+  return result;
 };
 
 export const getRecommendations = async (title) => {
-  if (!backendAvailable) {
-    console.warn("⚠️ Backend not available for recommendations");
-    return [];
-  }
-
   try {
     console.log("🎬 Getting recommendations from backend:", title);
     const data = await apiClient.post("/recommendations", {
@@ -644,27 +423,10 @@ export const getRecommendations = async (title) => {
 };
 
 export const getBatchMovieDetails = async (imdbIDs) => {
-  if (backendAvailable) {
-    try {
-      console.log("🎬 Using backend for batch movie details:", imdbIDs);
-      const data = await apiClient.post("/movies/batch-details", { imdbIDs });
-      console.log("✅ Backend batch details successful");
-      return data.results || [];
-    } catch {
-      console.warn("⚠️ Backend batch details failed, using fallback");
-      backendAvailable = false;
-    }
-  }
-
-  console.log("🔄 Using OMDb fallback for batch details:", imdbIDs);
-  const results = await Promise.allSettled(
-    imdbIDs.map((id) => getMovieDetails(id)),
-  );
-  return results.map((result, index) => ({
-    imdbID: imdbIDs[index],
-    data: result.status === "fulfilled" ? result.value : null,
-    error: result.status === "rejected" ? result.reason.message : null,
-  }));
+  console.log("🎬 Using backend for batch movie details:", imdbIDs);
+  const data = await apiClient.post("/movies/batch-details", { imdbIDs });
+  console.log("✅ Backend batch details successful");
+  return data.results || [];
 };
 
 export const getUserProfile = async () => {
@@ -789,8 +551,10 @@ export const removeFromWatchlist = async (watchlistName, imdbID) => {
 export const toggleWatchedStatus = async (watchlistName, imdbID) => {
   try {
     console.log("🎬 Toggling watched status:", watchlistName, imdbID);
+    const safeName = encodeURIComponent(watchlistName);
+    const safeId = encodeURIComponent(imdbID);
     const result = await apiClient.patch(
-      `/user/watchlists/${watchlistName}/movies/${imdbID}/watched`,
+      `/user/watchlists/${safeName}/movies/${safeId}/watched`,
     );
     console.log("✅ Watched status toggled successfully");
     return result;
@@ -804,14 +568,15 @@ export const getBackendStatus = () => ({
   available: backendAvailable,
   tested: connectionTested,
   baseUrl: actualWorkingURL,
+  lastError: lastBackendError,
 });
 
 export const retestBackendConnection = async () => {
-  connectionTested = false;
-  backendAvailable = false;
-  consecutiveFailures = 0; // Reset failure counter on manual retest
+  connectionTested = true;
+  backendAvailable = true;
+  lastBackendError = null;
   actualWorkingURL = API_BASE_URL;
-  return await testBackendConnection();
+  return true;
 };
 
 // Convenience API for components expecting a default service object
@@ -831,97 +596,74 @@ const normalizeResults = (payload) => {
 
 // Get real trending content from backend
 export const getTrending = async (type = "movie", timeWindow = "week") => {
-  if (backendAvailable) {
-    try {
-      const data = await apiClient.get(`/trending/${type}/${timeWindow}`);
-      return Array.isArray(data) ? data : data.results || [];
-    } catch (error) {
-      console.warn("⚠️ Trending API failed:", error.message);
-    }
+  try {
+    const data = await apiClient.get(`/trending/${type}/${timeWindow}`);
+    return Array.isArray(data) ? data : data.results || [];
+  } catch (error) {
+    console.warn("⚠️ Trending API failed:", error.message);
+    return [];
   }
-
-  // Fallback to search by current year
-  const currentYear = new Date().getFullYear();
-  const resp = await searchMovies(
-    String(currentYear),
-    type === "tv" ? "series" : "movie",
-    1,
-  );
-  return resp.Search || resp.results || [];
 };
 
 // Get trending search keywords
 export const getTrendingKeywords = async () => {
-  if (backendAvailable) {
-    try {
-      const data = await apiClient.get("/trending/search/keywords");
-      return data.keywords || [];
-    } catch (error) {
-      console.warn("⚠️ Trending keywords API failed:", error.message);
-    }
+  try {
+    const data = await apiClient.get("/trending/search/keywords");
+    return data.keywords || [];
+  } catch (error) {
+    console.warn("⚠️ Trending keywords API failed:", error.message);
+    return [];
   }
-
-  // Fallback to basic keywords
-  return [
-    "action movies",
-    "comedy series",
-    "drama films",
-    "thriller movies",
-    "horror films",
-    "sci-fi movies",
-    "adventure movies",
-    "fantasy films",
-  ];
 };
 
 // Get popular movies
 export const getPopular = async (page = 1) => {
-  if (backendAvailable) {
-    try {
-      const data = await apiClient.get("/movies/popular", { params: { page } });
-      return Array.isArray(data) ? data : data.results || [];
-    } catch (error) {
-      console.warn("⚠️ Popular API failed:", error.message);
-    }
+  try {
+    const data = await apiClient.get("/movies/popular", { params: { page } });
+    return Array.isArray(data) ? data : data.results || [];
+  } catch (error) {
+    console.warn("⚠️ Popular API failed:", error.message);
+    return [];
   }
-
-  // Fallback to search by previous year
-  const lastYear = new Date().getFullYear() - 1;
-  const resp = await searchMovies(String(lastYear), "movie", 1);
-  return resp.Search || resp.results || [];
 };
 
 // Get new releases (current year)
 export const getNewReleases = async (type = "movie") => {
-  const currentYear = new Date().getFullYear();
-  const resp = await searchMovies(
-    String(currentYear),
-    type === "tv" ? "series" : "movie",
-    1,
-  );
-  return resp.Search || resp.results || [];
+  try {
+    const data = await apiClient.get(`/trending/${type}/week`);
+    return Array.isArray(data) ? data : data.results || [];
+  } catch (error) {
+    console.warn("⚠️ New releases API failed:", error.message);
+    return [];
+  }
 };
 
 // Search by genre/keyword
 export const searchByGenre = async (genre, type = "all") => {
-  const resp = await searchMovies(genre, type, 1);
-  return resp.Search || resp.results || [];
+  try {
+    const data = await apiClient.get("/search/by-genre", {
+      params: {
+        genre,
+        type: type === "all" ? undefined : type,
+        page: 1,
+      },
+    });
+    return data.Search || data.results || [];
+  } catch (error) {
+    console.warn("⚠️ Genre search failed:", error.message);
+    return [];
+  }
 };
 
 // Get top rated (high quality) content
 export const getTopRated = async () => {
-  if (backendAvailable) {
-    try {
-      const data = await apiClient.get("/movies/top-rated");
-      return Array.isArray(data) ? data : data.results || [];
-    } catch (error) {
-      console.warn("⚠️ Top Rated API failed:", error.message);
-    }
+  try {
+    const data = await apiClient.get("/movies/top-rated");
+    return Array.isArray(data) ? data : data.results || [];
+  } catch (error) {
+    console.warn("⚠️ Top Rated API failed:", error.message);
+    return [];
   }
-
-  // Fallback to search for critically acclaimed
-  const resp = await searchMovies("award", "movie", 1);
-  return resp.Search || resp.results || [];
 };
 
 export const getTrendingMovies = async () => {
@@ -930,11 +672,6 @@ export const getTrendingMovies = async () => {
 
 // Get trailers/videos for a movie
 export const getMovieVideos = async (tmdbId) => {
-  if (!backendAvailable) {
-    console.warn("⚠️ Backend unavailable, cannot fetch movie videos");
-    return null;
-  }
-
   try {
     console.log(`🎬 Fetching movie videos for TMDB ID: ${tmdbId}`);
     const response = await apiClient.get(`/movies/${tmdbId}/videos`);
@@ -949,11 +686,6 @@ export const getMovieVideos = async (tmdbId) => {
 
 // Get trailers/videos for a TV series
 export const getTVVideos = async (tmdbId) => {
-  if (!backendAvailable) {
-    console.warn("⚠️ Backend unavailable, cannot fetch TV videos");
-    return null;
-  }
-
   try {
     console.log(`🎬 Fetching TV videos for TMDB ID: ${tmdbId}`);
     const response = await apiClient.get(`/tv/${tmdbId}/videos`);
@@ -967,11 +699,6 @@ export const getTVVideos = async (tmdbId) => {
 
 // Get trailers/videos for a specific season
 export const getSeasonVideos = async (tmdbId, seasonNumber) => {
-  if (!backendAvailable) {
-    console.warn("⚠️ Backend unavailable, cannot fetch season videos");
-    return null;
-  }
-
   try {
     console.log(
       `🎬 Fetching season ${seasonNumber} videos for TMDB ID: ${tmdbId}`,
@@ -1228,6 +955,72 @@ export const updateUserSubscriptions = async (subscriptions) => {
     console.error("❌ Error updating user subscriptions:", error);
     throw error;
   }
+};
+
+// ========== GAMIFICATION ==========
+
+/**
+ * Fetch the user's gamification state from the cloud.
+ * Returns null if unauthenticated or on any error.
+ */
+export const getGamificationData = async () => {
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) return null;
+    const data = await apiClient.get("/user/gamification", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return data?.gamification || null;
+  } catch (error) {
+    console.warn("⚠️ Could not fetch gamification from cloud:", error.message);
+    return null;
+  }
+};
+
+/**
+ * Push the user's gamification state to the cloud.
+ * Fire-and-forget — local AsyncStorage is source of truth.
+ */
+export const syncGamificationData = async (state) => {
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) return;
+    await apiClient.put("/user/gamification", state, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (error) {
+    // Silent fail — offline / unauthenticated is expected
+    console.warn("⚠️ Gamification cloud sync failed:", error.message);
+  }
+};
+
+export const getWatchedEpisodes = async (contentId) => {
+  try {
+    const safeContentId = encodeURIComponent(contentId);
+    const data = await apiClient.get(`/user/watched/${safeContentId}`);
+    return data?.episodes || {};
+  } catch (error) {
+    console.warn("⚠️ Could not fetch watched episodes:", error.message);
+    return {};
+  }
+};
+
+export const setEpisodeWatched = async (
+  contentId,
+  season,
+  episode,
+  watched,
+) => {
+  const safeContentId = encodeURIComponent(contentId);
+  const data = await apiClient.patch(
+    `/user/watched/${safeContentId}/episodes`,
+    {
+      season,
+      episode,
+      watched,
+    },
+  );
+  return data?.episodes || {};
 };
 
 const ApiService = {

@@ -1329,9 +1329,9 @@ const DetailsScreen = ({ route, navigation }) => {
           return updated;
         });
 
-        // Persist to Firestore
+        // Persist through backend user data API
         await markEpisodeWatched(
-          imdbID,
+          effectiveImdbID,
           season,
           episodeNumber,
           !isCurrentlyWatched,
@@ -1361,7 +1361,7 @@ const DetailsScreen = ({ route, navigation }) => {
         showToast("Failed to update watch status", "error");
       }
     },
-    [imdbID, watchedEpisodes, showToast],
+    [effectiveImdbID, watchedEpisodes, showToast],
   );
 
   const toggleSeason = useCallback(
@@ -1415,9 +1415,9 @@ const DetailsScreen = ({ route, navigation }) => {
   // Load watched episodes for series
   useEffect(() => {
     const loadWatchedEpisodes = async () => {
-      if (movie?.Type === "series" && imdbID) {
+      if (movie?.Type === "series" && effectiveImdbID) {
         try {
-          const watched = await getWatchedEpisodes(imdbID);
+          const watched = await getWatchedEpisodes(effectiveImdbID);
           setWatchedEpisodes(watched);
         } catch (error) {
           console.error("Failed to load watched episodes:", error);
@@ -1426,7 +1426,7 @@ const DetailsScreen = ({ route, navigation }) => {
     };
 
     loadWatchedEpisodes();
-  }, [movie?.Type, imdbID]);
+  }, [movie?.Type, effectiveImdbID]);
 
   // Animation effect
   useEffect(() => {

@@ -8,11 +8,11 @@
  */
 
 const updateInfo = {
-  message: "Gamification v5 - badge icons + details",
-  description: "Gamification v5 - badge icons + details",
-  changelog: "All 20 badges now use contextual Ionicons instead of emojis; tap any badge to open a detail panel showing its title, description, earn criteria, and locked/unlocked status",
+  message: "Gamification v7 - cloud-only storage",
+  description: "Gamification v7 - cloud-only storage",
+  changelog: "Removed AsyncStorage for gamification. All XP reads and writes go directly to backend/Firestore - no local storage, no merge complexity, no race conditions.",
   version: "2.0.0",
-  pushedAt: "2026-03-08T07:47:29.469Z",
+  pushedAt: "2026-03-08T14:50:24.077Z",
 };
 
 export default updateInfo;
