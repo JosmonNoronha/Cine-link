@@ -81,7 +81,7 @@ const firebaseConfig = {
 };
 
 // Helper to create a mock auth instance that won't crash callers
-const createMockAuth = () => ({
+const createMockAuth = (reason = "Firebase auth is not configured") => ({
   currentUser: null,
   onAuthStateChanged: (callback) => {
     setTimeout(() => callback(null), 0);
@@ -91,10 +91,10 @@ const createMockAuth = () => ({
     console.warn("Firebase auth not available");
   },
   signInWithEmailAndPassword: async () => {
-    throw new Error("Firebase auth not configured");
+    throw new Error(reason);
   },
   createUserWithEmailAndPassword: async () => {
-    throw new Error("Firebase auth not configured");
+    throw new Error(reason);
   },
 });
 
@@ -138,6 +138,12 @@ if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
   }
 } else {
   console.warn("⚠️  Firebase not initialized - missing configuration");
+  console.warn("⚠️  Firebase config sources:", {
+    hasExpoConfig: !!Constants?.expoConfig?.extra,
+    hasUpdatesManifest: !!Updates?.manifest || !!Updates?.manifest2,
+    updateId: Updates?.updateId || null,
+    channel: Updates?.channel || null,
+  });
 }
 
 const authFacade = firebaseAuth
@@ -153,7 +159,9 @@ const authFacade = firebaseAuth
       createUserWithEmailAndPassword: (email, password) =>
         createUserWithEmailAndPassword(firebaseAuth, email, password),
     }
-  : createMockAuth();
+  : createMockAuth(
+      "Firebase auth is not configured in this app build. Check the installed update channel and runtime env injection.",
+    );
 
 export const auth = authFacade;
 export { db, firebaseAuth };
