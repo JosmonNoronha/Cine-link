@@ -39,6 +39,11 @@ module.exports = () => {
     "  Firebase Project ID:",
     FIREBASE_PROJECT_ID ? "✅ Set" : "❌ Missing",
   );
+  console.log("  Firebase App ID:", FIREBASE_APP_ID ? "✅ Set" : "❌ Missing");
+  console.log(
+    "  Firebase Sender ID:",
+    FIREBASE_MESSAGING_SENDER_ID ? "✅ Set" : "❌ Missing",
+  );
   console.log("  OMDB API Key:", OMDB_API_KEY ? "✅ Set" : "❌ Missing");
   console.log(
     "  Production API URL:",

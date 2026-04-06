@@ -62,15 +62,32 @@ const FIREBASE_MEASUREMENT_ID =
   extra.FIREBASE_MEASUREMENT_ID ||
   extra.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
+// Normalize values (EAS variables may exist but still be empty strings).
+const normalizedApiKey = FIREBASE_API_KEY?.trim();
+const normalizedProjectId = FIREBASE_PROJECT_ID?.trim();
+const normalizedAuthDomain =
+  FIREBASE_AUTH_DOMAIN?.trim() ||
+  (normalizedProjectId ? `${normalizedProjectId}.firebaseapp.com` : undefined);
+const normalizedStorageBucket =
+  FIREBASE_STORAGE_BUCKET?.trim() ||
+  (normalizedProjectId
+    ? `${normalizedProjectId}.firebasestorage.app`
+    : undefined);
+const normalizedMessagingSenderId = FIREBASE_MESSAGING_SENDER_ID?.trim();
+const normalizedAppId = FIREBASE_APP_ID?.trim();
+const normalizedMeasurementId = FIREBASE_MEASUREMENT_ID?.trim();
+
 // Validate required Firebase configuration
-if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
+if (!normalizedApiKey || !normalizedProjectId) {
   console.error(
     "⚠️  Firebase configuration is missing. Auth features will be disabled.",
   );
   console.error("Missing keys:", {
-    hasApiKey: !!FIREBASE_API_KEY,
-    hasProjectId: !!FIREBASE_PROJECT_ID,
-    hasAppId: !!FIREBASE_APP_ID,
+    hasApiKey: !!normalizedApiKey,
+    hasProjectId: !!normalizedProjectId,
+    hasAuthDomain: !!normalizedAuthDomain,
+    hasAppId: !!normalizedAppId,
+    hasMessagingSenderId: !!normalizedMessagingSenderId,
   });
   console.error("Available extra keys:", Object.keys(extra));
   console.error("Config source availability:", {
@@ -82,13 +99,13 @@ if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
 }
 
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
-  authDomain: FIREBASE_AUTH_DOMAIN,
-  projectId: FIREBASE_PROJECT_ID,
-  storageBucket: FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID,
-  appId: FIREBASE_APP_ID,
-  measurementId: FIREBASE_MEASUREMENT_ID,
+  apiKey: normalizedApiKey,
+  authDomain: normalizedAuthDomain,
+  projectId: normalizedProjectId,
+  storageBucket: normalizedStorageBucket,
+  messagingSenderId: normalizedMessagingSenderId,
+  appId: normalizedAppId,
+  measurementId: normalizedMeasurementId,
 };
 
 // Helper to create a mock auth instance that won't crash callers
@@ -114,7 +131,7 @@ let firebaseAuth;
 let db;
 
 // Only initialize if we have valid config
-if (FIREBASE_API_KEY && FIREBASE_PROJECT_ID && FIREBASE_APP_ID) {
+if (normalizedApiKey && normalizedProjectId) {
   try {
     if (!getApps().length) {
       firebaseApp = initializeApp(firebaseConfig);
