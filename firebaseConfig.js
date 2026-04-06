@@ -10,7 +10,6 @@ import {
 import { getReactNativePersistence } from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
-import * as Updates from "expo-updates";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
@@ -24,42 +23,26 @@ console.log(
   !!Constants?.expoConfig?.extra,
 );
 
-// Read config from all known Expo runtime sources.
-// OTA updates can expose values via Updates.manifest rather than Constants.expoConfig.
-const expoExtra = Constants?.expoConfig?.extra || {};
-const updatesExtra =
-  Updates?.manifest?.extra?.expoClient?.extra ||
-  Updates?.manifest?.extra ||
-  Updates?.manifest2?.extra ||
-  {};
-const extra = { ...updatesExtra, ...expoExtra };
+const extra = Constants?.expoConfig?.extra || {};
 const FIREBASE_API_KEY =
   process.env.EXPO_PUBLIC_FIREBASE_API_KEY ||
-  extra.FIREBASE_API_KEY ||
   extra.EXPO_PUBLIC_FIREBASE_API_KEY;
 const FIREBASE_AUTH_DOMAIN =
   process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ||
-  extra.FIREBASE_AUTH_DOMAIN ||
   extra.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN;
 const FIREBASE_PROJECT_ID =
   process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ||
-  extra.FIREBASE_PROJECT_ID ||
   extra.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
 const FIREBASE_STORAGE_BUCKET =
   process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-  extra.FIREBASE_STORAGE_BUCKET ||
   extra.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
 const FIREBASE_MESSAGING_SENDER_ID =
   process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
-  extra.FIREBASE_MESSAGING_SENDER_ID ||
   extra.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
 const FIREBASE_APP_ID =
-  process.env.EXPO_PUBLIC_FIREBASE_APP_ID ||
-  extra.FIREBASE_APP_ID ||
-  extra.EXPO_PUBLIC_FIREBASE_APP_ID;
+  process.env.EXPO_PUBLIC_FIREBASE_APP_ID || extra.EXPO_PUBLIC_FIREBASE_APP_ID;
 const FIREBASE_MEASUREMENT_ID =
   process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID ||
-  extra.FIREBASE_MEASUREMENT_ID ||
   extra.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 // Normalize values (EAS variables may exist but still be empty strings).
@@ -90,12 +73,6 @@ if (!normalizedApiKey || !normalizedProjectId) {
     hasMessagingSenderId: !!normalizedMessagingSenderId,
   });
   console.error("Available extra keys:", Object.keys(extra));
-  console.error("Config source availability:", {
-    hasExpoExtra: Object.keys(expoExtra).length > 0,
-    hasUpdatesExtra: Object.keys(updatesExtra).length > 0,
-    updateId: Updates?.updateId || null,
-    channel: Updates?.channel || null,
-  });
 }
 
 const firebaseConfig = {
@@ -166,12 +143,6 @@ if (normalizedApiKey && normalizedProjectId) {
   }
 } else {
   console.warn("⚠️  Firebase not initialized - missing configuration");
-  console.warn("⚠️  Firebase config sources:", {
-    hasExpoConfig: !!Constants?.expoConfig?.extra,
-    hasUpdatesManifest: !!Updates?.manifest || !!Updates?.manifest2,
-    updateId: Updates?.updateId || null,
-    channel: Updates?.channel || null,
-  });
 }
 
 const authFacade = firebaseAuth
@@ -188,7 +159,7 @@ const authFacade = firebaseAuth
         createUserWithEmailAndPassword(firebaseAuth, email, password),
     }
   : createMockAuth(
-      "Firebase auth is not configured in this app build. Check the installed update channel and runtime env injection.",
+      "Firebase auth is not configured in this app build. The update likely does not contain the runtime Firebase env values.",
     );
 
 export const auth = authFacade;
