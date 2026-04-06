@@ -6,14 +6,9 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import {
-  initializeAuth,
-  getReactNativePersistence,
-} from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
 // Debug: Log what's available
@@ -135,21 +130,7 @@ if (normalizedApiKey && normalizedProjectId) {
 
       // Initialize auth with React Native persistence BEFORE calling firebase.auth()
       if (Platform.OS !== "web") {
-        try {
-          firebaseAuth = initializeAuth(firebaseApp, {
-            persistence: getReactNativePersistence(AsyncStorage),
-          });
-          console.log("✅ Auth persistence set with AsyncStorage");
-        } catch (e) {
-          console.warn("Failed to set auth persistence:", e.message);
-          // If auth is already initialized, get existing instance; otherwise capture root error.
-          try {
-            firebaseAuth = getAuth(firebaseApp);
-          } catch (authError) {
-            firebaseAuth = null;
-            fallbackReason = `Firebase auth initialization failed: ${authError?.message || e?.message || "unknown error"}`;
-          }
-        }
+        firebaseAuth = getAuth(firebaseApp);
       } else {
         firebaseAuth = getAuth(firebaseApp);
       }
