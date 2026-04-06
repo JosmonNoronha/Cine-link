@@ -129,21 +129,20 @@ if (normalizedApiKey && normalizedProjectId) {
   try {
     if (!getApps().length) {
       firebaseApp = initializeApp(firebaseConfig);
-      console.log("✅ Firebase initialized successfully");
-
-      // Initialize auth with React Native persistence
-      if (Platform.OS !== "web") {
-        // Use initializeAuth for React Native to set up AsyncStorage persistence
-        firebaseAuth = initializeAuth(firebaseApp, {
-          persistence: getReactNativePersistence(AsyncStorage)
-        });
-      } else {
-        firebaseAuth = getAuth(firebaseApp);
-      }
     } else {
       firebaseApp = getApp();
-      firebaseAuth = getAuth(firebaseApp);
-      console.log("Using existing Firebase app");
+    }
+
+    if (Platform.OS !== "web") {
+      try {
+        firebaseAuth = initializeAuth(firebaseApp, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      } catch (e) {
+          firebaseAuth = getAuth(firebaseApp);
+        }
+      } else {
+        firebaseAuth = getAuth(firebaseApp);
     }
 
     db = getFirestore(firebaseApp);
