@@ -10,6 +10,7 @@ import {
 import { getReactNativePersistence } from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
@@ -23,8 +24,15 @@ console.log(
   !!Constants?.expoConfig?.extra,
 );
 
-// Read config: EXPO_PUBLIC_ env vars (available in OTA updates) → Constants.expoConfig.extra (native build)
-const extra = Constants?.expoConfig?.extra || {};
+// Read config from all known Expo runtime sources.
+// OTA updates can expose values via Updates.manifest rather than Constants.expoConfig.
+const expoExtra = Constants?.expoConfig?.extra || {};
+const updatesExtra =
+  Updates?.manifest?.extra?.expoClient?.extra ||
+  Updates?.manifest?.extra ||
+  Updates?.manifest2?.extra ||
+  {};
+const extra = { ...updatesExtra, ...expoExtra };
 const FIREBASE_API_KEY =
   process.env.EXPO_PUBLIC_FIREBASE_API_KEY || extra.FIREBASE_API_KEY;
 const FIREBASE_AUTH_DOMAIN =
@@ -54,6 +62,12 @@ if (!FIREBASE_API_KEY || !FIREBASE_PROJECT_ID || !FIREBASE_APP_ID) {
     hasAppId: !!FIREBASE_APP_ID,
   });
   console.error("Available extra keys:", Object.keys(extra));
+  console.error("Config source availability:", {
+    hasExpoExtra: Object.keys(expoExtra).length > 0,
+    hasUpdatesExtra: Object.keys(updatesExtra).length > 0,
+    updateId: Updates?.updateId || null,
+    channel: Updates?.channel || null,
+  });
 }
 
 const firebaseConfig = {
