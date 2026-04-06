@@ -1,13 +1,15 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   getAuth,
+  initializeAuth,
+  getReactNativePersistence,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 import { Platform } from "react-native";
@@ -129,9 +131,12 @@ if (normalizedApiKey && normalizedProjectId) {
       firebaseApp = initializeApp(firebaseConfig);
       console.log("✅ Firebase initialized successfully");
 
-      // Initialize auth with React Native persistence BEFORE calling firebase.auth()
+      // Initialize auth with React Native persistence
       if (Platform.OS !== "web") {
-        firebaseAuth = getAuth(firebaseApp);
+        // Use initializeAuth for React Native to set up AsyncStorage persistence
+        firebaseAuth = initializeAuth(firebaseApp, {
+          persistence: getReactNativePersistence(AsyncStorage)
+        });
       } else {
         firebaseAuth = getAuth(firebaseApp);
       }
