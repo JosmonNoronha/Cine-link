@@ -1,13 +1,15 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  initializeAuth,
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
-import { getReactNativePersistence } from "firebase/auth/react-native";
+import {
+  initializeAuth,
+  getReactNativePersistence,
+} from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
@@ -140,7 +142,13 @@ if (normalizedApiKey && normalizedProjectId) {
           console.log("✅ Auth persistence set with AsyncStorage");
         } catch (e) {
           console.warn("Failed to set auth persistence:", e.message);
-          firebaseAuth = getAuth(firebaseApp);
+          // If auth is already initialized, get existing instance; otherwise capture root error.
+          try {
+            firebaseAuth = getAuth(firebaseApp);
+          } catch (authError) {
+            firebaseAuth = null;
+            fallbackReason = `Firebase auth initialization failed: ${authError?.message || e?.message || "unknown error"}`;
+          }
         }
       } else {
         firebaseAuth = getAuth(firebaseApp);
