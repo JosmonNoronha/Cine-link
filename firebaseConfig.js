@@ -1,14 +1,15 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
+  initializeAuth,
+  getReactNativePersistence,
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-} from "firebase/auth/react-native";
+} from "firebase/auth";                          // ← no /react-native
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
-import Constants from "expo-constants";
-import * as Updates from "expo-updates";
 
 console.log("═══════════════════════════════════════════════════");
 console.log("🔍 FIREBASE CONFIG - SIMPLE APPROACH");
@@ -116,7 +117,10 @@ if (normalizedApiKey && normalizedProjectId) {
     }
 
     // Use the React Native auth entrypoint consistently to avoid provider mismatch.
-    firebaseAuth = getAuth(firebaseApp);
+    // ✅ New
+    firebaseAuth = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
     console.log("✅ Auth initialized (react-native entrypoint)");
 
     // Initialize Firestore

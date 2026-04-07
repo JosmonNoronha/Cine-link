@@ -16,7 +16,7 @@ import {
   reload,
   updateProfile,
   sendEmailVerification,
-} from "firebase/auth/react-native";
+} from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import analyticsService from "../services/analytics";
 
