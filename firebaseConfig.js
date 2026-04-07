@@ -2,12 +2,11 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   initializeAuth,
   getReactNativePersistence,
-  getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-} from "firebase/auth";                          // ← no /react-native
+} from "firebase/auth";                          
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
 
@@ -110,14 +109,16 @@ if (normalizedApiKey && normalizedProjectId) {
     // Initialize app
     if (!getApps().length) {
       firebaseApp = initializeApp(firebaseConfig);
-      console.log("✅ Firebase app initialized");
     } else {
       firebaseApp = getApp();
-      console.log("✅ Using existing Firebase app");
     }
 
-    // Use the React Native auth entrypoint consistently to avoid provider mismatch.
-    // ✅ New
+    firebaseAuth = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+
+    db = getFirestore(firebaseApp);
+
     firebaseAuth = initializeAuth(firebaseApp, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
