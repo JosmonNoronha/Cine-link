@@ -129,20 +129,36 @@ if (normalizedApiKey && normalizedProjectId) {
   try {
     if (!getApps().length) {
       firebaseApp = initializeApp(firebaseConfig);
-    } else {
-      firebaseApp = getApp();
-    }
+      console.log("✅ Firebase initialized successfully");
 
-    if (Platform.OS !== "web") {
-      try {
-        firebaseAuth = initializeAuth(firebaseApp, {
-          persistence: getReactNativePersistence(AsyncStorage),
-        });
-      } catch (e) {
+      // Initialize auth with React Native persistence
+      if (Platform.OS !== "web") {
+        // Use initializeAuth for React Native to set up AsyncStorage persistence
+        try {
+          firebaseAuth = initializeAuth(firebaseApp, {
+            persistence: getReactNativePersistence(AsyncStorage)
+          });
+          console.log("✅ Auth initialized with React Native persistence");
+        } catch (authError) {
+          // Auth might already be initialized, try to get existing instance
+          console.log("Auth already initialized, getting existing instance");
           firebaseAuth = getAuth(firebaseApp);
         }
       } else {
         firebaseAuth = getAuth(firebaseApp);
+      }
+    } else {
+      firebaseApp = getApp();
+      console.log("Using existing Firebase app");
+      
+      // Try to get the existing auth instance
+      // On React Native, initializeAuth may have already been called
+      try {
+        firebaseAuth = getAuth(firebaseApp);
+      } catch (error) {
+        console.error("Error getting auth instance:", error);
+        firebaseAuth = null;
+      }
     }
 
     db = getFirestore(firebaseApp);
