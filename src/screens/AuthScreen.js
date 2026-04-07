@@ -12,7 +12,11 @@ import {
   Modal,
 } from "react-native";
 import { auth } from "../../firebaseConfig";
-import { reload, updateProfile, sendEmailVerification } from "firebase/auth";
+import {
+  reload,
+  updateProfile,
+  sendEmailVerification,
+} from "firebase/auth/react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import analyticsService from "../services/analytics";
 

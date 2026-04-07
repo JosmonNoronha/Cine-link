@@ -1,11 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth";
+import { getAuth } from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
@@ -127,7 +127,6 @@ if (normalizedApiKey && normalizedProjectId) {
     console.log("═══════════════════════════════════════════════════");
     console.log("✅ ALL SERVICES READY");
     console.log("═══════════════════════════════════════════════════");
-
   } catch (error) {
     console.error("❌ Firebase init error:", error);
     console.error("   Code:", error?.code);
