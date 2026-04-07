@@ -127,47 +127,52 @@ let fallbackReason =
 // Only initialize if we have valid config
 if (normalizedApiKey && normalizedProjectId) {
   try {
+    // Initialize Firebase App
     if (!getApps().length) {
       firebaseApp = initializeApp(firebaseConfig);
-      console.log("✅ Firebase initialized successfully");
-
-      // Initialize auth with React Native persistence
-      if (Platform.OS !== "web") {
-        // Use initializeAuth for React Native to set up AsyncStorage persistence
-        try {
-          firebaseAuth = initializeAuth(firebaseApp, {
-            persistence: getReactNativePersistence(AsyncStorage)
-          });
-          console.log("✅ Auth initialized with React Native persistence");
-        } catch (authError) {
-          // Auth might already be initialized, try to get existing instance
-          console.log("Auth already initialized, getting existing instance");
-          firebaseAuth = getAuth(firebaseApp);
-        }
-      } else {
-        firebaseAuth = getAuth(firebaseApp);
-      }
+      console.log("✅ Firebase app initialized successfully");
     } else {
       firebaseApp = getApp();
-      console.log("Using existing Firebase app");
-      
-      // Try to get the existing auth instance
-      // On React Native, initializeAuth may have already been called
-      try {
-        firebaseAuth = getAuth(firebaseApp);
-      } catch (error) {
-        console.error("Error getting auth instance:", error);
-        firebaseAuth = null;
-      }
+      console.log("✅ Using existing Firebase app");
     }
 
+    // Initialize Auth - THIS IS THE CRITICAL PART
+    if (Platform.OS !== "web") {
+      // React Native path
+      try {
+        // Try to initialize auth with persistence
+        firebaseAuth = initializeAuth(firebaseApp, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+        console.log("✅ Auth initialized with React Native persistence");
+      } catch (authError) {
+        // If initializeAuth fails (already initialized), get existing instance
+        if (authError.code === 'auth/already-initialized') {
+          console.log("ℹ️  Auth already initialized, retrieving instance");
+          firebaseAuth = getAuth(firebaseApp);
+        } else {
+          console.error("❌ Auth initialization error:", authError);
+          throw authError;
+        }
+      }
+    } else {
+      // Web path
+      firebaseAuth = getAuth(firebaseApp);
+      console.log("✅ Auth initialized for web");
+    }
+
+    // Initialize Firestore
     db = getFirestore(firebaseApp);
+    console.log("✅ Firestore initialized");
+
   } catch (error) {
-    console.error("❌ Firebase init error:", error);
+    console.error("❌ Firebase initialization error:", error);
+    console.error("Error code:", error?.code);
+    console.error("Error message:", error?.message);
     firebaseAuth = null;
     db = null;
     firebaseApp = null;
-    fallbackReason = `Firebase initialization failed at runtime: ${error?.message || "unknown error"}`;
+    fallbackReason = `Firebase initialization failed: ${error?.message || "unknown error"}`;
   }
 } else {
   console.warn("⚠️  Firebase not initialized - missing configuration");
