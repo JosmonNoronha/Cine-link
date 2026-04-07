@@ -1,15 +1,14 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
+  getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-} from "firebase/auth";
-import { getAuth } from "firebase/auth/react-native";
+} from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
-import { Platform } from "react-native";
 
 console.log("═══════════════════════════════════════════════════");
 console.log("🔍 FIREBASE CONFIG - SIMPLE APPROACH");
@@ -116,10 +115,9 @@ if (normalizedApiKey && normalizedProjectId) {
       console.log("✅ Using existing Firebase app");
     }
 
-    // SIMPLIFIED: Just use getAuth() - no initializeAuth()
-    // This works because Firebase JS SDK v9+ handles persistence automatically
+    // Use the React Native auth entrypoint consistently to avoid provider mismatch.
     firebaseAuth = getAuth(firebaseApp);
-    console.log("✅ Auth initialized");
+    console.log("✅ Auth initialized (react-native entrypoint)");
 
     // Initialize Firestore
     db = getFirestore(firebaseApp);
