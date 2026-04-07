@@ -16,6 +16,8 @@ import { reload, updateProfile, sendEmailVerification } from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import analyticsService from "../services/analytics";
 
+const SHOW_AUTH_DEBUG_PANEL = true;
+
 const AuthScreen = () => {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
@@ -24,6 +26,7 @@ const AuthScreen = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [debugError, setDebugError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   // Email verification modal state
@@ -55,6 +58,14 @@ const AuthScreen = () => {
       return "Too many failed attempts. Please try again later.";
     }
     return error.message;
+  };
+
+  const getDebugError = (error) => {
+    const code = error?.code || "N/A";
+    const message = error?.message || "No message";
+    const name = error?.name || "Error";
+    const stackLine = error?.stack?.split("\n")?.[0] || "No stack";
+    return `name: ${name}\ncode: ${code}\nmessage: ${message}\nstack: ${stackLine}`;
   };
 
   const startCooldown = () => {
@@ -103,6 +114,9 @@ const AuthScreen = () => {
       );
     } catch (error) {
       console.error("Resend verification error:", error);
+      if (SHOW_AUTH_DEBUG_PANEL) {
+        setDebugError(getDebugError(error));
+      }
       Alert.alert("Error", getFriendlyError(error));
     } finally {
       setIsLoading(false);
@@ -137,6 +151,9 @@ const AuthScreen = () => {
 
   const handleAuth = async () => {
     setErrorMessage("");
+    if (SHOW_AUTH_DEBUG_PANEL) {
+      setDebugError("");
+    }
     if (!email || !password || (!isLogin && !username)) {
       setErrorMessage("Please fill in all fields");
       return;
@@ -205,6 +222,9 @@ const AuthScreen = () => {
     } catch (error) {
       console.error("❌ Auth error:", error);
       setErrorMessage(getFriendlyError(error));
+      if (SHOW_AUTH_DEBUG_PANEL) {
+        setDebugError(getDebugError(error));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -220,6 +240,9 @@ const AuthScreen = () => {
     setPassword("");
     setUsername("");
     setErrorMessage("");
+    if (SHOW_AUTH_DEBUG_PANEL) {
+      setDebugError("");
+    }
   };
 
   return (
@@ -294,6 +317,13 @@ const AuthScreen = () => {
 
             {errorMessage ? (
               <Text style={styles.errorMessage}>{errorMessage}</Text>
+            ) : null}
+
+            {SHOW_AUTH_DEBUG_PANEL && debugError ? (
+              <View style={styles.debugPanel}>
+                <Text style={styles.debugTitle}>Temporary Auth Debug</Text>
+                <Text style={styles.debugBody}>{debugError}</Text>
+              </View>
             ) : null}
 
             <TouchableOpacity
@@ -461,6 +491,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginBottom: 16,
+  },
+  debugPanel: {
+    backgroundColor: "#0f0f0f",
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  debugTitle: {
+    color: "#ffd166",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  debugBody: {
+    color: "#9ef0a0",
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
   button: {
     backgroundColor: "#e50914",
