@@ -493,7 +493,7 @@ const SettingsScreen = ({ navigation }) => {
           </Text>
 
           <Text style={[styles.apiCredit, { color: colors.text }]}>
-            Powered by TMDB APIj
+            Powered by TMDB APIjj
           </Text>
         </View>
       </View>
