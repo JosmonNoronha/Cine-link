@@ -25,7 +25,7 @@ import {
   getRecommendations,
 } from "../services/api";
 import MovieCard from "../components/HomeMovieCard";
-import ShimmerMovieCard from "../components/ShimmerHomeMovieCard";
+import HomeScreenSkeleton from "../components/HomeScreenSkeleton";
 import RecommendationCard from "../components/RecommendationCard";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
@@ -374,18 +374,7 @@ const HomeScreen = ({ navigation }) => {
   }, [navigation, loadWatchlists]);
 
   // Render shimmer loading
-  const renderShimmer = () => (
-    <View style={styles.shimmerWrapper}>
-      <FlatList
-        horizontal
-        data={Array(5).fill({})}
-        keyExtractor={(_, index) => `shimmer-${index}`}
-        renderItem={() => <ShimmerMovieCard />}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalList}
-      />
-    </View>
-  );
+  const renderShimmer = () => <HomeScreenSkeleton />;
 
   // Featured Banner
   const renderFeaturedBanner = () => {
@@ -674,8 +663,7 @@ const styles = StyleSheet.create({
   horizontalList: { paddingLeft: 20 },
   horizontalCard: { width: 160, marginRight: 14 },
   listContent: { paddingBottom: 30 },
-  loadingContainer: { marginTop: 20 },
-  shimmerWrapper: { marginBottom: 20 },
+  loadingContainer: { flex: 1 },
 
   // Welcome Message
   welcomeContainer: {
