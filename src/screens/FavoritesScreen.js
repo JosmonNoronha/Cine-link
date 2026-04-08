@@ -75,8 +75,6 @@ const FavoritesScreen = ({ navigation }) => {
     loadGamification();
   }, [loadGamification]);
 
-
-
   // Track changes for navigation updates
   useEffect(() => {
     if (
@@ -571,35 +569,32 @@ const FavoritesScreen = ({ navigation }) => {
                     },
                   ]}
                 />
-                <View style={styles.hudTopRow}>
-                  <View style={styles.hudLvlChip}>
-                    <Text style={styles.hudLvlChipEmoji}>
-                      {li.current.icon}
-                    </Text>
-                    <Text style={styles.hudLvlChipText}>
-                      LVL {li.current.level}
-                    </Text>
-                    <Animated.Text
-                      style={[styles.hudCursor, { opacity: cursorBlink }]}
-                    >
-                      █
-                    </Animated.Text>
-                  </View>
-                  {li.next ? (
-                    <View style={styles.hudXpBarInline}>
-                      <View style={styles.hudXpSegments}>
-                        {Array.from({ length: 20 }, (_, i) => (
-                          <Animated.View
-                            key={i}
-                            style={[
-                              styles.hudXpBlock,
-                              i / 20 < li.progress
-                                ? styles.hudXpBlockFilled
-                                : styles.hudXpBlockEmpty,
-                              { transform: [{ scaleY: xpBlockAnims[i] }] },
-                            ]}
-                          />
-                        ))}
+                {li.next ? (
+                  <View style={styles.hudXpBarInline}>
+                    <View style={styles.hudXpSegments}>
+                      {Array.from({ length: 20 }, (_, i) => (
+                        <Animated.View
+                          key={i}
+                          style={[
+                            styles.hudXpBlock,
+                            i / 20 < li.progress
+                              ? styles.hudXpBlockFilled
+                              : styles.hudXpBlockEmpty,
+                            { transform: [{ scaleY: xpBlockAnims[i] }] },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <View style={styles.hudProgressFooter}>
+                      <View style={styles.hudProgressLeft}>
+                        <Text style={styles.hudProgressLabel}>
+                          {li.current.icon} LVL {li.current.level}
+                        </Text>
+                        <Animated.Text
+                          style={[styles.hudCursor, { opacity: cursorBlink }]}
+                        >
+                          █
+                        </Animated.Text>
                       </View>
                       <Text
                         style={[styles.hudXpMetaText, { color: colors.text }]}
@@ -607,10 +602,12 @@ const FavoritesScreen = ({ navigation }) => {
                         {li.xpInLevel}/{li.xpForNext} XP
                       </Text>
                     </View>
-                  ) : (
-                    <Text style={styles.hudMaxLvlText}>■ MAX LEVEL</Text>
-                  )}
-                </View>
+                  </View>
+                ) : (
+                  <Text style={styles.hudMaxLvlText}>
+                    MAX LEVEL • {gamification.xp} XP
+                  </Text>
+                )}
               </View>
             );
           })()}
@@ -657,79 +654,72 @@ const FavoritesScreen = ({ navigation }) => {
                 <View
                   style={[styles.pixelHudBar, { backgroundColor: colors.card }]}
                 >
-                  <View style={styles.pixelHudCell}>
-                    <Ionicons name="heart" size={12} color="#E50914" />
-                    <Text style={[styles.pixelHudVal, { color: colors.text }]}>
-                      {stats.total}
-                    </Text>
-                    <Text style={styles.pixelHudLbl}>SAVED</Text>
+                  <View style={styles.pixelHudRowCompact}>
+                    <View style={styles.pixelHudCellCompact}>
+                      <Ionicons name="heart" size={11} color="#E50914" />
+                      <Text
+                        style={[
+                          styles.pixelHudValCompact,
+                          { color: colors.text },
+                        ]}
+                      >
+                        {stats.total}
+                      </Text>
+                      <Text style={styles.pixelHudLblCompact}>SAVED</Text>
+                    </View>
+                    <View style={styles.pixelHudCellCompact}>
+                      <Ionicons name="time-outline" size={11} color="#E50914" />
+                      <Text
+                        style={[
+                          styles.pixelHudValCompact,
+                          { color: colors.text },
+                        ]}
+                      >
+                        ~{stats.estimatedHours}h
+                      </Text>
+                      <Text style={styles.pixelHudLblCompact}>RUNTIME</Text>
+                    </View>
+                    <View style={styles.pixelHudCellCompact}>
+                      <Ionicons name="star" size={11} color="#E50914" />
+                      <Text
+                        style={[
+                          styles.pixelHudValCompact,
+                          { color: colors.text },
+                        ]}
+                      >
+                        {stats.avgRating || "N/A"}
+                      </Text>
+                      <Text style={styles.pixelHudLblCompact}>AVG</Text>
+                    </View>
+                    <View style={styles.pixelHudCellCompact}>
+                      <Ionicons name="trophy" size={11} color="#E50914" />
+                      <Text
+                        style={[
+                          styles.pixelHudValCompact,
+                          { color: colors.text },
+                        ]}
+                      >
+                        {gamification?.unlockedAchievements.length || 0}
+                      </Text>
+                      <Text style={styles.pixelHudLblCompact}>BADGES</Text>
+                    </View>
                   </View>
-                  <View style={styles.pixelHudDivider} />
-                  <View style={styles.pixelHudCell}>
-                    <Ionicons name="time-outline" size={12} color="#E50914" />
-                    <Text style={[styles.pixelHudVal, { color: colors.text }]}>
-                      ~{stats.estimatedHours}h
-                    </Text>
-                    <Text style={styles.pixelHudLbl}>RUNTIME</Text>
+
+                  <View style={styles.pixelHudMetaLine}>
+                    {gamification?.currentStreak > 0 ? (
+                      <Text style={styles.pixelHudMetaText}>
+                        STREAK {gamification.currentStreak}
+                      </Text>
+                    ) : (
+                      <Text style={styles.pixelHudMetaTextMuted}>STREAK —</Text>
+                    )}
+
+                    {stats.topGenre ? (
+                      <Text style={styles.pixelHudMetaText} numberOfLines={1}>
+                        TOP GENRE {stats.topGenre.toUpperCase()}
+                      </Text>
+                    ) : null}
                   </View>
-                  <View style={styles.pixelHudDivider} />
-                  <View style={styles.pixelHudCell}>
-                    <Ionicons name="star" size={12} color="#E50914" />
-                    <Text style={[styles.pixelHudVal, { color: colors.text }]}>
-                      {stats.avgRating || "N/A"}
-                    </Text>
-                    <Text style={styles.pixelHudLbl}>AVG</Text>
-                  </View>
-                  {gamification && gamification.currentStreak > 0 && (
-                    <>
-                      <View style={styles.pixelHudDivider} />
-                      <View style={styles.pixelHudCell}>
-                        <Ionicons name="flame" size={12} color="#E50914" />
-                        <Text
-                          style={[styles.pixelHudVal, { color: colors.text }]}
-                        >
-                          {gamification.currentStreak}
-                        </Text>
-                        <Text style={styles.pixelHudLbl}>STREAK</Text>
-                      </View>
-                    </>
-                  )}
-                  {gamification && (
-                    <>
-                      <View style={styles.pixelHudDivider} />
-                      <View style={styles.pixelHudCell}>
-                        <Ionicons name="trophy" size={12} color="#E50914" />
-                        <Text
-                          style={[styles.pixelHudVal, { color: colors.text }]}
-                        >
-                          {gamification.unlockedAchievements.length}
-                        </Text>
-                        <Text style={styles.pixelHudLbl}>BADGES</Text>
-                      </View>
-                    </>
-                  )}
-                  {stats.topGenre && (
-                    <>
-                      <View style={styles.pixelHudDivider} />
-                      <View style={[styles.pixelHudCell, { flex: 1.5 }]}>
-                        <Ionicons
-                          name="musical-notes-outline"
-                          size={12}
-                          color="#E50914"
-                        />
-                        <Text
-                          style={[
-                            styles.pixelHudVal,
-                            { color: colors.text, fontSize: 11 },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {stats.topGenre.toUpperCase()}
-                        </Text>
-                        <Text style={styles.pixelHudLbl}>TOP GENRE</Text>
-                      </View>
-                    </>
-                  )}
                 </View>
               </Animated.View>
             )}
@@ -987,11 +977,12 @@ const styles = StyleSheet.create({
   hudTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 10,
+    marginBottom: 8,
   },
   hudXpBarInline: {
-    flex: 1,
-    gap: 4,
+    gap: 6,
   },
   header: {
     fontSize: 24,
@@ -1013,6 +1004,28 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 0,
     backgroundColor: "rgba(229,9,20,0.06)",
+  },
+  hudScoreChip: {
+    borderWidth: 2,
+    borderColor: "rgba(229,9,20,0.35)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 0,
+    backgroundColor: "rgba(229,9,20,0.03)",
+    alignItems: "flex-end",
+    minWidth: 76,
+  },
+  hudScoreValue: {
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 15,
+  },
+  hudScoreLabel: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: "#E50914",
+    opacity: 0.7,
   },
   hudLvlChipEmoji: { fontSize: 12 },
   hudLvlChipText: {
@@ -1052,8 +1065,32 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.8,
     opacity: 0.45,
-    minWidth: 64,
+    minWidth: 70,
     textAlign: "right",
+  },
+  hudProgressFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  hudProgressLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  hudProgressLabel: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: "#E50914",
+    opacity: 0.8,
+  },
+  hudMaxLvlText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 1.1,
+    color: "#E50914",
+    marginBottom: 2,
   },
   hudCursor: {
     fontSize: 9,
@@ -1092,13 +1129,63 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   pixelHudBar: {
-    flexDirection: "row",
-    alignItems: "stretch",
+    flexDirection: "column",
     borderWidth: 2,
     borderColor: "rgba(229,9,20,0.35)",
     borderRadius: 0,
+    padding: 8,
     marginBottom: 14,
     overflow: "hidden",
+    gap: 6,
+  },
+  pixelHudRowCompact: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  pixelHudCellCompact: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 3,
+    gap: 1,
+    backgroundColor: "rgba(229,9,20,0.025)",
+    borderWidth: 1,
+    borderColor: "rgba(229,9,20,0.15)",
+  },
+  pixelHudValCompact: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.1,
+    lineHeight: 14,
+  },
+  pixelHudLblCompact: {
+    fontSize: 6,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: "#E50914",
+    opacity: 0.7,
+  },
+  pixelHudMetaLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  pixelHudMetaText: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: "#E50914",
+    opacity: 0.72,
+  },
+  pixelHudMetaTextMuted: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: "#E50914",
+    opacity: 0.4,
   },
   pixelHudCell: {
     flex: 1,
@@ -1124,6 +1211,14 @@ const styles = StyleSheet.create({
   pixelHudDivider: {
     width: 2,
     backgroundColor: "rgba(229,9,20,0.18)",
+  },
+  pixelHudRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  pixelHudDividerRow: {
+    height: 1,
+    backgroundColor: "rgba(229,9,20,0.16)",
   },
   header: {
     fontSize: 26,

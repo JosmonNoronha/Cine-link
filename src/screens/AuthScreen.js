@@ -258,7 +258,7 @@ const AuthScreen = () => {
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.logo}>CineLinkj</Text>
+            <Text style={styles.logo}>CineLink</Text>
             <Text style={styles.subtitle}>
               {isLogin ? "Sign in to your account" : "Create your account"}
             </Text>

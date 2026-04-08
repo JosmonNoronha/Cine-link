@@ -96,8 +96,6 @@ const WatchlistsScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation, loadGamification]);
 
-
-
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
       navigation.setParams({ watchlistsUpdated: Date.now() });
@@ -313,45 +311,44 @@ const WatchlistsScreen = ({ navigation }) => {
               },
             ]}
           />
-          {/* Level chip + XP bar in one row */}
-          <View style={styles.hudTopRow}>
-            <View style={styles.hudLvlChip}>
-              <Text style={styles.hudLvlChipEmoji}>
-                {levelInfo.current.icon}
-              </Text>
-              <Text style={styles.hudLvlChipText}>
-                LVL {levelInfo.current.level}
-              </Text>
-              <Animated.Text
-                style={[styles.hudCursor, { opacity: cursorBlink }]}
-              >
-                █
-              </Animated.Text>
-            </View>
-            {levelInfo.next ? (
-              <View style={styles.hudXpBarInline}>
-                <View style={styles.hudXpSegments}>
-                  {Array.from({ length: 20 }, (_, i) => (
-                    <Animated.View
-                      key={i}
-                      style={[
-                        styles.hudXpBlock,
-                        i / 20 < levelInfo.progress
-                          ? styles.hudXpBlockFilled
-                          : styles.hudXpBlockEmpty,
-                        { transform: [{ scaleY: xpBlockAnims[i] }] },
-                      ]}
-                    />
-                  ))}
+          {/* XP progress */}
+          {levelInfo.next ? (
+            <View style={styles.hudXpBarInline}>
+              <View style={styles.hudXpSegments}>
+                {Array.from({ length: 20 }, (_, i) => (
+                  <Animated.View
+                    key={i}
+                    style={[
+                      styles.hudXpBlock,
+                      i / 20 < levelInfo.progress
+                        ? styles.hudXpBlockFilled
+                        : styles.hudXpBlockEmpty,
+                      { transform: [{ scaleY: xpBlockAnims[i] }] },
+                    ]}
+                  />
+                ))}
+              </View>
+              <View style={styles.hudProgressFooter}>
+                <View style={styles.hudProgressLeft}>
+                  <Text style={styles.hudProgressLabel}>
+                    {levelInfo.current.icon} LVL {levelInfo.current.level}
+                  </Text>
+                  <Animated.Text
+                    style={[styles.hudCursor, { opacity: cursorBlink }]}
+                  >
+                    █
+                  </Animated.Text>
                 </View>
                 <Text style={[styles.hudXpMetaText, { color: colors.text }]}>
                   {levelInfo.xpInLevel}/{levelInfo.xpForNext} XP
                 </Text>
               </View>
-            ) : (
-              <Text style={styles.hudMaxLvlText}>■ MAX LEVEL</Text>
-            )}
-          </View>
+            </View>
+          ) : (
+            <Text style={styles.hudMaxLvlText}>
+              MAX LEVEL • {gamification.xp} XP
+            </Text>
+          )}
 
           {/* Stats chips */}
           <View style={styles.hudChipsRow}>
@@ -1454,12 +1451,13 @@ const styles = StyleSheet.create({
   hudTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   hudXpBarInline: {
-    flex: 1,
-    gap: 4,
+    gap: 6,
+    marginBottom: 10,
   },
   hudHeader: {
     paddingBottom: 14,
@@ -1483,6 +1481,28 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 0,
     backgroundColor: "rgba(229,9,20,0.06)",
+  },
+  hudScoreChip: {
+    borderWidth: 2,
+    borderColor: "rgba(229,9,20,0.35)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 0,
+    backgroundColor: "rgba(229,9,20,0.03)",
+    alignItems: "flex-end",
+    minWidth: 76,
+  },
+  hudScoreValue: {
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 15,
+  },
+  hudScoreLabel: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: "#E50914",
+    opacity: 0.7,
   },
   hudLvlChipEmoji: { fontSize: 13 },
   hudLvlChipText: {
@@ -1525,10 +1545,27 @@ const styles = StyleSheet.create({
     minWidth: 72,
     textAlign: "right",
   },
+  hudProgressFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  hudProgressLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  hudProgressLabel: {
+    fontSize: 7,
+    fontWeight: "700",
+    letterSpacing: 1,
+    color: "#E50914",
+    opacity: 0.8,
+  },
   hudMaxLvlText: {
     fontSize: 9,
     fontWeight: "700",
-    letterSpacing: 1.5,
+    letterSpacing: 1.1,
     color: "#E50914",
     marginBottom: 10,
   },
