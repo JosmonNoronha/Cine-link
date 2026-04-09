@@ -9,7 +9,6 @@ import {
   Animated,
   ScrollView,
   Image,
-  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -18,7 +17,6 @@ import NetInfo from "@react-native-community/netinfo";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
-import installedUpdateInfo from "../config/updateInfo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "../../firebaseConfig";
 import { getBackendStatus, retestBackendConnection } from "../services/api";
@@ -29,8 +27,6 @@ const SettingsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [updateOverWifi, setUpdateOverWifi] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState(null);
-  const [showUpdateDetails, setShowUpdateDetails] = useState(false);
   const [isExpoGo, setIsExpoGo] = useState(false);
   const [user, setUser] = useState(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -75,37 +71,11 @@ const SettingsScreen = ({ navigation }) => {
       setIsCheckingUpdate(true);
       const update = await Updates.checkForUpdateAsync();
       setUpdateAvailable(update.isAvailable);
-
-      if (update.isAvailable) {
-        // manifest.metadata is populated when eas update is invoked with --metadata
-        // push-update.js also embeds info in the bundle via src/config/updateInfo.js
-        const pendingMessage =
-          update.manifest?.metadata?.message ||
-          update.manifest?.extra?.updateMessage ||
-          "New update available";
-        const pendingChangelog = update.manifest?.metadata?.changelog || null;
-
-        const updateDetails = {
-          id: update.updateId,
-          createdAt: update.createdAt,
-          message: pendingMessage,
-          changelog: pendingChangelog,
-          version: Constants.expoConfig?.version,
-          runtimeVersion: update.manifest?.runtimeVersion,
-        };
-        setUpdateInfo(updateDetails);
-      }
     } catch (error) {
       console.error("Error checking for updates:", error);
     } finally {
       setIsCheckingUpdate(false);
     }
-  };
-
-  // Format changelog string into bullet lines for display
-  const parseChangelog = (text) => {
-    if (!text) return [];
-    return text.split("\n").filter((l) => l.trim().length > 0);
   };
 
   const handleUpdate = async () => {
@@ -152,12 +122,6 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "Unknown";
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + " at " + date.toLocaleTimeString();
-  };
-
   const handleRetestBackend = async () => {
     try {
       setBackendStatus({ ...backendStatus, testing: true });
@@ -182,185 +146,27 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const UpdateDetailsModal = () => (
-    <Modal
-      visible={showUpdateDetails}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={() => setShowUpdateDetails(false)}
-    >
-      <View
-        style={[
-          styles.modalContainer,
-          { backgroundColor: theme === "dark" ? "#1f1f1f" : "#ffffff" },
-        ]}
-      >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>
-            Update Details
-          </Text>
-          <TouchableOpacity
-            onPress={() => setShowUpdateDetails(false)}
-            style={styles.closeButton}
-          >
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.modalContent}>
-          {updateInfo && (
-            <>
-              {/* Message */}
-              <View style={styles.updateDetailCard}>
-                <View style={styles.updateDetailRow}>
-                  <Ionicons
-                    name="information-circle"
-                    size={20}
-                    color={colors.primary}
-                  />
-                  <View style={styles.updateDetailText}>
-                    <Text
-                      style={[styles.updateDetailLabel, { color: colors.text }]}
-                    >
-                      Update
-                    </Text>
-                    <Text
-                      style={[styles.updateDetailValue, { color: colors.text }]}
-                    >
-                      {updateInfo.message}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Changelog bullets */}
-              {updateInfo.changelog && (
-                <View style={styles.updateDetailCard}>
-                  <View
-                    style={{ flexDirection: "row", alignItems: "flex-start" }}
-                  >
-                    <Ionicons
-                      name="list"
-                      size={20}
-                      color={colors.primary}
-                      style={{ marginRight: 10, marginTop: 2 }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.updateDetailLabel,
-                          { color: colors.text, marginBottom: 8 },
-                        ]}
-                      >
-                        What's new
-                      </Text>
-                      {parseChangelog(updateInfo.changelog).map((line, i) => (
-                        <Text
-                          key={i}
-                          style={[
-                            styles.updateDetailValue,
-                            { color: colors.text, marginBottom: 4 },
-                          ]}
-                        >
-                          {line.startsWith("-") ? line : `• ${line}`}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              )}
-
-              {/* Release date */}
-              <View style={styles.updateDetailCard}>
-                <View style={styles.updateDetailRow}>
-                  <Ionicons name="calendar" size={20} color={colors.primary} />
-                  <View style={styles.updateDetailText}>
-                    <Text
-                      style={[styles.updateDetailLabel, { color: colors.text }]}
-                    >
-                      Released
-                    </Text>
-                    <Text
-                      style={[styles.updateDetailValue, { color: colors.text }]}
-                    >
-                      {formatDate(updateInfo.createdAt)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Version + ID */}
-              <View style={styles.updateDetailCard}>
-                <View style={styles.updateDetailRow}>
-                  <Ionicons name="apps" size={20} color={colors.primary} />
-                  <View style={styles.updateDetailText}>
-                    <Text
-                      style={[styles.updateDetailLabel, { color: colors.text }]}
-                    >
-                      Version
-                    </Text>
-                    <Text
-                      style={[styles.updateDetailValue, { color: colors.text }]}
-                    >
-                      {updateInfo.version}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {updateInfo.id && (
-                <View style={styles.updateDetailCard}>
-                  <View style={styles.updateDetailRow}>
-                    <Ionicons
-                      name="code-working"
-                      size={20}
-                      color={colors.primary}
-                    />
-                    <View style={styles.updateDetailText}>
-                      <Text
-                        style={[
-                          styles.updateDetailLabel,
-                          { color: colors.text },
-                        ]}
-                      >
-                        Update ID
-                      </Text>
-                      <Text
-                        style={[
-                          styles.updateDetailValueMono,
-                          { color: colors.text },
-                        ]}
-                      >
-                        {updateInfo.id?.substring(0, 8)}…
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              )}
-            </>
-          )}
-        </ScrollView>
-
-        <View style={styles.modalActions}>
-          <TouchableOpacity
-            style={[styles.updateButton, { backgroundColor: colors.primary }]}
-            onPress={() => {
-              setShowUpdateDetails(false);
-              handleUpdate();
-            }}
-          >
-            <Ionicons
-              name="download"
-              size={20}
-              color="#fff"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.buttonText}>Download Update</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
+  const appVersion = Constants.expoConfig?.version || "1.0.0";
+  const updateStatusConfig = isCheckingUpdate
+    ? {
+        icon: "sync",
+        title: "Checking for updates",
+        subtitle: "Looking for the latest release",
+        color: theme === "dark" ? "#93c5fd" : "#2563eb",
+      }
+    : updateAvailable
+      ? {
+          icon: "cloud-download",
+          title: "Update available",
+          subtitle: "A newer version is ready to install",
+          color: "#16a34a",
+        }
+      : {
+          icon: "checkmark-circle",
+          title: "Up to date",
+          subtitle: "You are on the latest release",
+          color: theme === "dark" ? "#93c5fd" : "#2563eb",
+        };
 
   const SectionCard = ({ title, children }) => (
     <View
@@ -611,8 +417,7 @@ const SettingsScreen = ({ navigation }) => {
                 color={colors.text}
               />
               <Text style={[styles.infoText, { color: colors.text }]}>
-                Updates are unavailable in Expo Go. Please use a development
-                build to test.
+                Updates are unavailable in Expo Go.
               </Text>
             </View>
           ) : (
@@ -636,121 +441,87 @@ const SettingsScreen = ({ navigation }) => {
                 />
               </View>
 
-              {updateAvailable && updateInfo && (
-                <View
-                  style={[
-                    styles.updateAvailableCard,
-                    {
-                      backgroundColor: theme === "dark" ? "#2d4a2b" : "#e8f5e8",
-                    },
-                  ]}
-                >
-                  <View style={styles.updateAvailableHeader}>
-                    <Ionicons
-                      name="cloud-download"
-                      size={24}
-                      color={theme === "dark" ? "#4ade80" : "#16a34a"}
-                    />
-                    <View style={styles.updateAvailableText}>
-                      <Text
-                        style={[
-                          styles.updateAvailableTitle,
-                          { color: theme === "dark" ? "#4ade80" : "#16a34a" },
-                        ]}
-                      >
-                        Update Available
-                      </Text>
-                      <Text
-                        style={[
-                          styles.updateAvailableMessage,
-                          { color: colors.text },
-                        ]}
-                      >
-                        {updateInfo.message}
-                      </Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.viewDetailsButton}
-                    onPress={() => setShowUpdateDetails(true)}
-                  >
-                    <Text
-                      style={[
-                        styles.viewDetailsText,
-                        { color: theme === "dark" ? "#4ade80" : "#16a34a" },
-                      ]}
-                    >
-                      View Details
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color={theme === "dark" ? "#4ade80" : "#16a34a"}
-                    />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Currently installed update info */}
               <View
                 style={[
-                  styles.installedCard,
+                  styles.updateStatusRow,
                   {
-                    backgroundColor:
-                      theme === "dark"
-                        ? "rgba(255,255,255,0.05)"
-                        : "rgba(0,0,0,0.04)",
                     borderColor:
                       theme === "dark"
                         ? "rgba(255,255,255,0.08)"
                         : "rgba(0,0,0,0.08)",
+                    backgroundColor:
+                      theme === "dark"
+                        ? "rgba(255,255,255,0.03)"
+                        : "rgba(0,0,0,0.02)",
                   },
                 ]}
               >
-                <View style={styles.installedHeader}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={18}
-                    color={theme === "dark" ? "#60a5fa" : "#2563eb"}
-                  />
+                <View style={styles.updateStatusMain}>
+                  <View style={styles.updateStatusTitleRow}>
+                    <Ionicons
+                      name={updateStatusConfig.icon}
+                      size={16}
+                      color={updateStatusConfig.color}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={[
+                        styles.updateStatusTitle,
+                        { color: updateStatusConfig.color },
+                      ]}
+                    >
+                      {updateStatusConfig.title}
+                    </Text>
+                  </View>
                   <Text
                     style={[
-                      styles.installedTitle,
-                      { color: theme === "dark" ? "#60a5fa" : "#2563eb" },
+                      styles.updateStatusSubtitle,
+                      {
+                        color:
+                          theme === "dark"
+                            ? "rgba(255,255,255,0.72)"
+                            : "rgba(0,0,0,0.58)",
+                      },
                     ]}
                   >
-                    Installed: v{installedUpdateInfo.version}
+                    {updateStatusConfig.subtitle}
                   </Text>
                 </View>
-                <Text
-                  style={[styles.installedMessage, { color: colors.text }]}
-                  numberOfLines={2}
+                <View
+                  style={[
+                    styles.versionPill,
+                    {
+                      backgroundColor:
+                        theme === "dark"
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,0,0,0.06)",
+                      borderColor:
+                        theme === "dark"
+                          ? "rgba(255,255,255,0.12)"
+                          : "rgba(0,0,0,0.1)",
+                    },
+                  ]}
                 >
-                  {installedUpdateInfo.message}
-                </Text>
-                {installedUpdateInfo.changelog && (
-                  <>
-                    {parseChangelog(installedUpdateInfo.changelog)
-                      .slice(0, 3)
-                      .map((line, i) => (
-                        <Text
-                          key={i}
-                          style={[
-                            styles.installedChangeLine,
-                            { color: colors.text },
-                          ]}
-                        >
-                          {line.startsWith("-") ? line : `• ${line}`}
-                        </Text>
-                      ))}
-                  </>
-                )}
+                  <Text
+                    style={[
+                      styles.versionPillText,
+                      {
+                        color:
+                          theme === "dark"
+                            ? "rgba(255,255,255,0.9)"
+                            : "rgba(0,0,0,0.72)",
+                      },
+                    ]}
+                  >
+                    v{appVersion}
+                  </Text>
+                </View>
               </View>
 
               <TouchableOpacity
                 style={[
                   styles.primaryButton,
-                  { backgroundColor: colors.primary },
+                  { backgroundColor: colors.primary, marginTop: 12 },
                 ]}
                 onPress={updateAvailable ? handleUpdate : checkForUpdates}
                 disabled={isCheckingUpdate}
@@ -833,8 +604,6 @@ const SettingsScreen = ({ navigation }) => {
         {/* About */}
         <AboutSection />
       </ScrollView>
-
-      <UpdateDetailsModal />
     </>
   );
 };
@@ -948,10 +717,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.1)",
   },
-  avatarIcon: {
-    position: "absolute",
-    opacity: 0.5,
-  },
   avatarInitial: {
     fontSize: 24,
     fontWeight: "700",
@@ -973,10 +738,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginBottom: 2,
   },
-  profileId: {
-    fontSize: 12,
-    opacity: 0.5,
-  },
   signOutButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -993,22 +754,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
-  },
-  appLogoContainer: {
-    marginRight: 15,
-  },
-  appLogoGradient: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  appLogoText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
-    textAlign: "center",
   },
   aboutDetails: {
     flex: 1,
@@ -1027,14 +772,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     opacity: 0.8,
     marginBottom: 12,
-  },
-  linkButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  linkText: {
-    fontSize: 14,
-    fontWeight: "500",
   },
   legalContainer: {
     flexDirection: "row",
@@ -1057,136 +794,43 @@ const styles = StyleSheet.create({
     marginTop: 18,
     fontStyle: "italic",
   },
-  // Update availability card
-  updateAvailableCard: {
-    borderRadius: 12,
-    padding: 15,
-    marginTop: 10,
-    marginBottom: 5,
-  },
-  updateAvailableHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 10,
-  },
-  updateAvailableText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  updateAvailableTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  updateAvailableMessage: {
-    fontSize: 14,
-    opacity: 0.8,
-    lineHeight: 20,
-  },
-  viewDetailsButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-end",
-  },
-  viewDetailsText: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginRight: 4,
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  closeButton: {
-    padding: 5,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  updateDetailCard: {
-    backgroundColor: "rgba(0,0,0,0.03)",
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 12,
-  },
-  updateDetailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  updateDetailText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  updateDetailLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-    opacity: 0.8,
-  },
-  updateDetailValue: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  updateDetailValueMono: {
-    fontSize: 14,
-    fontFamily: "monospace",
-    backgroundColor: "rgba(0,0,0,0.05)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: "flex-start",
-  },
-  modalActions: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-  },
-  updateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  installedCard: {
+  updateStatusRow: {
     borderRadius: 10,
     borderWidth: 1,
-    padding: 12,
-    marginBottom: 12,
-  },
-  installedHeader: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 10,
+    marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
-    gap: 6,
+    justifyContent: "space-between",
   },
-  installedTitle: {
-    fontSize: 13,
+  updateStatusMain: {
+    flex: 1,
+    marginRight: 12,
+  },
+  updateStatusTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 3,
+  },
+  updateStatusTitle: {
+    fontSize: 14,
     fontWeight: "700",
   },
-  installedMessage: {
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 6,
-    opacity: 0.9,
+  updateStatusSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
   },
-  installedChangeLine: {
-    fontSize: 13,
-    opacity: 0.65,
-    lineHeight: 20,
+  versionPill: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  versionPillText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
   backendStatusContainer: {
     paddingVertical: 10,
