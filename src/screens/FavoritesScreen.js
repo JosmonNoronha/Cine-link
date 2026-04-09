@@ -27,6 +27,8 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { Ionicons } from "@expo/vector-icons";
 import AppLoader from "../components/AppLoader";
+import RetryState from "../components/RetryState";
+import { getBackendStatus } from "../services/api";
 import {
   getGamificationState,
   getLevelInfo,
@@ -49,6 +51,10 @@ const FavoritesScreen = ({ navigation }) => {
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [gamification, setGamification] = useState(null);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [favoritesLoadError, setFavoritesLoadError] = useState(false);
+  const [favoritesLoadMessage, setFavoritesLoadMessage] = useState(
+    "Unable to load favorites. Please check your internet connection.",
+  );
   const xpBlockAnims = useRef(
     Array.from({ length: 20 }, () => new Animated.Value(0)),
   ).current;
@@ -96,6 +102,39 @@ const FavoritesScreen = ({ navigation }) => {
     });
     return unsubscribe;
   }, [navigation, refreshFavorites, loadGamification]);
+
+  useEffect(() => {
+    if (initialLoading) return;
+
+    const status = getBackendStatus();
+    const isBackendError = status?.tested && status?.available === false;
+
+    if (favorites.length === 0 && isBackendError) {
+      setFavoritesLoadError(true);
+      setFavoritesLoadMessage(
+        status?.lastError
+          ? `Unable to load favorites. ${status.lastError}`
+          : "Unable to load favorites. Please check your internet connection.",
+      );
+    } else {
+      setFavoritesLoadError(false);
+    }
+  }, [initialLoading, favorites.length]);
+
+  const handleRetryFavorites = useCallback(async () => {
+    setFavoritesLoadError(false);
+    await refreshFavorites();
+
+    const status = getBackendStatus();
+    if (status?.tested && status?.available === false) {
+      setFavoritesLoadError(true);
+      setFavoritesLoadMessage(
+        status?.lastError
+          ? `Unable to load favorites. ${status.lastError}`
+          : "Unable to load favorites. Please check your internet connection.",
+      );
+    }
+  }, [refreshFavorites]);
 
   useEffect(() => {
     if (!gamification) return;
@@ -615,6 +654,12 @@ const FavoritesScreen = ({ navigation }) => {
 
         {initialLoading ? (
           <AppLoader message="Loading Favorites" />
+        ) : favoritesLoadError ? (
+          <RetryState
+            title="Unable to load favorites"
+            message={favoritesLoadMessage}
+            onRetry={handleRetryFavorites}
+          />
         ) : favorites.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons

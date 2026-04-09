@@ -26,6 +26,7 @@ import {
 } from "../services/api";
 import MovieCard from "../components/HomeMovieCard";
 import HomeScreenSkeleton from "../components/HomeScreenSkeleton";
+import RetryState from "../components/RetryState";
 import RecommendationCard from "../components/RecommendationCard";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
@@ -40,6 +41,7 @@ const HomeScreen = ({ navigation }) => {
   const [sectionsLoading, setSectionsLoading] = useState(true);
   const [watchlistsLoaded, setWatchlistsLoaded] = useState(false);
   const [featuredMovie, setFeaturedMovie] = useState(null);
+  const [homeLoadError, setHomeLoadError] = useState(false);
 
   // Refs to track loading state and prevent unnecessary reloads
   const hasLoadedRef = useRef(false);
@@ -77,8 +79,12 @@ const HomeScreen = ({ navigation }) => {
     try {
       const lists = await getWatchlists();
       setWatchlists(lists);
+      setHomeLoadError(false);
+      return lists;
     } catch (error) {
       console.error("Error loading watchlists:", error);
+      setHomeLoadError(true);
+      return null;
     } finally {
       setWatchlistsLoaded(true);
     }
@@ -334,10 +340,19 @@ const HomeScreen = ({ navigation }) => {
       setSections(newSections);
     } catch (error) {
       console.error("Error building sections:", error);
+      setHomeLoadError(true);
     } finally {
       setSectionsLoading(false);
     }
   }, [userProfile, watchlists, isNewUser]);
+
+  const handleRetryHome = useCallback(async () => {
+    setHomeLoadError(false);
+    setWatchlistsLoaded(false);
+    setSectionsLoading(true);
+    lastDataHashRef.current = "";
+    await loadWatchlists();
+  }, [loadWatchlists]);
 
   // Initial load
   useEffect(() => {
@@ -486,6 +501,16 @@ const HomeScreen = ({ navigation }) => {
 
   // Determine what to show based on loading state and user data
   const renderContent = () => {
+    if (homeLoadError) {
+      return (
+        <RetryState
+          title="Unable to load home"
+          message="We could not reach the server. Check your internet and retry."
+          onRetry={handleRetryHome}
+        />
+      );
+    }
+
     // Still initializing - show shimmer for returning users, nothing for new users yet
     if (!favoritesInitialized || !watchlistsLoaded) {
       return <View style={styles.loadingContainer}>{renderShimmer()}</View>;

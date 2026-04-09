@@ -23,6 +23,7 @@ import WatchlistCard from "../components/WatchlistCard";
 import EmptyState from "../components/EmptyState";
 import CreateWatchlistModal from "../components/CreateWatchlistModal";
 import BadgesModal from "../components/BadgesModal";
+import RetryState from "../components/RetryState";
 
 import {
   getWatchlists,
@@ -48,6 +49,10 @@ const WatchlistsScreen = ({ navigation }) => {
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
   const [gamification, setGamification] = useState(null);
   const [badgesModalVisible, setBadgesModalVisible] = useState(false);
+  const [watchlistsLoadError, setWatchlistsLoadError] = useState(false);
+  const [watchlistsLoadMessage, setWatchlistsLoadMessage] = useState(
+    "Unable to load your watchlists. Check your internet and try again.",
+  );
   const xpBlockAnims = useRef(
     Array.from({ length: 20 }, () => new Animated.Value(0)),
   ).current;
@@ -81,10 +86,22 @@ const WatchlistsScreen = ({ navigation }) => {
       const data = await getWatchlists();
       console.log("Fetched watchlists:", data);
       setWatchlists(data);
+      setWatchlistsLoadError(false);
     } catch (error) {
       console.error("Error fetching watchlists:", error);
+      setWatchlistsLoadError(true);
+      setWatchlistsLoadMessage(
+        error?.message
+          ? `Unable to load your watchlists. ${error.message}`
+          : "Unable to load your watchlists. Check your internet and try again.",
+      );
     }
   };
+
+  const handleRetryWatchlists = useCallback(async () => {
+    setWatchlistsLoadError(false);
+    await fetchWatchlists();
+  }, []);
 
   useEffect(() => {
     fetchWatchlists();
@@ -444,22 +461,31 @@ const WatchlistsScreen = ({ navigation }) => {
         </View>
       )}
 
-      <FlatList
-        data={watchlistKeys}
-        keyExtractor={(item) => item}
-        renderItem={renderWatchlistItem}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <EmptyState
-            title="No Watchlists Yet"
-            subtitle="Create your first watchlist to organize your favorite movies"
-            buttonText="Create Watchlist"
-            onButtonPress={() => setModalVisible(true)}
-            showButton
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      />
+      {watchlistsLoadError && watchlistKeys.length === 0 ? (
+        <RetryState
+          title="Unable to load watchlists"
+          message={watchlistsLoadMessage}
+          onRetry={handleRetryWatchlists}
+          compact
+        />
+      ) : (
+        <FlatList
+          data={watchlistKeys}
+          keyExtractor={(item) => item}
+          renderItem={renderWatchlistItem}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <EmptyState
+              title="No Watchlists Yet"
+              subtitle="Create your first watchlist to organize your favorite movies"
+              buttonText="Create Watchlist"
+              onButtonPress={() => setModalVisible(true)}
+              showButton
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       {watchlistKeys.length > 0 && (
         <TouchableOpacity
@@ -508,6 +534,10 @@ const WatchlistsScreen = ({ navigation }) => {
 const WatchlistContentScreen = ({ route, navigation }) => {
   const { name } = route.params;
   const [movies, setMovies] = useState([]);
+  const [contentLoadError, setContentLoadError] = useState(false);
+  const [contentLoadMessage, setContentLoadMessage] = useState(
+    "Unable to load movies in this watchlist. Check your internet and try again.",
+  );
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [showWatchedOnly, setShowWatchedOnly] = useState(false);
   const [loadingStates, setLoadingStates] = useState({});
@@ -597,9 +627,25 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   };
 
   const fetchMovies = async () => {
-    const lists = await getWatchlists();
-    setMovies(lists[name] || []);
+    try {
+      const lists = await getWatchlists();
+      setMovies(lists[name] || []);
+      setContentLoadError(false);
+    } catch (error) {
+      console.error("Failed to fetch movies in watchlist:", error);
+      setContentLoadError(true);
+      setContentLoadMessage(
+        error?.message
+          ? `Unable to load movies. ${error.message}`
+          : "Unable to load movies in this watchlist. Check your internet and try again.",
+      );
+    }
   };
+
+  const handleRetryContent = useCallback(async () => {
+    setContentLoadError(false);
+    await fetchMovies();
+  }, []);
 
   useEffect(() => {
     fetchMovies();
@@ -1004,7 +1050,14 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {filteredMovies.length === 0 ? (
+      {contentLoadError ? (
+        <RetryState
+          title="Unable to load watchlist"
+          message={contentLoadMessage}
+          onRetry={handleRetryContent}
+          compact
+        />
+      ) : filteredMovies.length === 0 ? (
         <EmptyState
           icon={showWatchedOnly ? "eye" : "videocam-outline"}
           title={showWatchedOnly ? "No Watched Movies" : "No Movies Yet"}
