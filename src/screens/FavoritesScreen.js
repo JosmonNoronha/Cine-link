@@ -587,7 +587,7 @@ const FavoritesScreen = ({ navigation }) => {
                     </View>
                     <View style={styles.hudProgressFooter}>
                       <View style={styles.hudProgressLeft}>
-                        <Text style={styles.hudProgressLabel}>
+                        <Text style={styles.hudProgressLabel} numberOfLines={1}>
                           {li.current.icon} LVL {li.current.level}
                         </Text>
                         <Animated.Text
@@ -598,6 +598,7 @@ const FavoritesScreen = ({ navigation }) => {
                       </View>
                       <Text
                         style={[styles.hudXpMetaText, { color: colors.text }]}
+                        numberOfLines={1}
                       >
                         {li.xpInLevel}/{li.xpForNext} XP
                       </Text>
@@ -1067,15 +1068,19 @@ const styles = StyleSheet.create({
     opacity: 0.45,
     minWidth: 70,
     textAlign: "right",
+    flexShrink: 0,
   },
   hudProgressFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
   },
   hudProgressLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    minWidth: 0,
     gap: 4,
   },
   hudProgressLabel: {
@@ -1084,6 +1089,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: "#E50914",
     opacity: 0.8,
+    flexShrink: 1,
   },
   hudMaxLvlText: {
     fontSize: 9,
