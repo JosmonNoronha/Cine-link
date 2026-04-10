@@ -36,9 +36,11 @@ import {
 } from "../utils/gamification";
 
 const { width } = Dimensions.get("window");
+const FAVORITES_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
 const FavoritesScreen = ({ navigation }) => {
   const hasLoadedOnce = useRef(false);
+  const lastRefreshAt = useRef(0);
   const previousFavoritesCount = useRef(0);
   const sortButtonRef = useRef(null);
   const filterButtonRef = useRef(null);
@@ -95,13 +97,23 @@ const FavoritesScreen = ({ navigation }) => {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
-      if (hasLoadedOnce.current) {
+      const isStale =
+        Date.now() - lastRefreshAt.current > FAVORITES_REFRESH_INTERVAL_MS;
+
+      if (hasLoadedOnce.current && isStale) {
+        lastRefreshAt.current = Date.now();
         refreshFavorites();
       }
       loadGamification();
     });
     return unsubscribe;
   }, [navigation, refreshFavorites, loadGamification]);
+
+  useEffect(() => {
+    if (!initialLoading) {
+      lastRefreshAt.current = Date.now();
+    }
+  }, [initialLoading]);
 
   useEffect(() => {
     if (initialLoading) return;

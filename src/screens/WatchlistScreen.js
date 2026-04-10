@@ -49,6 +49,7 @@ const WatchlistsScreen = ({ navigation }) => {
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
   const [gamification, setGamification] = useState(null);
   const [badgesModalVisible, setBadgesModalVisible] = useState(false);
+  const [watchlistsLoading, setWatchlistsLoading] = useState(true);
   const [watchlistsLoadError, setWatchlistsLoadError] = useState(false);
   const [watchlistsLoadMessage, setWatchlistsLoadMessage] = useState(
     "Unable to load your watchlists. Check your internet and try again.",
@@ -81,7 +82,11 @@ const WatchlistsScreen = ({ navigation }) => {
     setAlertConfig({ visible: false });
   };
 
-  const fetchWatchlists = async () => {
+  const fetchWatchlists = async ({ showLoader = false } = {}) => {
+    if (showLoader) {
+      setWatchlistsLoading(true);
+    }
+
     try {
       const data = await getWatchlists();
       console.log("Fetched watchlists:", data);
@@ -95,16 +100,20 @@ const WatchlistsScreen = ({ navigation }) => {
           ? `Unable to load your watchlists. ${error.message}`
           : "Unable to load your watchlists. Check your internet and try again.",
       );
+    } finally {
+      if (showLoader) {
+        setWatchlistsLoading(false);
+      }
     }
   };
 
   const handleRetryWatchlists = useCallback(async () => {
     setWatchlistsLoadError(false);
-    await fetchWatchlists();
+    await fetchWatchlists({ showLoader: true });
   }, []);
 
   useEffect(() => {
-    fetchWatchlists();
+    fetchWatchlists({ showLoader: true });
     loadGamification();
     const unsubscribe = navigation.addListener("focus", () => {
       fetchWatchlists();
@@ -461,7 +470,14 @@ const WatchlistsScreen = ({ navigation }) => {
         </View>
       )}
 
-      {watchlistsLoadError && watchlistKeys.length === 0 ? (
+      {watchlistsLoading && watchlistKeys.length === 0 ? (
+        <View style={styles.watchlistsLoadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.watchlistsLoadingText, { color: colors.text }]}>
+            Loading watchlists...
+          </Text>
+        </View>
+      ) : watchlistsLoadError && watchlistKeys.length === 0 ? (
         <RetryState
           title="Unable to load watchlists"
           message={watchlistsLoadMessage}
@@ -538,6 +554,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const [contentLoadMessage, setContentLoadMessage] = useState(
     "Unable to load movies in this watchlist. Check your internet and try again.",
   );
+  const [contentLoading, setContentLoading] = useState(true);
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [showWatchedOnly, setShowWatchedOnly] = useState(false);
   const [loadingStates, setLoadingStates] = useState({});
@@ -627,6 +644,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   };
 
   const fetchMovies = async () => {
+    setContentLoading(true);
     try {
       const lists = await getWatchlists();
       setMovies(lists[name] || []);
@@ -639,6 +657,8 @@ const WatchlistContentScreen = ({ route, navigation }) => {
           ? `Unable to load movies. ${error.message}`
           : "Unable to load movies in this watchlist. Check your internet and try again.",
       );
+    } finally {
+      setContentLoading(false);
     }
   };
 
@@ -1050,7 +1070,11 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {contentLoadError ? (
+      {contentLoading && filteredMovies.length === 0 ? (
+        <View style={styles.contentLoadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : contentLoadError ? (
         <RetryState
           title="Unable to load watchlist"
           message={contentLoadMessage}
@@ -1251,6 +1275,30 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 100,
+  },
+  watchlistsLoadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  watchlistsLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    opacity: 0.8,
+    fontWeight: "500",
+  },
+  contentLoadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  contentLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    opacity: 0.8,
+    fontWeight: "500",
   },
   fab: {
     position: "absolute",
