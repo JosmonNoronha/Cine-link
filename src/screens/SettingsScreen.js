@@ -197,6 +197,15 @@ const SettingsScreen = ({ navigation }) => {
                 )}
               </View>
             </LinearGradient>
+            <View
+              style={[
+                styles.profileStatusDot,
+                {
+                  backgroundColor:
+                    backendStatus?.available === true ? "#10B981" : "#EF4444",
+                },
+              ]}
+            />
           </View>
           <View style={styles.profileInfo}>
             <Text
@@ -405,7 +414,7 @@ const SettingsScreen = ({ navigation }) => {
       >
         <ProfileSection />
 
-        <BackendStatusSection />
+        {/* <BackendStatusSection /> */}
 
         {/* App Updates */}
         <SectionCard title="App Updates">
@@ -701,6 +710,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  profileStatusDot: {
+    position: "absolute",
+    right: 2,
+    bottom: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#fff",
+    zIndex: 2,
   },
   avatarGradient: {
     width: 54,
