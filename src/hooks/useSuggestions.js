@@ -8,7 +8,7 @@ import {
   FUSE_SUGGESTION_OPTIONS,
   SUGGESTION_CONFIG,
 } from "../config/searchConstants";
-import { getTrendingKeywords } from "../services/api";
+import { getPopularSearches, getTrendingKeywords } from "../services/api";
 
 const useSuggestions = () => {
   const [suggestions, setSuggestions] = useState([]);
@@ -19,13 +19,13 @@ const useSuggestions = () => {
 
   // Load trending keywords on mount
   useEffect(() => {
-    const loadTrendingKeywords = async () => {
+    const loadSuggestionKeywords = async () => {
       try {
-        // Try to get from cache first
-        const cached = await AsyncStorage.getItem("trendingKeywords");
-        const cacheTime = await AsyncStorage.getItem("trendingKeywordsTime");
+        const cached = await AsyncStorage.getItem("popularSearchKeywords");
+        const cacheTime = await AsyncStorage.getItem(
+          "popularSearchKeywordsTime",
+        );
 
-        // Use cached data if less than 6 hours old
         if (cached && cacheTime) {
           const age = Date.now() - parseInt(cacheTime);
           if (age < 6 * 60 * 60 * 1000) {
@@ -34,19 +34,33 @@ const useSuggestions = () => {
           }
         }
 
-        // Fetch fresh data
+        const popularSearches = await getPopularSearches(12);
+        if (popularSearches.length > 0) {
+          setTrendingKeywords(popularSearches);
+          await AsyncStorage.setItem(
+            "popularSearchKeywords",
+            JSON.stringify(popularSearches),
+          );
+          await AsyncStorage.setItem(
+            "popularSearchKeywordsTime",
+            String(Date.now()),
+          );
+          return;
+        }
+
         const keywords = await getTrendingKeywords();
         setTrendingKeywords(keywords);
 
-        // Cache the results
         await AsyncStorage.setItem(
-          "trendingKeywords",
+          "popularSearchKeywords",
           JSON.stringify(keywords),
         );
-        await AsyncStorage.setItem("trendingKeywordsTime", String(Date.now()));
+        await AsyncStorage.setItem(
+          "popularSearchKeywordsTime",
+          String(Date.now()),
+        );
       } catch (error) {
-        console.warn("Failed to load trending keywords:", error);
-        // Fallback keywords
+        console.warn("Failed to load suggestion keywords:", error);
         setTrendingKeywords([
           "action movies",
           "comedy series",
@@ -60,7 +74,7 @@ const useSuggestions = () => {
       }
     };
 
-    loadTrendingKeywords();
+    loadSuggestionKeywords();
   }, []);
 
   // Initialize suggestion cache

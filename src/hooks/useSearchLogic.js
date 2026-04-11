@@ -19,6 +19,7 @@ const useSearchLogic = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [isTotalExact, setIsTotalExact] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMorePages, setHasMorePages] = useState(false);
 
@@ -29,7 +30,13 @@ const useSearchLogic = () => {
     calls: 0,
     resetTime: Date.now() + API_RATE_LIMIT.RESET_INTERVAL_MS,
   });
-  const currentSearchRef = useRef({ query: "", filter: "", page: 1 });
+  const currentSearchRef = useRef({
+    query: "",
+    filter: "",
+    page: 1,
+    requestCursor: null,
+    nextCursor: null,
+  });
   const abortControllerRef = useRef(null);
   const fuseNeedsRebuildRef = useRef(false);
 
@@ -239,7 +246,13 @@ const useSearchLogic = () => {
 
   // Main search function
   const performSearch = useCallback(
-    async (searchTerm, filterType, page = 1, append = false) => {
+    async (
+      searchTerm,
+      filterType,
+      page = 1,
+      append = false,
+      requestCursor = null,
+    ) => {
       const cleanQuery = processQuery(searchTerm);
       if (!cleanQuery) {
         setError(ERROR_MESSAGES.EMPTY_QUERY);
@@ -257,6 +270,8 @@ const useSearchLogic = () => {
         query: cleanQuery,
         filter: filterType,
         page,
+        requestCursor,
+        nextCursor: null,
       };
 
       if (page === 1) {
@@ -298,6 +313,7 @@ const useSearchLogic = () => {
             setTotalResults(totalCount);
             setCurrentPage(page);
             setTotalPages(Math.ceil(totalCount / SEARCH_CONFIG.PAGE_SIZE));
+            setIsTotalExact(false);
 
             if (page === 1) setIsLoading(false);
             if (page > 1) setIsLoadingMore(false);
@@ -317,6 +333,7 @@ const useSearchLogic = () => {
             filterType,
             page,
             signal,
+            requestCursor,
           );
 
           if (apiData && apiData.Search && apiData.Search.length > 0) {
@@ -332,10 +349,21 @@ const useSearchLogic = () => {
             }));
 
             const apiTotalResults = parseInt(apiData.totalResults) || 0;
-            const apiTotalPages = Math.ceil(
-              apiTotalResults / SEARCH_CONFIG.PAGE_SIZE,
-            );
-            const apiHasMore = page < apiTotalPages;
+            const apiTotalPages =
+              apiData.meta?.sources && typeof apiData.meta.sources === "object"
+                ? Math.max(
+                    1,
+                    ...(Object.values(apiData.meta.sources)
+                      .map((source) => source?.totalPages || 0)
+                      .filter(Boolean) || [1]),
+                  )
+                : Math.ceil(apiTotalResults / SEARCH_CONFIG.PAGE_SIZE);
+            const apiNextCursor = apiData.meta?.nextCursor || null;
+            const apiHasMore =
+              typeof apiData.meta?.hasMore === "boolean"
+                ? apiData.meta.hasMore
+                : Boolean(apiNextCursor) || page < apiTotalPages;
+            const apiIsTotalExact = Boolean(apiData.meta?.isTotalExact);
 
             if (page === 1) {
               // Merge with local results
@@ -365,6 +393,8 @@ const useSearchLogic = () => {
                   Math.ceil(totalCount / SEARCH_CONFIG.PAGE_SIZE),
                 ),
               );
+              setIsTotalExact(apiIsTotalExact && localSearchResult.total === 0);
+              currentSearchRef.current.nextCursor = apiNextCursor;
             } else {
               if (append) {
                 setResults((prev) => [...prev, ...processedResults]);
@@ -374,6 +404,8 @@ const useSearchLogic = () => {
               setHasMorePages(apiHasMore);
               setTotalResults(apiTotalResults);
               setTotalPages(apiTotalPages);
+              setIsTotalExact(apiIsTotalExact && !append);
+              currentSearchRef.current.nextCursor = apiNextCursor;
             }
 
             setCurrentPage(page);
@@ -385,12 +417,16 @@ const useSearchLogic = () => {
             setTotalResults(0);
             setTotalPages(0);
             setCurrentPage(1);
+            setIsTotalExact(true);
+            currentSearchRef.current.nextCursor = null;
             // Don't set error - no results is not an error
           } else {
             setHasMorePages(hasMoreResults);
             setTotalResults(totalCount);
             setTotalPages(Math.ceil(totalCount / SEARCH_CONFIG.PAGE_SIZE));
             setCurrentPage(page);
+            setIsTotalExact(false);
+            currentSearchRef.current.nextCursor = null;
           }
         } else if (page === 1 && allResults.length === 0) {
           setResults([]);
@@ -398,12 +434,16 @@ const useSearchLogic = () => {
           setTotalResults(0);
           setTotalPages(0);
           setCurrentPage(1);
+          setIsTotalExact(false);
+          currentSearchRef.current.nextCursor = null;
           setError(ERROR_MESSAGES.RATE_LIMIT);
         } else {
           setHasMorePages(hasMoreResults);
           setTotalResults(totalCount);
           setTotalPages(Math.ceil(totalCount / SEARCH_CONFIG.PAGE_SIZE));
           setCurrentPage(page);
+          setIsTotalExact(false);
+          currentSearchRef.current.nextCursor = null;
         }
       } catch (error) {
         // Ignore abort errors
@@ -454,6 +494,8 @@ const useSearchLogic = () => {
             Math.ceil(localSearchResult.total / SEARCH_CONFIG.PAGE_SIZE),
           );
           setCurrentPage(page);
+          setIsTotalExact(false);
+          currentSearchRef.current.nextCursor = null;
           setError(null); // Clear error if we have local results
         } else if (page === 1) {
           setResults([]);
@@ -461,6 +503,8 @@ const useSearchLogic = () => {
           setTotalResults(0);
           setTotalPages(0);
           setCurrentPage(1);
+          setIsTotalExact(false);
+          currentSearchRef.current.nextCursor = null;
           setError(errorMessage);
         }
       } finally {
@@ -495,10 +539,10 @@ const useSearchLogic = () => {
     if (isLoadingMore || !hasMorePages) return;
 
     const nextPage = currentPage + 1;
-    const { query, filter } = currentSearchRef.current;
+    const { query, filter, nextCursor } = currentSearchRef.current;
 
     if (query && filter !== undefined) {
-      performSearch(query, filter, nextPage, true);
+      performSearch(query, filter, nextPage, true, nextCursor || null);
     }
   }, [isLoadingMore, hasMorePages, currentPage, performSearch]);
 
@@ -513,7 +557,14 @@ const useSearchLogic = () => {
     setTotalResults(0);
     setTotalPages(0);
     setIsLoadingMore(false);
-    currentSearchRef.current = { query: "", filter: "", page: 1 };
+    setIsTotalExact(false);
+    currentSearchRef.current = {
+      query: "",
+      filter: "",
+      page: 1,
+      requestCursor: null,
+      nextCursor: null,
+    };
   }, [cancelSearch]);
 
   return {
@@ -524,6 +575,7 @@ const useSearchLogic = () => {
     currentPage,
     totalResults,
     totalPages,
+    isTotalExact,
     isLoadingMore,
     hasMorePages,
     performSearch,

@@ -44,6 +44,7 @@ const SearchScreen = ({ navigation }) => {
     totalResults,
     isLoadingMore,
     hasMorePages,
+    isTotalExact,
     performSearch,
     loadMoreResults,
     clearSearch: clearSearchResults,
@@ -77,15 +78,14 @@ const SearchScreen = ({ navigation }) => {
     };
   }, [initializeCache, initializeSuggestions]);
 
-  // Update suggestions when query changes (removed searchHistory from deps to prevent excessive re-renders)
+  // Update suggestions when query or history changes.
   useEffect(() => {
     generateSuggestions(query, searchHistory);
 
     return () => {
       generateSuggestions.cancel?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, generateSuggestions]);
+  }, [query, searchHistory, generateSuggestions]);
 
   // Track analytics when results are updated
   useEffect(() => {
@@ -295,7 +295,7 @@ const SearchScreen = ({ navigation }) => {
               <Text style={[styles.currentSearchText, { color: colors.text }]}>
                 “{searchQuery}”
               </Text>
-              {totalResults > 0 && (
+              {totalResults > 0 && isTotalExact && (
                 <Text
                   style={[
                     styles.resultCount,

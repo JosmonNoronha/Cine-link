@@ -14,7 +14,7 @@ const normalizeDevBaseUrl = (url) => {
       u.hostname = "10.0.2.2";
       return u.toString().replace(/\/+$/, "");
     }
-  } catch (_e) {
+  } catch {
     // Ignore parse errors and return original.
   }
   return url;
@@ -141,7 +141,7 @@ apiClient.interceptors.response.use(
           };
           return apiClient.request(nextConfig);
         }
-      } catch (_e) {
+      } catch {
         // Fall through to normal rejection.
       }
     }
@@ -169,217 +169,69 @@ export const searchMovies = async (
   filter = "all",
   page = 1,
   signal = null,
+  cursor = null,
 ) => {
   const trimmedQuery = (query || "").trim();
   if (!trimmedQuery) {
     return { Search: [], totalResults: "0", Response: "False" };
   }
 
-  const normType = filter && filter !== "all" ? filter : undefined; // movie|series|episode
+  const normType = filter && filter !== "all" ? filter : "all";
 
   try {
-    console.log("🎬 Using backend for search:", trimmedQuery, filter, page);
+    console.log("🎬 Using unified backend search:", trimmedQuery, filter, page);
 
-    // Genre keywords detection
-    const genreKeywords = [
-      "action",
-      "adventure",
-      "animation",
-      "comedy",
-      "crime",
-      "documentary",
-      "drama",
-      "family",
-      "fantasy",
-      "history",
-      "horror",
-      "music",
-      "mystery",
-      "romance",
-      "science fiction",
-      "sci-fi",
-      "sci fi",
-      "scifi",
-      "thriller",
-      "war",
-      "western",
-      "anime",
-      "bollywood",
-      "hollywood",
-      "korean",
-      "japanese",
-      "kids",
-      "reality",
-      "soap",
-      "talk",
-    ];
-
-    const queryLower = trimmedQuery.toLowerCase().trim();
-    const isGenreSearch = genreKeywords.some(
-      (keyword) => queryLower === keyword || queryLower === keyword + "s",
-    );
-
-    console.log(`🔍 Genre check: "${queryLower}" | Match: ${isGenreSearch}`);
-
-    // If genre search, use genre endpoint
-    if (isGenreSearch) {
-      console.log("🎭 Detected genre search:", trimmedQuery);
-      const genreResult = await apiClient.get("/search/by-genre", {
-        params: { genre: trimmedQuery, type: normType, page },
-        signal: signal,
-      });
-
-      console.log("📦 Genre result structure:", genreResult);
-
-      if (genreResult && genreResult.Search) {
-        console.log(
-          `✅ Genre search returned ${genreResult.Search.length} results`,
-        );
-        return genreResult;
-      } else {
-        console.warn(
-          "⚠️ Genre search returned invalid structure:",
-          genreResult,
-        );
-      }
-    }
-
-    // Regular title search
-    const titleSearch = apiClient.get("/movies/search", {
-      params: { q: trimmedQuery, type: normType, page },
-      signal: signal,
-    });
-
-    // Person search (if query looks like a name - 2+ words, 2+ chars each)
-    const words = trimmedQuery.split(/\s+/);
-    const looksLikeName =
-      words.length >= 2 &&
-      words.every((w) => w.length >= 2 && /^[a-zA-Z]+$/.test(w));
-
-    console.log(
-      `🔍 Query analysis: "${trimmedQuery}" | Words: ${words.length} | Looks like name: ${looksLikeName}`,
-    );
-
-    const personSearch =
-      looksLikeName && page === 1
-        ? (async () => {
-            try {
-              console.log("👤 Running person search for:", trimmedQuery);
-              const result = await apiClient.get("/search/by-person", {
-                params: { query: trimmedQuery, page: 1 },
-                signal: signal,
-              });
-
-              // Limit initial results to 10, store rest for pagination
-              if (result?.results && result.results.length > 10) {
-                console.log(
-                  `✅ Person search found ${result.results.length} results, showing first 10`,
-                );
-                return {
-                  results: result.results.slice(0, 10),
-                  hasMore: true,
-                  allResults: result.results, // Store for potential "load more"
-                };
-              }
-
-              console.log(
-                `✅ Person search found ${result?.results?.length || 0} results`,
-              );
-
-              // If no results and query has double letters, try correcting common typos
-              if (
-                (!result?.results || result.results.length === 0) &&
-                /(.)\1/.test(trimmedQuery)
-              ) {
-                console.log("🔄 Trying spelling correction...");
-                // Remove duplicate consecutive letters (bradd -> brad, chrisstopher -> christopher)
-                const correctedQuery = trimmedQuery.replace(/(.)\1+/g, "$1");
-                if (correctedQuery !== trimmedQuery) {
-                  console.log(`📝 Trying corrected name: "${correctedQuery}"`);
-                  const correctedResult = await apiClient.get(
-                    "/search/by-person",
-                    {
-                      params: { query: correctedQuery, page: 1 },
-                      signal: signal,
-                    },
-                  );
-                  if (correctedResult?.results?.length > 0) {
-                    console.log(
-                      `✅ Spelling correction worked! Found ${correctedResult.results.length} results`,
-                    );
-                    return correctedResult;
-                  }
-                }
-              }
-
-              return result;
-            } catch (err) {
-              console.warn("⚠️ Person search failed:", err.message);
-              return { results: [] };
-            }
-          })()
-        : Promise.resolve({ results: [] });
-
-    // Wait for both searches
-    const [titleData, personData] = await Promise.all([
-      titleSearch,
-      personSearch,
-    ]);
-
-    console.log("✅ Backend search successful");
-
-    // Combine results (person results FIRST for relevance, then title search)
-    let combinedResults = [];
-
-    // Add person search results first (more relevant when searching actor/director names)
-    if (personData && personData.results && Array.isArray(personData.results)) {
-      const totalPersonResults =
-        personData.allResults?.length || personData.results.length;
-      console.log(
-        `📺 Adding ${personData.results.length} results from person search (${totalPersonResults} total available)`,
-      );
-
-      // Filter person results by type if filter is active
-      let filteredPersonResults = personData.results;
-      if (normType) {
-        filteredPersonResults = personData.results.filter(
-          (r) => r.Type === normType,
-        );
-        console.log(
-          `🎯 Filtered to ${filteredPersonResults.length} ${normType} results`,
-        );
-      }
-
-      combinedResults = [...filteredPersonResults];
-    }
-
-    // Then add title search results (avoid duplicates by imdbID)
-    const existingIds = new Set(combinedResults.map((r) => r.imdbID));
-
-    if (titleData && Array.isArray(titleData)) {
-      const newResults = titleData.filter((r) => !existingIds.has(r.imdbID));
-      combinedResults = [...combinedResults, ...newResults];
-    } else if (titleData && titleData.Search) {
-      const newResults = titleData.Search.filter(
-        (r) => !existingIds.has(r.imdbID),
-      );
-      combinedResults = [...combinedResults, ...newResults];
-    } else if (titleData && titleData.results) {
-      const newResults = (titleData.results || []).filter(
-        (r) => !existingIds.has(r.imdbID),
-      );
-      combinedResults = [...combinedResults, ...newResults];
-    }
-
-    return {
-      Search: combinedResults,
-      totalResults: String(combinedResults.length),
-      Response: combinedResults.length ? "True" : "False",
+    const requestBody = {
+      query: trimmedQuery,
+      type: normType,
+      page,
+      filters: {},
     };
+
+    if (typeof cursor === "string" && cursor.trim().length > 0) {
+      requestBody.cursor = cursor;
+    }
+
+    const data = await apiClient.post("/search", requestBody, { signal });
+
+    if (data && data.Search) {
+      return {
+        ...data,
+        totalResults: String(data.totalResults || data.Search.length || 0),
+        Response: data.Response || (data.Search.length ? "True" : "False"),
+      };
+    }
+
+    return { Search: [], totalResults: "0", Response: "False" };
   } catch (error) {
     if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
       throw error;
     }
+    console.warn(
+      "⚠️ Unified search failed, falling back to legacy search:",
+      error.message,
+    );
+
+    try {
+      const fallback = await apiClient.get("/movies/search", {
+        params: { q: trimmedQuery, type: normType, page },
+        signal,
+      });
+
+      if (fallback && fallback.Search) {
+        return {
+          ...fallback,
+          totalResults: String(
+            fallback.totalResults || fallback.Search.length || 0,
+          ),
+          Response:
+            fallback.Response || (fallback.Search.length ? "True" : "False"),
+        };
+      }
+    } catch (fallbackError) {
+      console.warn("⚠️ Legacy search fallback failed:", fallbackError.message);
+    }
+
     throw new Error("Backend search unavailable. Please try again.");
   }
 };
@@ -588,9 +440,14 @@ const normalizeResults = (payload) => {
       results: payload.Search,
       totalResults:
         parseInt(payload.totalResults || "0") || payload.Search.length,
+      meta: payload.meta || null,
     };
   if (payload.results)
-    return { results: payload.results, totalResults: payload.totalResults };
+    return {
+      results: payload.results,
+      totalResults: payload.totalResults,
+      meta: payload.meta || null,
+    };
   return { results: [] };
 };
 
@@ -612,6 +469,19 @@ export const getTrendingKeywords = async () => {
     return data.keywords || [];
   } catch (error) {
     console.warn("⚠️ Trending keywords API failed:", error.message);
+    return [];
+  }
+};
+
+// Get popular search queries from analytics
+export const getPopularSearches = async (limit = 10) => {
+  try {
+    const data = await apiClient.get("/analytics/popular-searches", {
+      params: { limit },
+    });
+    return (data.searches || []).map((item) => item.query).filter(Boolean);
+  } catch (error) {
+    console.warn("⚠️ Popular searches API failed:", error.message);
     return [];
   }
 };
