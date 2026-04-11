@@ -8,7 +8,11 @@ import {
   FUSE_SUGGESTION_OPTIONS,
   SUGGESTION_CONFIG,
 } from "../config/searchConstants";
-import { getPopularSearches, getTrendingKeywords } from "../services/api";
+import {
+  getPopularSearches,
+  getSearchSuggestions,
+  getTrendingKeywords,
+} from "../services/api";
 
 const useSuggestions = () => {
   const [suggestions, setSuggestions] = useState([]);
@@ -117,6 +121,12 @@ const useSuggestions = () => {
       const inputLower = input.toLowerCase();
       const newSuggestions = [];
 
+      // Backend suggestions first (analytics + trending fallback on backend)
+      const backendSuggestionsPromise = getSearchSuggestions(
+        input,
+        SUGGESTION_CONFIG.MAX_SUGGESTIONS,
+      ).catch(() => []);
+
       // History matches
       const exactHistoryMatches = searchHistory
         .filter((item) => item.toLowerCase().startsWith(inputLower))
@@ -147,6 +157,24 @@ const useSuggestions = () => {
         .slice(0, SUGGESTION_CONFIG.MAX_POPULAR_MATCHES)
         .filter((keyword) => !newSuggestions.includes(keyword));
       newSuggestions.push(...keywordMatches);
+
+      // Append backend-ranked suggestions after local history/cache matching
+      backendSuggestionsPromise.then((backendSuggestions) => {
+        const enriched = [...newSuggestions];
+        (backendSuggestions || []).forEach((item) => {
+          if (!enriched.includes(item)) {
+            enriched.push(item);
+          }
+        });
+
+        const backendUnique = enriched.filter(
+          (suggestion, index, self) => self.indexOf(suggestion) === index,
+        );
+
+        setSuggestions(
+          backendUnique.slice(0, SUGGESTION_CONFIG.MAX_SUGGESTIONS),
+        );
+      });
 
       const uniqueSuggestions = newSuggestions.filter(
         (suggestion, index, self) => self.indexOf(suggestion) === index,

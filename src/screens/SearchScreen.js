@@ -341,7 +341,9 @@ const SearchScreen = ({ navigation }) => {
           error={error}
           hasSearched={hasSearched}
           isLoadingMore={isLoadingMore}
+          hasMorePages={hasMorePages}
           onEndReached={handleLoadMoreResults}
+          onLoadMorePress={handleLoadMoreResults}
           onMoviePress={handleMoviePress}
           // Welcome screen props
           searchHistory={searchHistory}

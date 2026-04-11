@@ -486,6 +486,21 @@ export const getPopularSearches = async (limit = 10) => {
   }
 };
 
+export const getSearchSuggestions = async (query = "", limit = 8) => {
+  try {
+    const data = await apiClient.get("/search/suggestions", {
+      params: {
+        query,
+        limit,
+      },
+    });
+    return data?.suggestions || [];
+  } catch (error) {
+    console.warn("⚠️ Search suggestions API failed:", error.message);
+    return [];
+  }
+};
+
 // Get popular movies
 export const getPopular = async (page = 1) => {
   try {

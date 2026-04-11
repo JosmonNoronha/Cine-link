@@ -1,12 +1,14 @@
 // components/SearchResults.js
 import React from "react";
 import {
-  FlatList,
   View,
   Text,
   ActivityIndicator,
   StyleSheet,
+  Platform,
+  TouchableOpacity,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { Ionicons } from "@expo/vector-icons";
 import MovieCard from "./MovieCard";
 import ShimmerMovieCard from "./ShimmerMovieCard";
@@ -18,7 +20,9 @@ const SearchResults = ({
   error,
   hasSearched,
   isLoadingMore,
+  hasMorePages,
   onEndReached,
+  onLoadMorePress,
   onMoviePress,
   // Welcome screen props
   searchHistory,
@@ -34,33 +38,53 @@ const SearchResults = ({
   );
 
   const renderFooter = () => {
-    if (!isLoadingMore) return null;
+    if (isLoadingMore) {
+      return (
+        <View style={styles.loadingFooter}>
+          <ActivityIndicator
+            size="small"
+            color={theme === "dark" ? "#1e88e5" : "#1976d2"}
+          />
+          <Text
+            style={[
+              styles.loadingText,
+              { color: theme === "dark" ? "#888" : "#666" },
+            ]}
+          >
+            Loading more results...
+          </Text>
+        </View>
+      );
+    }
+
+    if (!hasMorePages || !results?.length) return null;
 
     return (
-      <View style={styles.loadingFooter}>
-        <ActivityIndicator
-          size="small"
-          color={theme === "dark" ? "#1e88e5" : "#1976d2"}
-        />
-        <Text
-          style={[
-            styles.loadingText,
-            { color: theme === "dark" ? "#888" : "#666" },
-          ]}
-        >
-          Loading more results...
-        </Text>
-      </View>
+      <TouchableOpacity
+        style={[
+          styles.loadMoreButton,
+          {
+            backgroundColor:
+              theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+            borderColor: theme === "dark" ? "#333" : "#ddd",
+          },
+        ]}
+        onPress={onLoadMorePress || onEndReached}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.loadMoreText, { color: colors.text }]}>Load more</Text>
+      </TouchableOpacity>
     );
   };
 
   const renderShimmer = () => (
-    <FlatList
+    <FlashList
       data={new Array(6).fill({})}
       keyExtractor={(_, index) => `shimmer-${index}`}
       renderItem={() => <ShimmerMovieCard />}
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
+      estimatedItemSize={180}
     />
   );
 
@@ -116,21 +140,23 @@ const SearchResults = ({
   }
 
   return (
-    <FlatList
+    <FlashList
       data={results}
       keyExtractor={(item, index) =>
         item?.imdbID ||
         `${item?.Title || "result"}-${item?.Year || ""}-${item?.Type || ""}-${index}`
       }
       renderItem={renderMovieItem}
+      estimatedItemSize={180}
+      style={styles.list}
       contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
-      removeClippedSubviews={true}
-      maxToRenderPerBatch={10}
-      initialNumToRender={10}
-      windowSize={10}
+      removeClippedSubviews={Platform.OS !== "web"}
+      maxToRenderPerBatch={20}
+      initialNumToRender={20}
+      windowSize={15}
       onEndReached={onEndReached}
-      onEndReachedThreshold={0.3}
+      onEndReachedThreshold={0.5}
       ListFooterComponent={renderFooter}
       ListEmptyComponent={renderEmptyComponent}
     />
@@ -147,6 +173,19 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 12,
+  },
+  loadMoreButton: {
+    alignSelf: "center",
+    marginTop: 8,
+    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  loadMoreText: {
+    fontSize: 13,
+    fontWeight: "600",
   },
   errorContainer: {
     flexDirection: "row",
@@ -170,6 +209,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 16,
     opacity: 0.7,
+  },
+  list: {
+    flex: 1,
   },
   listContent: {
     paddingBottom: 20,
