@@ -14,7 +14,7 @@ const ShimmerHomeMovieCard = ({ style }) => {
         toValue: 1,
         duration: 1200,
         useNativeDriver: true,
-      })
+      }),
     );
     shimmerLoop.start();
     return () => shimmerLoop.stop();
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   },
   posterPlaceholder: {
     width: 160,
-    height: 240,
+    height: 235,
     borderRadius: 18,
     backgroundColor: "rgba(200,200,200,0.2)",
     borderWidth: 1,

@@ -142,11 +142,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   card: {
-    borderRadius: 16,
-    shadowOffset: { width: 0, height: 3 },
+    borderRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 8,
     overflow: "hidden",
   },
   cardGradient: {
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 16,
+    borderRadius: 18,
   },
   content: {
     flexDirection: "row",

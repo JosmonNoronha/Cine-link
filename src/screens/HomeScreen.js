@@ -53,12 +53,21 @@ const HomeScreen = ({ navigation }) => {
   const lastDataHashRef = useRef("");
   const featuredCarouselRef = useRef(null);
   const featuredScrollX = useRef(new Animated.Value(0)).current;
+  const appNameOpacity = useRef(new Animated.Value(0)).current;
+  const appNameTranslateY = useRef(new Animated.Value(10)).current;
+  const appTaglineOpacity = useRef(new Animated.Value(0)).current;
+  const appTaglineTranslateY = useRef(new Animated.Value(6)).current;
+  const appNameSheenProgress = useRef(new Animated.Value(0)).current;
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
   const { favorites, initialized: favoritesInitialized } = useFavorites();
   const { width: screenWidth } = useWindowDimensions();
   const featuredCardWidth = Math.max(screenWidth - 40, 280);
+  const appNameSheenTranslate = appNameSheenProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-140, 180],
+  });
 
   // Generate hash to detect actual data changes
   const dataHash = useMemo(() => {
@@ -443,6 +452,66 @@ const HomeScreen = ({ navigation }) => {
     return () => clearInterval(intervalId);
   }, [featuredItems, activeFeaturedIndex]);
 
+  // Animate app name with a subtle entrance and recurring sheen.
+  useEffect(() => {
+    const entranceAnimation = Animated.sequence([
+      Animated.parallel([
+        Animated.timing(appNameOpacity, {
+          toValue: 1,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+        Animated.spring(appNameTranslateY, {
+          toValue: 0,
+          friction: 8,
+          tension: 65,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(appTaglineOpacity, {
+          toValue: 1,
+          duration: 420,
+          useNativeDriver: true,
+        }),
+        Animated.spring(appTaglineTranslateY, {
+          toValue: 0,
+          friction: 9,
+          tension: 70,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+
+    const sheenLoop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(2600),
+        Animated.timing(appNameSheenProgress, {
+          toValue: 1,
+          duration: 1300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(appNameSheenProgress, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    entranceAnimation.start(() => sheenLoop.start());
+
+    return () => {
+      sheenLoop.stop();
+    };
+  }, [
+    appNameOpacity,
+    appNameTranslateY,
+    appTaglineOpacity,
+    appTaglineTranslateY,
+    appNameSheenProgress,
+  ]);
+
   // Render shimmer loading
   const renderShimmer = () => <HomeScreenSkeleton />;
 
@@ -569,16 +638,23 @@ const HomeScreen = ({ navigation }) => {
     return (
       <View key={section.id} style={styles.sectionContainer}>
         <View style={styles.sectionHeader}>
-          <View>
+          <View style={styles.sectionTitleContainer}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               {section.title}
             </Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.text }]}>
-              {section.subtitle}
-            </Text>
+            {section.subtitle && (
+              <Text style={[styles.sectionSubtitle, { color: colors.text }]}>
+                {section.subtitle}
+              </Text>
+            )}
           </View>
         </View>
-        <View style={styles.sectionUnderline} />
+        <LinearGradient
+          colors={["#1e88e5", "#1565c0", "transparent"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.sectionUnderline}
+        />
 
         <FlatList
           horizontal
@@ -694,21 +770,52 @@ const HomeScreen = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.appNameContainer}>
-          <Text
+          <Animated.View
             style={[
-              styles.appName,
-              { color: theme === "dark" ? "#1e88e5" : "#1976d2" },
+              styles.appNameBadge,
+              {
+                opacity: appNameOpacity,
+                transform: [{ translateY: appNameTranslateY }],
+              },
             ]}
           >
-            CineLink
-          </Text>
-          <Text style={[styles.appTagline, { color: colors.text }]}>
+            <Text
+              style={[
+                styles.appName,
+                { color: theme === "dark" ? "#42a5f5" : "#1976d2" },
+              ]}
+            >
+              CineLink
+            </Text>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.appNameSheen,
+                {
+                  transform: [
+                    { translateX: appNameSheenTranslate },
+                    { skewX: "-18deg" },
+                  ],
+                },
+              ]}
+            />
+          </Animated.View>
+          <Animated.Text
+            style={[
+              styles.appTagline,
+              {
+                color: colors.text,
+                opacity: appTaglineOpacity,
+                transform: [{ translateY: appTaglineTranslateY }],
+              },
+            ]}
+          >
             {isNewUser
               ? "Your Movie Heaven"
               : favoritesInitialized && watchlistsLoaded
                 ? `${favorites.length} favorites • ${userProfile.watchProgress.total} in watchlist`
                 : "Loading..."}
-          </Text>
+          </Animated.Text>
         </View>
       </View>
 
@@ -738,7 +845,27 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(128,128,128,0.2)",
   },
   appNameContainer: { flexDirection: "column" },
-  appName: { fontSize: 28, fontWeight: "bold", letterSpacing: 1 },
+  appNameBadge: {
+    alignSelf: "flex-start",
+    overflow: "hidden",
+    borderRadius: 10,
+    paddingRight: 8,
+  },
+  appName: {
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: 0.55,
+    textShadowColor: "rgba(30,136,229,0.14)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  appNameSheen: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 36,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
   appTagline: { fontSize: 13, opacity: 0.7, marginTop: 2 },
 
   // Featured Banner
@@ -840,31 +967,36 @@ const styles = StyleSheet.create({
   },
 
   // Sections
-  sectionContainer: { marginBottom: 30 },
+  sectionContainer: { marginBottom: 32 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: 20,
-    marginBottom: 4,
+    marginBottom: 10,
+  },
+  sectionTitleContainer: {
+    flex: 1,
+    gap: 4,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    lineHeight: 28,
   },
   sectionSubtitle: {
     fontSize: 13,
-    opacity: 0.6,
-    marginTop: 2,
+    fontWeight: "500",
+    opacity: 0.65,
+    letterSpacing: 0.2,
   },
   sectionUnderline: {
-    width: 50,
     height: 3,
-    backgroundColor: "#1e88e5",
-    borderRadius: 2,
+    width: 60,
     marginLeft: 20,
-    marginTop: 4,
-    marginBottom: 12,
+    marginBottom: 14,
+    borderRadius: 2,
   },
 
   // Lists

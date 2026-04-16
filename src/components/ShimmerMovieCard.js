@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { createShimmerPlaceholder } from 'react-native-shimmer-placeholder';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '@react-navigation/native';
+import React from "react";
+import { View, StyleSheet } from "react-native";
+import { createShimmerPlaceholder } from "react-native-shimmer-placeholder";
+import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "@react-navigation/native";
 
 const ShimmerPlaceholder = createShimmerPlaceholder(LinearGradient);
 
@@ -21,8 +21,8 @@ const ShimmerMovieCard = () => {
             style={styles.poster}
             shimmerColors={
               dark
-                ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-                : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+                ? ["#2a2a2a", "#3a3a3a", "#2a2a2a"]
+                : ["#e0e0e0", "#f5f5f5", "#e0e0e0"]
             }
           />
           <View style={styles.info}>
@@ -30,16 +30,16 @@ const ShimmerMovieCard = () => {
               style={styles.title}
               shimmerColors={
                 dark
-                  ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-                  : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+                  ? ["#2a2a2a", "#3a3a3a", "#2a2a2a"]
+                  : ["#e0e0e0", "#f5f5f5", "#e0e0e0"]
               }
             />
             <ShimmerPlaceholder
               style={styles.subtitle}
               shimmerColors={
                 dark
-                  ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-                  : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+                  ? ["#2a2a2a", "#3a3a3a", "#2a2a2a"]
+                  : ["#e0e0e0", "#f5f5f5", "#e0e0e0"]
               }
             />
           </View>
@@ -47,8 +47,8 @@ const ShimmerMovieCard = () => {
             style={styles.favButton}
             shimmerColors={
               dark
-                ? ['#2a2a2a', '#3a3a3a', '#2a2a2a']
-                : ['#e0e0e0', '#f5f5f5', '#e0e0e0']
+                ? ["#2a2a2a", "#3a3a3a", "#2a2a2a"]
+                : ["#e0e0e0", "#f5f5f5", "#e0e0e0"]
             }
           />
         </View>
@@ -63,24 +63,24 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   card: {
-    borderRadius: 16,
-    shadowOffset: { width: 0, height: 3 },
+    borderRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-    overflow: 'hidden',
+    shadowRadius: 8,
+    elevation: 8,
+    overflow: "hidden",
   },
   cardGradient: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 16,
+    borderRadius: 18,
   },
   content: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
   },
   poster: {
@@ -91,16 +91,16 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   title: {
-    width: '80%',
+    width: "80%",
     height: 22, // Approximate height for fontSize: 17, lineHeight: 22
     borderRadius: 6,
     marginBottom: 6,
   },
   subtitle: {
-    width: '50%',
+    width: "50%",
     height: 16, // Approximate height for fontSize: 13
     borderRadius: 6,
   },

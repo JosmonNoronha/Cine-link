@@ -1051,7 +1051,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   hudXpBarInline: {
-    gap: 6,
+    gap: 8,
+    marginBottom: 4,
   },
   header: {
     fontSize: 24,
@@ -1134,15 +1135,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.8,
     opacity: 0.45,
-    minWidth: 70,
+    minWidth: 0,
+    maxWidth: "100%",
     textAlign: "right",
-    flexShrink: 0,
+    flexShrink: 1,
   },
   hudProgressFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
     gap: 8,
+    marginTop: 2,
   },
   hudProgressLeft: {
     flexDirection: "row",
