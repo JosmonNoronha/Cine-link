@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
+  useWindowDimensions,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -40,16 +41,20 @@ const HomeScreen = ({ navigation }) => {
   const [watchlists, setWatchlists] = useState({});
   const [sectionsLoading, setSectionsLoading] = useState(true);
   const [watchlistsLoaded, setWatchlistsLoaded] = useState(false);
-  const [featuredMovie, setFeaturedMovie] = useState(null);
+  const [featuredItems, setFeaturedItems] = useState([]);
+  const [activeFeaturedIndex, setActiveFeaturedIndex] = useState(0);
   const [homeLoadError, setHomeLoadError] = useState(false);
 
   // Refs to track loading state and prevent unnecessary reloads
   const hasLoadedRef = useRef(false);
   const lastDataHashRef = useRef("");
+  const featuredCarouselRef = useRef(null);
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
   const { favorites, initialized: favoritesInitialized } = useFavorites();
+  const { width: screenWidth } = useWindowDimensions();
+  const featuredCardWidth = Math.max(screenWidth - 40, 280);
 
   // Generate hash to detect actual data changes
   const dataHash = useMemo(() => {
@@ -217,7 +222,8 @@ const HomeScreen = ({ navigation }) => {
           : [];
 
         if (trending.length > 0) {
-          setFeaturedMovie(trending[0]);
+          setFeaturedItems(trending.slice(0, 6));
+          setActiveFeaturedIndex(0);
           newSections.push({
             id: "trending",
             title: "Trending This Week",
@@ -226,7 +232,13 @@ const HomeScreen = ({ navigation }) => {
             type: "movies",
             priority: 2,
           });
+        } else {
+          setFeaturedItems([]);
+          setActiveFeaturedIndex(0);
         }
+      } else {
+        setFeaturedItems([]);
+        setActiveFeaturedIndex(0);
       }
 
       // SECTION 3: Because You Liked
@@ -354,6 +366,29 @@ const HomeScreen = ({ navigation }) => {
     await loadWatchlists();
   }, [loadWatchlists]);
 
+  const getFeaturedImageUri = useCallback((movie) => {
+    if (!movie) return "https://via.placeholder.com/1280x720";
+
+    // Prefer backdrop images for the hero banner to avoid portrait cropping.
+    if (movie.backdrop_path) {
+      return `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
+    }
+
+    if (movie.poster_path) {
+      return `https://image.tmdb.org/t/p/w780${movie.poster_path}`;
+    }
+
+    if (movie.Poster && movie.Poster !== "N/A") {
+      // Upgrade low-resolution TMDB poster URLs used for card thumbnails.
+      if (movie.Poster.includes("image.tmdb.org/t/p/w185")) {
+        return movie.Poster.replace("/w185", "/w780");
+      }
+      return movie.Poster;
+    }
+
+    return "https://via.placeholder.com/1280x720";
+  }, []);
+
   // Initial load
   useEffect(() => {
     if (!hasLoadedRef.current) {
@@ -388,28 +423,51 @@ const HomeScreen = ({ navigation }) => {
     return unsubscribe;
   }, [navigation, loadWatchlists]);
 
+  // Auto-slide featured carousel every 5 seconds.
+  useEffect(() => {
+    if (featuredItems.length <= 1) return;
+
+    const intervalId = setInterval(() => {
+      const nextIndex = (activeFeaturedIndex + 1) % featuredItems.length;
+      setActiveFeaturedIndex(nextIndex);
+      featuredCarouselRef.current?.scrollToIndex({
+        index: nextIndex,
+        animated: true,
+      });
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [featuredItems, activeFeaturedIndex]);
+
   // Render shimmer loading
   const renderShimmer = () => <HomeScreenSkeleton />;
 
-  // Featured Banner
-  const renderFeaturedBanner = () => {
-    if (!featuredMovie) return null;
+  const renderFeaturedCard = ({ item }) => {
+    const mediaType = item?.Type || item?.media_type || "movie";
+    const releaseYear =
+      item?.Year ||
+      item?.release_date?.split("-")[0] ||
+      item?.first_air_date?.split("-")[0] ||
+      "Now";
 
     return (
       <TouchableOpacity
-        style={styles.featuredContainer}
-        onPress={() =>
-          navigation.navigate("Details", { imdbID: featuredMovie.imdbID })
-        }
+        style={[styles.featuredCard, { width: featuredCardWidth }]}
+        activeOpacity={0.92}
+        onPress={() => navigation.navigate("Details", { imdbID: item.imdbID })}
       >
         <Image
-          source={{
-            uri: featuredMovie?.Poster || "https://via.placeholder.com/400x250",
-          }}
+          source={{ uri: getFeaturedImageUri(item) }}
           style={styles.featuredImage}
+          resizeMode="cover"
+          progressiveRenderingEnabled
         />
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.9)"]}
+          colors={["rgba(5,10,20,0.08)", "rgba(5,10,20,0.45)"]}
+          style={styles.topOverlay}
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(4,7,16,0.95)"]}
           style={styles.gradientOverlay}
         >
           <View style={styles.featuredBadge}>
@@ -417,14 +475,64 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.featuredBadgeText}>TRENDING</Text>
           </View>
           <Text style={styles.featuredTitle} numberOfLines={2}>
-            {featuredMovie?.Title || featuredMovie?.title}
+            {item?.Title || item?.title || item?.name}
           </Text>
           <Text style={styles.featuredSubtitle}>
-            {featuredMovie?.Year || featuredMovie?.release_date?.split("-")[0]}{" "}
-            • {featuredMovie?.Type || "Movie"}
+            {releaseYear} •{" "}
+            {String(mediaType).charAt(0).toUpperCase() +
+              String(mediaType).slice(1)}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
+    );
+  };
+
+  // Featured Banner Carousel
+  const renderFeaturedBanner = () => {
+    if (!featuredItems.length) return null;
+
+    return (
+      <View style={styles.featuredContainer}>
+        <FlatList
+          ref={featuredCarouselRef}
+          data={featuredItems}
+          keyExtractor={(item, index) => item.imdbID || `featured-${index}`}
+          renderItem={renderFeaturedCard}
+          horizontal
+          pagingEnabled
+          decelerationRate="fast"
+          snapToInterval={featuredCardWidth}
+          snapToAlignment="start"
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(event) => {
+            const offsetX = event.nativeEvent.contentOffset.x;
+            const nextIndex = Math.round(offsetX / featuredCardWidth);
+            if (nextIndex !== activeFeaturedIndex) {
+              setActiveFeaturedIndex(nextIndex);
+            }
+          }}
+          onScrollToIndexFailed={() => {
+            // Ignore occasional layout race conditions during first render.
+          }}
+          getItemLayout={(_, index) => ({
+            length: featuredCardWidth,
+            offset: featuredCardWidth * index,
+            index,
+          })}
+        />
+
+        <View style={styles.featuredPagination}>
+          {featuredItems.map((_, index) => (
+            <View
+              key={`featured-dot-${index}`}
+              style={[
+                styles.paginationDot,
+                index === activeFeaturedIndex && styles.paginationDotActive,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
     );
   };
 
@@ -526,7 +634,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.loadingContainer}>{renderShimmer()}</View>
           ) : (
             <>
-              {featuredMovie && renderFeaturedBanner()}
+              {featuredItems.length > 0 && renderFeaturedBanner()}
               {sections.map((section) => renderSection(section))}
             </>
           )}
@@ -542,7 +650,7 @@ const HomeScreen = ({ navigation }) => {
     // Show actual content
     return (
       <>
-        {featuredMovie && renderFeaturedBanner()}
+        {featuredItems.length > 0 && renderFeaturedBanner()}
         {sections.map((section) => renderSection(section))}
       </>
     );
@@ -612,48 +720,85 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 25,
-    borderRadius: 16,
+  },
+  featuredCard: {
+    borderRadius: 18,
     overflow: "hidden",
+    backgroundColor: "#0f1720",
     elevation: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  featuredImage: { width: "100%", height: 320, contentFit: "cover" },
+  featuredImage: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    minHeight: 210,
+    maxHeight: 300,
+  },
+  topOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+  },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 52,
+    paddingBottom: 18,
   },
   featuredBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,107,53,0.2)",
+    backgroundColor: "rgba(255,107,53,0.22)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     alignSelf: "flex-start",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   featuredBadgeText: {
     color: "#FF6B35",
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "700",
     marginLeft: 6,
+    letterSpacing: 0.5,
   },
   featuredTitle: {
     color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 6,
+    fontSize: 26,
+    fontWeight: "800",
+    lineHeight: 31,
+    marginBottom: 8,
   },
   featuredSubtitle: {
-    color: "#ddd",
-    fontSize: 15,
-    opacity: 0.9,
+    color: "rgba(236,241,247,0.92)",
+    fontSize: 14,
+    fontWeight: "500",
+    letterSpacing: 0.2,
+  },
+  featuredPagination: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(125,142,164,0.45)",
+    marginHorizontal: 4,
+  },
+  paginationDotActive: {
+    width: 18,
+    backgroundColor: "#1e88e5",
   },
 
   // Sections
