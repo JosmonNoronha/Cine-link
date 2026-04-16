@@ -9,6 +9,7 @@ import {
   View,
   Text,
   FlatList,
+  Animated,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
@@ -49,6 +50,7 @@ const HomeScreen = ({ navigation }) => {
   const hasLoadedRef = useRef(false);
   const lastDataHashRef = useRef("");
   const featuredCarouselRef = useRef(null);
+  const featuredScrollX = useRef(new Animated.Value(0)).current;
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
@@ -463,11 +465,7 @@ const HomeScreen = ({ navigation }) => {
           progressiveRenderingEnabled
         />
         <LinearGradient
-          colors={["rgba(5,10,20,0.08)", "rgba(5,10,20,0.45)"]}
-          style={styles.topOverlay}
-        />
-        <LinearGradient
-          colors={["transparent", "rgba(4,7,16,0.95)"]}
+          colors={["transparent", "rgba(4,7,16,0.82)"]}
           style={styles.gradientOverlay}
         >
           <View style={styles.featuredBadge}>
@@ -491,6 +489,13 @@ const HomeScreen = ({ navigation }) => {
   const renderFeaturedBanner = () => {
     if (!featuredItems.length) return null;
 
+    const paginationSlotWidth = 24;
+    const indicatorTranslateX = featuredScrollX.interpolate({
+      inputRange: featuredItems.map((_, index) => index * featuredCardWidth),
+      outputRange: featuredItems.map((_, index) => index * paginationSlotWidth),
+      extrapolate: "clamp",
+    });
+
     return (
       <View style={styles.featuredContainer}>
         <FlatList
@@ -504,6 +509,11 @@ const HomeScreen = ({ navigation }) => {
           snapToInterval={featuredCardWidth}
           snapToAlignment="start"
           showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: featuredScrollX } } }],
+            { useNativeDriver: true },
+          )}
           onMomentumScrollEnd={(event) => {
             const offsetX = event.nativeEvent.contentOffset.x;
             const nextIndex = Math.round(offsetX / featuredCardWidth);
@@ -522,15 +532,29 @@ const HomeScreen = ({ navigation }) => {
         />
 
         <View style={styles.featuredPagination}>
-          {featuredItems.map((_, index) => (
-            <View
-              key={`featured-dot-${index}`}
-              style={[
-                styles.paginationDot,
-                index === activeFeaturedIndex && styles.paginationDotActive,
-              ]}
-            />
-          ))}
+          <View
+            style={[
+              styles.paginationRail,
+              { width: featuredItems.length * paginationSlotWidth },
+            ]}
+          >
+            {featuredItems.length > 1 && (
+              <Animated.View
+                style={[
+                  styles.paginationActivePill,
+                  {
+                    transform: [{ translateX: indicatorTranslateX }],
+                  },
+                ]}
+              />
+            )}
+
+            {featuredItems.map((_, index) => (
+              <View key={`featured-dot-${index}`} style={styles.paginationSlot}>
+                <View style={styles.paginationDot} />
+              </View>
+            ))}
+          </View>
         </View>
       </View>
     );
@@ -737,13 +761,6 @@ const styles = StyleSheet.create({
     minHeight: 210,
     maxHeight: 300,
   },
-  topOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "50%",
-  },
   gradientOverlay: {
     position: "absolute",
     bottom: 0,
@@ -784,21 +801,40 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   featuredPagination: {
-    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 12,
+  },
+  paginationRail: {
+    height: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  paginationSlot: {
+    width: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   paginationDot: {
     width: 8,
     height: 8,
     borderRadius: 999,
     backgroundColor: "rgba(125,142,164,0.45)",
-    marginHorizontal: 4,
   },
-  paginationDotActive: {
+  paginationActivePill: {
+    position: "absolute",
+    top: 0,
+    left: 3,
     width: 18,
+    height: 8,
+    borderRadius: 999,
     backgroundColor: "#1e88e5",
+    shadowColor: "#1e88e5",
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
 
   // Sections

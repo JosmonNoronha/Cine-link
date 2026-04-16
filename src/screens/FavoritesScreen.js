@@ -52,6 +52,7 @@ const FavoritesScreen = ({ navigation }) => {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const [gamification, setGamification] = useState(null);
+  const [gamificationLoading, setGamificationLoading] = useState(true);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
   const [favoritesLoadError, setFavoritesLoadError] = useState(false);
   const [favoritesLoadMessage, setFavoritesLoadMessage] = useState(
@@ -74,9 +75,17 @@ const FavoritesScreen = ({ navigation }) => {
     removeFromFavorites,
   } = useFavorites();
 
-  const loadGamification = useCallback(async () => {
-    const state = await getGamificationState();
-    setGamification(state);
+  const loadGamification = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) {
+        setGamificationLoading(true);
+      }
+
+      const state = await getGamificationState();
+      setGamification(state);
+    } finally {
+      setGamificationLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -104,7 +113,7 @@ const FavoritesScreen = ({ navigation }) => {
         lastRefreshAt.current = Date.now();
         refreshFavorites();
       }
-      loadGamification();
+      loadGamification({ silent: true });
     });
     return unsubscribe;
   }, [navigation, refreshFavorites, loadGamification]);
@@ -567,6 +576,8 @@ const FavoritesScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
+  const showInitialLoading = initialLoading || gamificationLoading;
+
   return (
     <SafeAreaView
       style={[styles.safeContainer, { backgroundColor: colors.background }]}
@@ -664,8 +675,8 @@ const FavoritesScreen = ({ navigation }) => {
             );
           })()}
 
-        {initialLoading ? (
-          <AppLoader message="Loading Favorites" />
+        {showInitialLoading ? (
+          <AppLoader message="Loading favorites" />
         ) : favoritesLoadError ? (
           <RetryState
             title="Unable to load favorites"
