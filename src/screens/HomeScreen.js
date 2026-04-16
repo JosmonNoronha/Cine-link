@@ -36,6 +36,8 @@ import { getWatchlists } from "../utils/storage";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { Ionicons } from "@expo/vector-icons";
 
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
 const HomeScreen = ({ navigation }) => {
   // State management
   const [sections, setSections] = useState([]);
@@ -498,7 +500,7 @@ const HomeScreen = ({ navigation }) => {
 
     return (
       <View style={styles.featuredContainer}>
-        <FlatList
+        <AnimatedFlatList
           ref={featuredCarouselRef}
           data={featuredItems}
           keyExtractor={(item, index) => item.imdbID || `featured-${index}`}
