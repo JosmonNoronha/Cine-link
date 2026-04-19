@@ -46,6 +46,7 @@ const WatchlistsScreen = ({ navigation }) => {
   const [newName, setNewName] = useState("");
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
+  const [createToast, setCreateToast] = useState(null);
   const [gamification, setGamification] = useState(null);
   const [watchlistsLoading, setWatchlistsLoading] = useState(true);
   const [watchlistsLoadError, setWatchlistsLoadError] = useState(false);
@@ -57,6 +58,7 @@ const WatchlistsScreen = ({ navigation }) => {
   ).current;
   const cursorBlink = useRef(new Animated.Value(1)).current;
   const scanAnim = useRef(new Animated.Value(0)).current;
+  const createToastAnim = useRef(new Animated.Value(0)).current;
   const hudAnimated = useRef(false);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -72,6 +74,24 @@ const WatchlistsScreen = ({ navigation }) => {
 
   const hideAlert = () => {
     setAlertConfig({ visible: false });
+  };
+
+  const showCreateToast = (message) => {
+    setCreateToast(message);
+    createToastAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(createToastAnim, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: false,
+      }),
+      Animated.delay(1700),
+      Animated.timing(createToastAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: false,
+      }),
+    ]).start(() => setCreateToast(null));
   };
 
   const fetchWatchlists = async ({ showLoader = false } = {}) => {
@@ -198,16 +218,11 @@ const WatchlistsScreen = ({ navigation }) => {
       const listCreateGamification = await recordListCreatedWithName(name);
       loadGamification();
 
-      showCustomAlert({
-        title:
-          listCreateGamification?.xpGained > 0
-            ? "Watchlist Created! +15 XP"
-            : "Watchlist Created",
-        message: `"${name}" has been successfully created.`,
-        icon: "checkmark-circle",
-        iconColor: "#4caf50",
-        buttons: [{ text: "Great!", style: "default" }],
-      });
+      showCreateToast(
+        listCreateGamification?.xpGained > 0
+          ? `Created "${name}" • +15 XP`
+          : `Created "${name}"`,
+      );
     } catch (error) {
       console.error("Error adding watchlist:", error);
       showCustomAlert({
@@ -235,9 +250,22 @@ const WatchlistsScreen = ({ navigation }) => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            await removeWatchlist(name);
-            fetchWatchlists();
-            navigation.setParams({ watchlistsModified: Date.now() });
+            try {
+              await removeWatchlist(name);
+              fetchWatchlists();
+              navigation.setParams({ watchlistsModified: Date.now() });
+              showCreateToast(`Deleted "${name}"`);
+            } catch (error) {
+              console.error("Error deleting watchlist:", error);
+              showCustomAlert({
+                title: "Unable to Delete Watchlist",
+                message:
+                  "Something went wrong while deleting your watchlist. Please try again.",
+                icon: "alert-circle",
+                iconColor: "#f44336",
+                buttons: [{ text: "OK", style: "default" }],
+              });
+            }
           },
         },
       ],
@@ -403,6 +431,28 @@ const WatchlistsScreen = ({ navigation }) => {
         isLoading={isCreatingWatchlist}
       />
 
+      {createToast && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.createToast,
+            {
+              opacity: createToastAnim,
+              transform: [
+                {
+                  translateY: createToastAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [18, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.createToastText}>{createToast}</Text>
+        </Animated.View>
+      )}
+
       <CustomAlert
         visible={alertConfig.visible}
         onClose={hideAlert}
@@ -425,7 +475,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   );
   const [contentLoading, setContentLoading] = useState(true);
   const [alertConfig, setAlertConfig] = useState({ visible: false });
-  const [showWatchedOnly, setShowWatchedOnly] = useState(false);
+  const [showUnwatchedOnly, setShowUnwatchedOnly] = useState(false);
   const [loadingStates, setLoadingStates] = useState({});
   const [xpToast, setXpToast] = useState(null);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -901,12 +951,13 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     });
   }, [movies]);
 
-  const filteredMovies = showWatchedOnly
-    ? movies.filter((movie) => movie.watched)
+  const filteredMovies = showUnwatchedOnly
+    ? movies.filter((movie) => !movie.watched)
     : movies;
 
   const watchedCount = movies.filter((movie) => movie.watched).length;
   const totalCount = movies.length;
+  const unwatchedCount = totalCount - watchedCount;
 
   return (
     <View
@@ -942,18 +993,18 @@ const WatchlistContentScreen = ({ route, navigation }) => {
           </Text>
         </View>
 
-        {watchedCount > 0 && (
+        {unwatchedCount > 0 && (
           <TouchableOpacity
             style={[
               styles.filterButton,
-              showWatchedOnly && styles.filterButtonActive,
+              showUnwatchedOnly && styles.filterButtonActive,
             ]}
-            onPress={() => setShowWatchedOnly(!showWatchedOnly)}
+            onPress={() => setShowUnwatchedOnly(!showUnwatchedOnly)}
           >
             <Ionicons
-              name={showWatchedOnly ? "eye" : "eye-off"}
+              name={showUnwatchedOnly ? "eye-off" : "eye"}
               size={20}
-              color={showWatchedOnly ? "#4caf50" : colors.text}
+              color={showUnwatchedOnly ? "#4caf50" : colors.text}
             />
           </TouchableOpacity>
         )}
@@ -972,11 +1023,11 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         />
       ) : filteredMovies.length === 0 ? (
         <EmptyState
-          icon={showWatchedOnly ? "eye" : "videocam-outline"}
-          title={showWatchedOnly ? "No Watched Movies" : "No Movies Yet"}
+          icon={showUnwatchedOnly ? "eye-off" : "videocam-outline"}
+          title={showUnwatchedOnly ? "No Unwatched Movies" : "No Movies Yet"}
           subtitle={
-            showWatchedOnly
-              ? "You haven't marked any movies as watched yet"
+            showUnwatchedOnly
+              ? "Everything in this list has been marked as watched"
               : `Add movies to "${watchlistName}" from the search screen`
           }
         />
@@ -1774,6 +1825,23 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
   },
   pixelToastText: { fontWeight: "700", fontSize: 13, letterSpacing: 0.5 },
+
+  createToast: {
+    position: "absolute",
+    bottom: 88,
+    alignSelf: "center",
+    backgroundColor: "rgba(20,20,20,0.9)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    zIndex: 999,
+  },
+  createToastText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
 
   // ─── Achievement Toast (slides up from bottom) ─────────
   achToast: {
