@@ -22,7 +22,6 @@ import CustomAlert from "../components/CustomAlert";
 import WatchlistCard from "../components/WatchlistCard";
 import EmptyState from "../components/EmptyState";
 import CreateWatchlistModal from "../components/CreateWatchlistModal";
-import BadgesModal from "../components/BadgesModal";
 import RetryState from "../components/RetryState";
 
 import {
@@ -37,7 +36,7 @@ import {
   getLevelInfo,
   recordMovieWatched,
   recordMovieUnwatched,
-  recordListCreated,
+  recordListCreatedWithName,
   recordListCompleted,
 } from "../utils/gamification";
 
@@ -48,7 +47,6 @@ const WatchlistsScreen = ({ navigation }) => {
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
   const [gamification, setGamification] = useState(null);
-  const [badgesModalVisible, setBadgesModalVisible] = useState(false);
   const [watchlistsLoading, setWatchlistsLoading] = useState(true);
   const [watchlistsLoadError, setWatchlistsLoadError] = useState(false);
   const [watchlistsLoadMessage, setWatchlistsLoadMessage] = useState(
@@ -56,12 +54,6 @@ const WatchlistsScreen = ({ navigation }) => {
   );
   const xpBlockAnims = useRef(
     Array.from({ length: 20 }, () => new Animated.Value(0)),
-  ).current;
-  const chipEnterAnims = useRef(
-    Array.from({ length: 4 }, () => ({
-      opacity: new Animated.Value(0),
-      ty: new Animated.Value(10),
-    })),
   ).current;
   const cursorBlink = useRef(new Animated.Value(1)).current;
   const scanAnim = useRef(new Animated.Value(0)).current;
@@ -90,7 +82,7 @@ const WatchlistsScreen = ({ navigation }) => {
     try {
       const data = await getWatchlists();
       console.log("Fetched watchlists:", data);
-      setWatchlists(data);
+      setWatchlists(data || {});
       setWatchlistsLoadError(false);
     } catch (error) {
       console.error("Error fetching watchlists:", error);
@@ -135,46 +127,26 @@ const WatchlistsScreen = ({ navigation }) => {
     const filled = li.next ? Math.round(li.progress * 20) : 20;
 
     if (!hudAnimated.current) {
-      // First time: run full intro animation (scan, chips, cursor)
+      // First time: run intro animation (scan + cursor)
       hudAnimated.current = true;
 
       Animated.timing(scanAnim, {
         toValue: 1,
         duration: 900,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
-
-      Animated.stagger(
-        65,
-        chipEnterAnims.map(({ opacity, ty }) =>
-          Animated.parallel([
-            Animated.spring(opacity, {
-              toValue: 1,
-              useNativeDriver: true,
-              tension: 120,
-              friction: 8,
-            }),
-            Animated.spring(ty, {
-              toValue: 0,
-              useNativeDriver: true,
-              tension: 150,
-              friction: 10,
-            }),
-          ]),
-        ),
-      ).start();
 
       Animated.loop(
         Animated.sequence([
           Animated.timing(cursorBlink, {
             toValue: 0,
             duration: 450,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(cursorBlink, {
             toValue: 1,
             duration: 450,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ]),
       ).start();
@@ -186,7 +158,7 @@ const WatchlistsScreen = ({ navigation }) => {
       xpBlockAnims.map((a, i) =>
         Animated.spring(a, {
           toValue: i < filled ? 1 : 0.45,
-          useNativeDriver: true,
+          useNativeDriver: false,
           tension: 220,
           friction: 11,
         }),
@@ -222,12 +194,15 @@ const WatchlistsScreen = ({ navigation }) => {
       setTimeout(fetchWatchlists, 100);
       navigation.setParams({ watchlistsModified: Date.now() });
 
-      // Record gamification
-      await recordListCreated();
+      // Record gamification (server-authoritative)
+      const listCreateGamification = await recordListCreatedWithName(name);
       loadGamification();
 
       showCustomAlert({
-        title: "Watchlist Created! +15 XP",
+        title:
+          listCreateGamification?.xpGained > 0
+            ? "Watchlist Created! +15 XP"
+            : "Watchlist Created",
         message: `"${name}" has been successfully created.`,
         icon: "checkmark-circle",
         iconColor: "#4caf50",
@@ -291,21 +266,11 @@ const WatchlistsScreen = ({ navigation }) => {
 
   const levelInfo = gamification ? getLevelInfo(gamification.xp) : null;
 
-  // Count total stats across all watchlists
-  const totalMovies = Object.values(watchlists).reduce(
-    (sum, list) => sum + list.length,
-    0,
-  );
-  const totalWatchedInLists = Object.values(watchlists).reduce(
-    (sum, list) => sum + list.filter((m) => m.watched).length,
-    0,
-  );
-
   return (
     <KeyboardAvoidingView
       style={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
+        { backgroundColor: colors.background, paddingTop: insets.top + 8 },
       ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
@@ -378,95 +343,6 @@ const WatchlistsScreen = ({ navigation }) => {
               MAX LEVEL • {gamification.xp} XP
             </Text>
           )}
-
-          {/* Stats chips */}
-          <View style={styles.hudChipsRow}>
-            {gamification.currentStreak > 0 && (
-              <Animated.View
-                style={[
-                  styles.hudChip,
-                  {
-                    opacity: chipEnterAnims[0].opacity,
-                    transform: [{ translateY: chipEnterAnims[0].ty }],
-                  },
-                ]}
-              >
-                <View style={styles.hudChipCornerTL} />
-                <View style={styles.hudChipCornerTR} />
-                <View style={styles.hudChipCornerBL} />
-                <View style={styles.hudChipCornerBR} />
-                <Ionicons name="flame" size={14} color="#E50914" />
-                <Text style={[styles.hudChipVal, { color: colors.text }]}>
-                  {gamification.currentStreak}
-                </Text>
-                <Text style={styles.hudChipLbl}>STREAK</Text>
-              </Animated.View>
-            )}
-            <Animated.View
-              style={[
-                styles.hudChip,
-                {
-                  opacity: chipEnterAnims[1].opacity,
-                  transform: [{ translateY: chipEnterAnims[1].ty }],
-                },
-              ]}
-            >
-              <View style={styles.hudChipCornerTL} />
-              <View style={styles.hudChipCornerTR} />
-              <View style={styles.hudChipCornerBL} />
-              <View style={styles.hudChipCornerBR} />
-              <Ionicons name="film-outline" size={14} color="#E50914" />
-              <Text style={[styles.hudChipVal, { color: colors.text }]}>
-                {totalMovies}
-              </Text>
-              <Text style={styles.hudChipLbl}>LISTED</Text>
-            </Animated.View>
-            <Animated.View
-              style={[
-                styles.hudChip,
-                {
-                  opacity: chipEnterAnims[2].opacity,
-                  transform: [{ translateY: chipEnterAnims[2].ty }],
-                },
-              ]}
-            >
-              <View style={styles.hudChipCornerTL} />
-              <View style={styles.hudChipCornerTR} />
-              <View style={styles.hudChipCornerBL} />
-              <View style={styles.hudChipCornerBR} />
-              <Ionicons name="eye-outline" size={14} color="#E50914" />
-              <Text style={[styles.hudChipVal, { color: colors.text }]}>
-                {totalWatchedInLists}
-              </Text>
-              <Text style={styles.hudChipLbl}>WATCHED</Text>
-            </Animated.View>
-            <TouchableOpacity
-              onPress={() => setBadgesModalVisible(true)}
-              activeOpacity={0.75}
-              style={{ flex: 1 }}
-            >
-              <Animated.View
-                style={[
-                  styles.hudChip,
-                  { flex: undefined },
-                  {
-                    opacity: chipEnterAnims[3].opacity,
-                    transform: [{ translateY: chipEnterAnims[3].ty }],
-                  },
-                ]}
-              >
-                <View style={styles.hudChipCornerTL} />
-                <View style={styles.hudChipCornerTR} />
-                <View style={styles.hudChipCornerBL} />
-                <View style={styles.hudChipCornerBR} />
-                <Ionicons name="trophy-outline" size={14} color="#E50914" />
-                <Text style={[styles.hudChipVal, { color: colors.text }]}>
-                  {gamification.unlockedAchievements.length}
-                </Text>
-                <Text style={styles.hudChipLbl}>BADGES</Text>
-              </Animated.View>
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
@@ -536,19 +412,12 @@ const WatchlistsScreen = ({ navigation }) => {
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
-
-      <BadgesModal
-        visible={badgesModalVisible}
-        onClose={() => setBadgesModalVisible(false)}
-        unlockedAchievements={gamification?.unlockedAchievements || []}
-        colors={colors}
-      />
     </KeyboardAvoidingView>
   );
 };
 
 const WatchlistContentScreen = ({ route, navigation }) => {
-  const { name } = route.params;
+  const watchlistName = route?.params?.name || "";
   const [movies, setMovies] = useState([]);
   const [contentLoadError, setContentLoadError] = useState(false);
   const [contentLoadMessage, setContentLoadMessage] = useState(
@@ -594,13 +463,13 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       Animated.timing(xpToastAnim, {
         toValue: 1,
         duration: 300,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.delay(1600),
       Animated.timing(xpToastAnim, {
         toValue: 0,
         duration: 300,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => setXpToast(null));
   };
@@ -611,7 +480,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     Animated.sequence([
       Animated.spring(achToastAnim, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: false,
         tension: 100,
         friction: 10,
       }),
@@ -619,7 +488,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       Animated.timing(achToastAnim, {
         toValue: 0,
         duration: 280,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => setAchievementToast({ visible: false, achievement: null }));
   };
@@ -630,7 +499,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     Animated.sequence([
       Animated.spring(levelUpBannerAnim, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: false,
         tension: 100,
         friction: 10,
       }),
@@ -638,16 +507,26 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       Animated.timing(levelUpBannerAnim, {
         toValue: 0,
         duration: 280,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => setLevelUpBanner({ visible: false, level: null }));
   };
 
-  const fetchMovies = async () => {
+  const fetchMovies = useCallback(async () => {
+    if (!watchlistName) {
+      setContentLoadError(true);
+      setContentLoadMessage("This watchlist could not be opened.");
+      setContentLoading(false);
+      return;
+    }
+
     setContentLoading(true);
     try {
       const lists = await getWatchlists();
-      setMovies(lists[name] || []);
+      const listMovies = Array.isArray(lists?.[watchlistName])
+        ? lists[watchlistName].filter(Boolean)
+        : [];
+      setMovies(listMovies);
       setContentLoadError(false);
     } catch (error) {
       console.error("Failed to fetch movies in watchlist:", error);
@@ -660,18 +539,18 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     } finally {
       setContentLoading(false);
     }
-  };
+  }, [watchlistName]);
 
   const handleRetryContent = useCallback(async () => {
     setContentLoadError(false);
     await fetchMovies();
-  }, []);
+  }, [fetchMovies]);
 
   useEffect(() => {
     fetchMovies();
     const unsubscribe = navigation.addListener("focus", fetchMovies);
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, fetchMovies]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
@@ -681,8 +560,10 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   }, [navigation]);
 
   const handleDeleteMovie = async (imdbID) => {
+    if (!watchlistName) return;
+
     try {
-      await removeFromWatchlist(name, imdbID);
+      await removeFromWatchlist(watchlistName, imdbID);
       setMovies((prev) => prev.filter((m) => m.imdbID !== imdbID));
       navigation.setParams({ movieRemoved: Date.now() });
 
@@ -698,6 +579,8 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const handleToggleWatched = async (movie) => {
     const movieId = movie.imdbID;
 
+    if (!watchlistName) return;
+
     try {
       // Set loading state
       setLoadingStates((prev) => ({ ...prev, [movieId]: true }));
@@ -711,14 +594,14 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       );
 
       // Perform actual async operation
-      await toggleWatchedStatus(name, movieId);
+      await toggleWatchedStatus(watchlistName, movieId);
 
       navigation.setParams({ movieWatchedToggled: Date.now() });
 
       // Gamification: record watch/unwatch
       if (newWatchedStatus) {
         const { state, newAchievements, xpGained, leveledUp } =
-          await recordMovieWatched(movie.imdbID);
+          await recordMovieWatched(movie.imdbID, watchlistName);
         showXpToast(xpGained, state.currentStreak);
 
         if (leveledUp) {
@@ -732,7 +615,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         const allWatched =
           updatedMovies.length > 0 && updatedMovies.every((m) => m.watched);
         if (allWatched) {
-          const completionResult = await recordListCompleted(name);
+          const completionResult = await recordListCompleted(watchlistName);
           if (!completionResult.alreadyCompleted) {
             setTimeout(() => setShowCelebration(true), 500);
           }
@@ -875,7 +758,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       onDelete={() =>
         showCustomAlert({
           title: "Remove from Watchlist",
-          message: `Are you sure you want to remove "${movie.Title}" from "${name}"?`,
+          message: `Are you sure you want to remove "${movie.Title}" from "${watchlistName}"?`,
           icon: "remove-circle",
           iconColor: "#f44336",
           buttons: [
@@ -892,16 +775,24 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   );
 
   const renderMovie = ({ item }) => {
-    const isWatched = item.watched;
-    const isLoading = loadingStates[item.imdbID];
+    const movieId = item?.imdbID || item?.id || `movie-${Math.random()}`;
+    const movieType = typeof item?.Type === "string" ? item.Type : "movie";
+    const movieTitle = item?.Title || "Untitled";
+    const movieYear = item?.Year || "Unknown";
+    const moviePoster =
+      typeof item?.Poster === "string" && item.Poster !== "N/A"
+        ? item.Poster
+        : "https://via.placeholder.com/300x450?text=No+Poster";
+    const isWatched = !!item?.watched;
+    const isLoading = loadingStates[movieId];
 
     return (
       <Swipeable
         ref={(ref) => {
           if (ref) {
-            swipeRefs.current[item.imdbID] = ref;
+            swipeRefs.current[movieId] = ref;
           } else {
-            delete swipeRefs.current[item.imdbID];
+            delete swipeRefs.current[movieId];
           }
         }}
         renderRightActions={(progress, dragX) =>
@@ -918,16 +809,14 @@ const WatchlistContentScreen = ({ route, navigation }) => {
             isWatched && styles.watchedMovieCard,
             isLoading && styles.loadingCard,
           ]}
-          onPress={() =>
-            navigation.navigate("Details", { imdbID: item.imdbID })
-          }
+          onPress={() => navigation.navigate("Details", { imdbID: movieId })}
           activeOpacity={0.8}
         >
           <View style={styles.posterContainer}>
             <Image
-              source={{ uri: item.Poster }}
+              source={{ uri: moviePoster }}
               style={[styles.moviePoster, isWatched && styles.watchedPoster]}
-              contentFit="cover"
+              resizeMode="cover"
             />
             {isWatched && !isLoading && (
               <View style={styles.watchedOverlay}>
@@ -951,7 +840,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
               ]}
               numberOfLines={2}
             >
-              {item.Title}
+              {movieTitle}
             </Text>
             <Text
               style={[
@@ -961,7 +850,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
                 isLoading && styles.loadingText,
               ]}
             >
-              {item.Year}
+              {movieYear}
             </Text>
             <View style={styles.tagsContainer}>
               <View style={styles.movieTypeContainer}>
@@ -972,7 +861,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
                     isLoading && styles.loadingTypeText,
                   ]}
                 >
-                  {item.Type.charAt(0).toUpperCase() + item.Type.slice(1)}
+                  {movieType.charAt(0).toUpperCase() + movieType.slice(1)}
                 </Text>
               </View>
               {isWatched && !isLoading && (
@@ -1023,7 +912,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     <View
       style={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top },
+        { backgroundColor: colors.background, paddingTop: insets.top + 8 },
       ]}
     >
       <View style={styles.headerRow}>
@@ -1038,7 +927,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
             style={[styles.watchlistHeader, { color: colors.text }]}
             numberOfLines={1}
           >
-            {name}
+            {watchlistName}
           </Text>
           <Text style={[styles.movieCountText, { color: colors.text }]}>
             {totalCount} {totalCount === 1 ? "movie" : "movies"}
@@ -1088,13 +977,15 @@ const WatchlistContentScreen = ({ route, navigation }) => {
           subtitle={
             showWatchedOnly
               ? "You haven't marked any movies as watched yet"
-              : `Add movies to "${name}" from the search screen`
+              : `Add movies to "${watchlistName}" from the search screen`
           }
         />
       ) : (
         <FlatList
           data={filteredMovies}
-          keyExtractor={(item) => item.imdbID}
+          keyExtractor={(item, index) =>
+            item?.imdbID || item?.id || `movie-${index}`
+          }
           renderItem={renderMovie}
           contentContainerStyle={styles.movieListContainer}
           showsVerticalScrollIndicator={false}
@@ -1167,7 +1058,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
               <Text style={styles.pixelAchIconEmoji}>🏆</Text>
             </View>
             <Text style={[styles.pixelAchTitle, { color: colors.text }]}>
-              {name}
+              {watchlistName}
             </Text>
             <Text style={[styles.pixelAchDesc, { color: colors.text }]}>
               All titles marked as watched{"\n"}+100 XP awarded
@@ -1266,7 +1157,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 18,
   },
   header: {
     fontSize: 26,
@@ -1548,8 +1439,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(229,9,20,0.22)",
     borderRadius: 0,
     backgroundColor: "rgba(229,9,20,0.02)",
-    padding: 12,
-    marginBottom: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 10,
     overflow: "hidden",
   },
   hudTopRow: {
@@ -1561,7 +1453,6 @@ const styles = StyleSheet.create({
   },
   hudXpBarInline: {
     gap: 6,
-    marginBottom: 10,
   },
   hudHeader: {
     paddingBottom: 14,
@@ -1623,12 +1514,12 @@ const styles = StyleSheet.create({
   },
   hudXpSegments: {
     flexDirection: "row",
-    gap: 3,
+    gap: 2,
     flex: 1,
   },
   hudXpBlock: {
     flex: 1,
-    height: 16,
+    height: 10,
     borderRadius: 0,
   },
   hudXpBlockFilled: {
@@ -1644,42 +1535,39 @@ const styles = StyleSheet.create({
   hudXpMetaText: {
     fontSize: 9,
     fontWeight: "700",
-    letterSpacing: 0.8,
-    opacity: 0.45,
-    minWidth: 0,
-    maxWidth: "100%",
+    letterSpacing: 0.6,
+    opacity: 0.7,
+    minWidth: 76,
     textAlign: "right",
-    flexShrink: 1,
+    marginLeft: 8,
   },
   hudProgressFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 2,
+    alignItems: "center",
+    marginTop: 6,
+    minHeight: 14,
   },
   hudProgressLeft: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
     minWidth: 0,
     gap: 4,
+    flexShrink: 1,
   },
   hudProgressLabel: {
-    fontSize: 7,
+    fontSize: 8,
     fontWeight: "700",
-    letterSpacing: 1,
+    letterSpacing: 0.9,
     color: "#E50914",
-    opacity: 0.8,
-    flexShrink: 1,
+    opacity: 0.9,
   },
   hudMaxLvlText: {
     fontSize: 9,
     fontWeight: "700",
     letterSpacing: 1.1,
     color: "#E50914",
-    marginBottom: 10,
+    marginBottom: 2,
   },
   hudChipsRow: {
     flexDirection: "row",

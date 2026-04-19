@@ -1,10 +1,12 @@
-import { getGamificationData, syncGamificationData } from "../services/api";
+import {
+  getGamificationData,
+  recordGamificationWatch,
+  recordGamificationListCreated,
+  recordGamificationListCompleted,
+} from "../services/api";
 
 // ─── XP & LEVELS ───────────────────────────────────────────
 const XP_PER_WATCH = 25;
-const XP_PER_LIST_COMPLETE = 100;
-const XP_PER_LIST_CREATE = 15;
-const XP_STREAK_BONUS = 10;
 
 const LEVELS = [
   { level: 1, title: "Newbie", xpNeeded: 0, icon: "🍿" },
@@ -193,16 +195,6 @@ const ACHIEVEMENTS = [
 ];
 
 // ─── HELPERS ───────────────────────────────────────────────
-const getToday = () => new Date().toISOString().split("T")[0];
-
-const getWeekKey = () => {
-  const d = new Date();
-  const startOfYear = new Date(d.getFullYear(), 0, 1);
-  const weekNum = Math.ceil(
-    ((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7,
-  );
-  return `${d.getFullYear()}-W${String(weekNum).padStart(2, "0")}`;
-};
 
 const defaultState = () => ({
   xp: 0,
@@ -228,8 +220,49 @@ export const getGamificationState = async () => {
   }
 };
 
-const saveState = async (state) => {
-  await syncGamificationData(state);
+const ACHIEVEMENTS_BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
+
+const normalizeServerResult = (result) => {
+  const state = result?.state
+    ? { ...defaultState(), ...result.state }
+    : defaultState();
+
+  const normalizedAchievements = Array.isArray(result?.newAchievements)
+    ? result.newAchievements
+        .map((a) => {
+          if (!a) return null;
+          if (a.id && a.title && a.desc && a.icon) return a;
+          if (a.id && ACHIEVEMENTS_BY_ID.has(a.id)) {
+            const mapped = ACHIEVEMENTS_BY_ID.get(a.id);
+            return {
+              id: mapped.id,
+              title: mapped.title,
+              desc: mapped.desc,
+              icon: mapped.icon,
+            };
+          }
+          if (typeof a === "string" && ACHIEVEMENTS_BY_ID.has(a)) {
+            const mapped = ACHIEVEMENTS_BY_ID.get(a);
+            return {
+              id: mapped.id,
+              title: mapped.title,
+              desc: mapped.desc,
+              icon: mapped.icon,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean)
+    : [];
+
+  return {
+    state,
+    newAchievements: normalizedAchievements,
+    xpGained: Number(result?.xpGained || 0),
+    leveledUp: result?.leveledUp || null,
+    canEarnXp: result?.canEarnXp !== false,
+    alreadyCompleted: !!result?.alreadyCompleted,
+  };
 };
 
 // ─── LEVEL CALCULATIONS ────────────────────────────────────
@@ -246,37 +279,6 @@ export const getLevelInfo = (xp) => {
   return { current, next, xpInLevel, xpForNext, progress };
 };
 
-// ─── STREAK ────────────────────────────────────────────────
-const updateStreak = (state) => {
-  const today = getToday();
-  if (state.lastWatchDate === today) return state;
-
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
-
-  const newStreak =
-    state.lastWatchDate === yesterdayStr ? state.currentStreak + 1 : 1;
-  return {
-    ...state,
-    currentStreak: newStreak,
-    bestStreak: Math.max(state.bestStreak, newStreak),
-    lastWatchDate: today,
-  };
-};
-
-// ─── ACHIEVEMENT CHECK ─────────────────────────────────────
-const checkNewAchievements = (state) => {
-  const newlyUnlocked = [];
-  for (const ach of ACHIEVEMENTS) {
-    if (!state.unlockedAchievements.includes(ach.id) && ach.condition(state)) {
-      newlyUnlocked.push(ach);
-      state.unlockedAchievements.push(ach.id);
-    }
-  }
-  return newlyUnlocked;
-};
-
 // ─── PUBLIC ACTIONS ────────────────────────────────────────
 
 /**
@@ -285,13 +287,9 @@ const checkNewAchievements = (state) => {
  * - totalWatched counts UNIQUE titles ever watched — always stays correct regardless of toggles.
  * - Returns { state, newAchievements, xpGained, leveledUp, canEarnXp }
  */
-export const recordMovieWatched = async (imdbID) => {
-  let state = await getGamificationState();
-
-  const watchedIds = state.watchedMovieIds || [];
-
-  // If this title has already earned XP before, return immediately — no state change.
-  if (imdbID && watchedIds.includes(imdbID)) {
+export const recordMovieWatched = async (imdbID, listName) => {
+  if (!imdbID) {
+    const state = await getGamificationState();
     return {
       state,
       newAchievements: [],
@@ -301,41 +299,19 @@ export const recordMovieWatched = async (imdbID) => {
     };
   }
 
-  const prevLevel = getLevelInfo(state.xp).current;
-
-  // Permanently mark as earned so future toggles are ignored
-  if (imdbID) {
-    state.watchedMovieIds = [...watchedIds, imdbID];
+  try {
+    const result = await recordGamificationWatch(imdbID, listName);
+    return normalizeServerResult(result);
+  } catch {
+    const state = await getGamificationState();
+    return {
+      state,
+      newAchievements: [],
+      xpGained: 0,
+      leveledUp: null,
+      canEarnXp: false,
+    };
   }
-
-  state.totalWatched += 1;
-
-  // Track daily + weekly counts (for binge badges — only first watch per title counts)
-  const today = getToday();
-  const weekKey = getWeekKey();
-  state.dailyWatchCounts = {
-    ...state.dailyWatchCounts,
-    [today]: (state.dailyWatchCounts[today] || 0) + 1,
-  };
-  state.weeklyWatchCounts = {
-    ...state.weeklyWatchCounts,
-    [weekKey]: (state.weeklyWatchCounts[weekKey] || 0) + 1,
-  };
-
-  // Update streak and award XP
-  state = updateStreak(state);
-  const streakBonus =
-    state.currentStreak > 1 ? (state.currentStreak - 1) * XP_STREAK_BONUS : 0;
-  const xpGained = XP_PER_WATCH + streakBonus;
-  state.xp += xpGained;
-
-  const newAchievements = checkNewAchievements(state);
-  await saveState(state);
-
-  const newLevel = getLevelInfo(state.xp).current;
-  const leveledUp = newLevel.level > prevLevel.level ? newLevel : null;
-
-  return { state, newAchievements, xpGained, leveledUp, canEarnXp: true };
 };
 
 /**
@@ -349,15 +325,38 @@ export const recordMovieUnwatched = async () => {
 };
 
 export const recordListCreated = async () => {
-  let state = await getGamificationState();
-  const prevLevel = getLevelInfo(state.xp).current;
-  state.listsCreated += 1;
-  state.xp += XP_PER_LIST_CREATE;
-  const newAchievements = checkNewAchievements(state);
-  await saveState(state);
-  const newLevel = getLevelInfo(state.xp).current;
-  const leveledUp = newLevel.level > prevLevel.level ? newLevel : null;
-  return { state, newAchievements, leveledUp };
+  const state = await getGamificationState();
+  return {
+    state,
+    newAchievements: [],
+    xpGained: 0,
+    leveledUp: null,
+  };
+};
+
+export const recordListCreatedWithName = async (listName) => {
+  if (!listName) {
+    const state = await getGamificationState();
+    return {
+      state,
+      newAchievements: [],
+      xpGained: 0,
+      leveledUp: null,
+    };
+  }
+
+  try {
+    const result = await recordGamificationListCreated(listName);
+    return normalizeServerResult(result);
+  } catch {
+    const state = await getGamificationState();
+    return {
+      state,
+      newAchievements: [],
+      xpGained: 0,
+      leveledUp: null,
+    };
+  }
 };
 
 /**
@@ -366,33 +365,30 @@ export const recordListCreated = async () => {
  * - Re-completing a list (unwatch last item then re-watch) never re-earns XP.
  */
 export const recordListCompleted = async (listName) => {
-  let state = await getGamificationState();
-
-  const completedNames = state.completedListNames || [];
-
-  // Already completed this list before — no XP, no state change.
-  if (listName && completedNames.includes(listName)) {
+  if (!listName) {
+    const state = await getGamificationState();
     return {
       state,
       newAchievements: [],
+      xpGained: 0,
       leveledUp: null,
       alreadyCompleted: true,
     };
   }
 
-  const prevLevel = getLevelInfo(state.xp).current;
-
-  if (listName) {
-    state.completedListNames = [...completedNames, listName];
+  try {
+    const result = await recordGamificationListCompleted(listName);
+    return normalizeServerResult(result);
+  } catch {
+    const state = await getGamificationState();
+    return {
+      state,
+      newAchievements: [],
+      xpGained: 0,
+      leveledUp: null,
+      alreadyCompleted: true,
+    };
   }
-
-  state.listsCompleted += 1;
-  state.xp += XP_PER_LIST_COMPLETE;
-  const newAchievements = checkNewAchievements(state);
-  await saveState(state);
-  const newLevel = getLevelInfo(state.xp).current;
-  const leveledUp = newLevel.level > prevLevel.level ? newLevel : null;
-  return { state, newAchievements, leveledUp, alreadyCompleted: false };
 };
 
 export { LEVELS, ACHIEVEMENTS, XP_PER_WATCH };

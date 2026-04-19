@@ -27,7 +27,7 @@ const WatchlistCard = ({
       Animated.spring(scale, {
         toValue: 0.98,
         friction: 8,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(elevation, {
         toValue: 12,
@@ -42,7 +42,7 @@ const WatchlistCard = ({
       Animated.spring(scale, {
         toValue: 1,
         friction: 8,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
       Animated.timing(elevation, {
         toValue: 4,

@@ -63,7 +63,6 @@ const FavoritesScreen = ({ navigation }) => {
   ).current;
   const cursorBlink = useRef(new Animated.Value(1)).current;
   const scanAnim = useRef(new Animated.Value(0)).current;
-  const hudBarAnim = useRef(new Animated.Value(0)).current;
   const hudAnimated = useRef(false);
 
   const { colors } = useTheme();
@@ -172,13 +171,6 @@ const FavoritesScreen = ({ navigation }) => {
         useNativeDriver: true,
       }).start();
 
-      Animated.spring(hudBarAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 9,
-      }).start();
-
       Animated.loop(
         Animated.sequence([
           Animated.timing(cursorBlink, {
@@ -208,56 +200,6 @@ const FavoritesScreen = ({ navigation }) => {
       ),
     ).start();
   }, [gamification]);
-
-  // Calculate statistics
-  const stats = useMemo(() => {
-    if (favorites.length === 0) return null;
-
-    const movies = favorites.filter((f) => f.Type === "movie");
-    const series = favorites.filter((f) => f.Type === "series");
-
-    // Extract genres from favorites (if available)
-    const genreCounts = {};
-    favorites.forEach((item) => {
-      if (item.Genre) {
-        const genres = item.Genre.split(", ");
-        genres.forEach((genre) => {
-          genreCounts[genre] = (genreCounts[genre] || 0) + 1;
-        });
-      }
-    });
-
-    const topGenre =
-      Object.keys(genreCounts).length > 0
-        ? Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0][0]
-        : null;
-
-    // Calculate average rating
-    const ratingsAvailable = favorites.filter(
-      (f) => f.imdbRating && f.imdbRating !== "N/A",
-    );
-    const avgRating =
-      ratingsAvailable.length > 0
-        ? (
-            ratingsAvailable.reduce(
-              (sum, f) => sum + parseFloat(f.imdbRating),
-              0,
-            ) / ratingsAvailable.length
-          ).toFixed(1)
-        : null;
-
-    // Estimate total runtime (rough estimate: 2h per movie, 10h per series season)
-    const estimatedHours = movies.length * 2 + series.length * 10;
-
-    return {
-      total: favorites.length,
-      movies: movies.length,
-      series: series.length,
-      topGenre,
-      avgRating,
-      estimatedHours,
-    };
-  }, [favorites]);
 
   // Filter and sort favorites
   const processedFavorites = useMemo(() => {
@@ -633,37 +575,42 @@ const FavoritesScreen = ({ navigation }) => {
                 />
                 {li.next ? (
                   <View style={styles.hudXpBarInline}>
-                    <View style={styles.hudXpSegments}>
-                      {Array.from({ length: 20 }, (_, i) => (
-                        <Animated.View
-                          key={i}
-                          style={[
-                            styles.hudXpBlock,
-                            i / 20 < li.progress
-                              ? styles.hudXpBlockFilled
-                              : styles.hudXpBlockEmpty,
-                            { transform: [{ scaleY: xpBlockAnims[i] }] },
-                          ]}
-                        />
-                      ))}
-                    </View>
-                    <View style={styles.hudProgressFooter}>
-                      <View style={styles.hudProgressLeft}>
-                        <Text style={styles.hudProgressLabel} numberOfLines={1}>
-                          {li.current.icon} LVL {li.current.level}
-                        </Text>
-                        <Animated.Text
-                          style={[styles.hudCursor, { opacity: cursorBlink }]}
-                        >
-                          █
-                        </Animated.Text>
+                    <View style={{ zIndex: 1 }}>
+                      <View style={styles.hudXpSegments}>
+                        {Array.from({ length: 20 }, (_, i) => (
+                          <Animated.View
+                            key={i}
+                            style={[
+                              styles.hudXpBlock,
+                              i / 20 < li.progress
+                                ? styles.hudXpBlockFilled
+                                : styles.hudXpBlockEmpty,
+                              { transform: [{ scaleY: xpBlockAnims[i] }] },
+                            ]}
+                          />
+                        ))}
                       </View>
-                      <Text
-                        style={[styles.hudXpMetaText, { color: colors.text }]}
-                        numberOfLines={1}
-                      >
-                        {li.xpInLevel}/{li.xpForNext} XP
-                      </Text>
+                      <View style={styles.hudProgressFooter}>
+                        <View style={styles.hudProgressLeft}>
+                          <Text
+                            style={styles.hudProgressLabel}
+                            numberOfLines={1}
+                          >
+                            {li.current.icon} LVL {li.current.level}
+                          </Text>
+                          <Animated.Text
+                            style={[styles.hudCursor, { opacity: cursorBlink }]}
+                          >
+                            █
+                          </Animated.Text>
+                        </View>
+                        <Text
+                          style={[styles.hudXpMetaText, { color: colors.text }]}
+                          numberOfLines={1}
+                        >
+                          {li.xpInLevel}/{li.xpForNext} XP
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 ) : (
@@ -705,94 +652,6 @@ const FavoritesScreen = ({ navigation }) => {
           </View>
         ) : (
           <>
-            {/* Unified Pixel HUD Stats Strip */}
-            {stats && (
-              <Animated.View
-                style={{
-                  opacity: hudBarAnim,
-                  transform: [
-                    {
-                      translateY: hudBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <View
-                  style={[styles.pixelHudBar, { backgroundColor: colors.card }]}
-                >
-                  <View style={styles.pixelHudRowCompact}>
-                    <View style={styles.pixelHudCellCompact}>
-                      <Ionicons name="heart" size={11} color="#E50914" />
-                      <Text
-                        style={[
-                          styles.pixelHudValCompact,
-                          { color: colors.text },
-                        ]}
-                      >
-                        {stats.total}
-                      </Text>
-                      <Text style={styles.pixelHudLblCompact}>SAVED</Text>
-                    </View>
-                    <View style={styles.pixelHudCellCompact}>
-                      <Ionicons name="time-outline" size={11} color="#E50914" />
-                      <Text
-                        style={[
-                          styles.pixelHudValCompact,
-                          { color: colors.text },
-                        ]}
-                      >
-                        ~{stats.estimatedHours}h
-                      </Text>
-                      <Text style={styles.pixelHudLblCompact}>RUNTIME</Text>
-                    </View>
-                    <View style={styles.pixelHudCellCompact}>
-                      <Ionicons name="star" size={11} color="#E50914" />
-                      <Text
-                        style={[
-                          styles.pixelHudValCompact,
-                          { color: colors.text },
-                        ]}
-                      >
-                        {stats.avgRating || "N/A"}
-                      </Text>
-                      <Text style={styles.pixelHudLblCompact}>AVG</Text>
-                    </View>
-                    <View style={styles.pixelHudCellCompact}>
-                      <Ionicons name="trophy" size={11} color="#E50914" />
-                      <Text
-                        style={[
-                          styles.pixelHudValCompact,
-                          { color: colors.text },
-                        ]}
-                      >
-                        {gamification?.unlockedAchievements.length || 0}
-                      </Text>
-                      <Text style={styles.pixelHudLblCompact}>BADGES</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.pixelHudMetaLine}>
-                    {gamification?.currentStreak > 0 ? (
-                      <Text style={styles.pixelHudMetaText}>
-                        STREAK {gamification.currentStreak}
-                      </Text>
-                    ) : (
-                      <Text style={styles.pixelHudMetaTextMuted}>STREAK —</Text>
-                    )}
-
-                    {stats.topGenre ? (
-                      <Text style={styles.pixelHudMetaText} numberOfLines={1}>
-                        TOP GENRE {stats.topGenre.toUpperCase()}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              </Animated.View>
-            )}
-
             {/* Sort and Filter Dropdowns */}
             <View style={styles.dropdownContainer}>
               <TouchableOpacity
@@ -1013,7 +872,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 18,
   },
   headerRow: {
     flexDirection: "row",
@@ -1039,8 +898,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(229,9,20,0.22)",
     borderRadius: 0,
     backgroundColor: "rgba(229,9,20,0.02)",
-    padding: 12,
-    marginBottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    marginBottom: 10,
     overflow: "hidden",
   },
   hudTopRow: {
@@ -1051,8 +911,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   hudXpBarInline: {
-    gap: 8,
-    marginBottom: 4,
+    gap: 6,
   },
   header: {
     fontSize: 24,
@@ -1112,12 +971,12 @@ const styles = StyleSheet.create({
   },
   hudXpSegments: {
     flexDirection: "row",
-    gap: 3,
+    gap: 2,
     flex: 1,
   },
   hudXpBlock: {
     flex: 1,
-    height: 14,
+    height: 10,
     borderRadius: 0,
   },
   hudXpBlockFilled: {
@@ -1133,35 +992,33 @@ const styles = StyleSheet.create({
   hudXpMetaText: {
     fontSize: 9,
     fontWeight: "700",
-    letterSpacing: 0.8,
-    opacity: 0.45,
-    minWidth: 0,
-    maxWidth: "100%",
+    letterSpacing: 0.6,
+    opacity: 0.7,
+    minWidth: 76,
     textAlign: "right",
-    flexShrink: 1,
+    marginLeft: 8,
   },
   hudProgressFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 2,
+    alignItems: "center",
+    marginTop: 6,
+    minHeight: 14,
   },
   hudProgressLeft: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
-    minWidth: 0,
     gap: 4,
-  },
-  hudProgressLabel: {
-    fontSize: 7,
-    fontWeight: "700",
-    letterSpacing: 1,
-    color: "#E50914",
-    opacity: 0.8,
+    minWidth: 0,
     flexShrink: 1,
+  },
+
+  hudProgressLabel: {
+    fontSize: 8,
+    fontWeight: "700",
+    letterSpacing: 0.9,
+    color: "#E50914",
+    opacity: 0.9,
   },
   hudMaxLvlText: {
     fontSize: 9,

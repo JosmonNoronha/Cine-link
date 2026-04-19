@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Animated,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
@@ -20,6 +21,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "../../firebaseConfig";
 import { getBackendStatus, retestBackendConnection } from "../services/api";
+import { useFavorites } from "../contexts/FavoritesContext";
+import { getWatchlists } from "../utils/storage";
+import { getGamificationState, getLevelInfo } from "../utils/gamification";
+import BadgesModal from "../components/BadgesModal";
 
 const SettingsScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -31,6 +36,20 @@ const SettingsScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [backendStatus, setBackendStatus] = useState(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [badgesModalVisible, setBadgesModalVisible] = useState(false);
+  const [profileInsights, setProfileInsights] = useState({
+    level: 1,
+    levelIcon: "🆕",
+    xp: 0,
+    xpProgressText: "0/50",
+    favorites: 0,
+    watchlists: 0,
+    streak: 0,
+    badges: 0,
+    unlockedAchievements: [],
+  });
+  const { favorites } = useFavorites();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -48,6 +67,48 @@ const SettingsScreen = ({ navigation }) => {
     });
     return unsubscribe;
   }, []);
+
+  const loadProfileInsights = useCallback(async () => {
+    setInsightsLoading(true);
+    try {
+      const [lists, gamificationState] = await Promise.all([
+        getWatchlists(),
+        getGamificationState(),
+      ]);
+
+      const watchlistsMap = lists || {};
+      const watchlistCount = Object.keys(watchlistsMap).length;
+      const levelInfo = getLevelInfo(gamificationState?.xp || 0);
+
+      setProfileInsights({
+        level: levelInfo.current.level,
+        levelIcon: levelInfo.current.icon,
+        xp: gamificationState?.xp || 0,
+        xpProgressText: levelInfo.next
+          ? `${levelInfo.xpInLevel}/${levelInfo.xpForNext}`
+          : "MAX",
+        favorites: favorites.length,
+        watchlists: watchlistCount,
+        streak: gamificationState?.currentStreak || 0,
+        badges: gamificationState?.unlockedAchievements?.length || 0,
+        unlockedAchievements: gamificationState?.unlockedAchievements || [],
+      });
+    } catch (error) {
+      console.error("Failed to load profile insights:", error);
+      setProfileInsights((prev) => ({
+        ...prev,
+        favorites: favorites.length,
+      }));
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, [favorites]);
+
+  useEffect(() => {
+    loadProfileInsights();
+    const unsubscribe = navigation.addListener("focus", loadProfileInsights);
+    return unsubscribe;
+  }, [navigation, loadProfileInsights]);
 
   useEffect(() => {
     // Check backend status
@@ -180,61 +241,174 @@ const SettingsScreen = ({ navigation }) => {
     </View>
   );
 
+  const ProfileStatTile = ({
+    icon,
+    label,
+    value,
+    subtitle,
+    accent,
+    onPress,
+  }) => {
+    const TileContainer = onPress ? TouchableOpacity : View;
+
+    return (
+      <TileContainer
+        onPress={onPress}
+        activeOpacity={onPress ? 0.82 : undefined}
+        style={[
+          styles.profileStatTile,
+          {
+            borderColor:
+              theme === "dark" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
+            backgroundColor:
+              theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+          },
+        ]}
+      >
+        <View style={styles.profileStatTopRow}>
+          <Ionicons name={icon} size={14} color={accent || colors.primary} />
+          <Text style={styles.profileStatLabel}>{label}</Text>
+        </View>
+        <Text style={[styles.profileStatValue, { color: colors.text }]}>
+          {value}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.profileStatSubtitle, { color: colors.text }]}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </TileContainer>
+    );
+  };
+
   const ProfileSection = () => (
     <SectionCard title="Profile">
       {user ? (
         <View style={styles.profileContainer}>
-          <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={["#4a90e2", "#9013fe"]}
-              style={styles.avatarGradient}
+          <View style={styles.profileTopRow}>
+            <View style={styles.avatarContainer}>
+              <LinearGradient
+                colors={["#4a90e2", "#9013fe"]}
+                style={styles.avatarGradient}
+              >
+                <View style={styles.avatarInner}>
+                  {user?.displayName && (
+                    <Text style={styles.avatarInitial}>
+                      {user.displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+              </LinearGradient>
+              <View
+                style={[
+                  styles.profileStatusDot,
+                  {
+                    backgroundColor:
+                      backendStatus?.available === true ? "#10B981" : "#EF4444",
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.profileInfo}>
+              <Text
+                style={[styles.profileName, { color: colors.text }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {user.displayName || "No Username Set"}
+              </Text>
+              <Text
+                style={[styles.profileEmail, { color: colors.text }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {user.email}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.signOutButton, { backgroundColor: "#ff3b30" }]}
+              onPress={handleSignOut}
             >
-              <View style={styles.avatarInner}>
-                {user?.displayName && (
-                  <Text style={styles.avatarInitial}>
-                    {user.displayName.charAt(0).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-            </LinearGradient>
-            <View
-              style={[
-                styles.profileStatusDot,
-                {
-                  backgroundColor:
-                    backendStatus?.available === true ? "#10B981" : "#EF4444",
-                },
-              ]}
-            />
+              <Ionicons
+                name="log-out-outline"
+                size={20}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.buttonText}>Sign Out</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.profileInfo}>
-            <Text
-              style={[styles.profileName, { color: colors.text }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {user.displayName || "No Username Set"}
-            </Text>
-            <Text
-              style={[styles.profileEmail, { color: colors.text }]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {user.email}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.signOutButton, { backgroundColor: "#ff3b30" }]}
-            onPress={handleSignOut}
+
+          <View
+            style={[
+              styles.profileStatsPanel,
+              {
+                borderColor:
+                  theme === "dark"
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(0,0,0,0.08)",
+                backgroundColor:
+                  theme === "dark"
+                    ? "rgba(255,255,255,0.03)"
+                    : "rgba(0,0,0,0.015)",
+              },
+            ]}
           >
-            <Ionicons
-              name="log-out-outline"
-              size={20}
-              color="#fff"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.buttonText}>Sign Out</Text>
-          </TouchableOpacity>
+            <View style={styles.profileStatsHeader}>
+              <Text style={[styles.profileStatsTitle, { color: colors.text }]}>
+                Profile Insights
+              </Text>
+              {insightsLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : null}
+            </View>
+            <View style={styles.profileStatsGrid}>
+              <ProfileStatTile
+                icon="sparkles-outline"
+                label="Level"
+                value={`${profileInsights.levelIcon} L${profileInsights.level}`}
+                accent="#8B5CF6"
+              />
+              <ProfileStatTile
+                icon="flash-outline"
+                label="XP"
+                value={`${profileInsights.xp}`}
+                subtitle={
+                  profileInsights.xpProgressText === "MAX"
+                    ? "Max level"
+                    : `${profileInsights.xpProgressText} in level`
+                }
+                accent="#F59E0B"
+              />
+              <ProfileStatTile
+                icon="heart-outline"
+                label="Favorites"
+                value={`${profileInsights.favorites}`}
+                accent="#E11D48"
+              />
+              <ProfileStatTile
+                icon="list-outline"
+                label="Watchlists"
+                value={`${profileInsights.watchlists}`}
+                accent="#06B6D4"
+              />
+              <ProfileStatTile
+                icon="flame-outline"
+                label="Streak"
+                value={`${profileInsights.streak}`}
+                subtitle="Current"
+                accent="#EF4444"
+              />
+              <ProfileStatTile
+                icon="trophy-outline"
+                label="Badges"
+                value={`${profileInsights.badges}`}
+                subtitle="Tap to view"
+                accent="#10B981"
+                onPress={() => setBadgesModalVisible(true)}
+              />
+            </View>
+          </View>
         </View>
       ) : (
         <View style={styles.notLoggedIn}>
@@ -407,7 +581,7 @@ const SettingsScreen = ({ navigation }) => {
           styles.container,
           {
             backgroundColor: theme === "dark" ? "#121212" : "#f2f2f7",
-            paddingTop: insets.top,
+            paddingTop: insets.top + 8,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -613,6 +787,13 @@ const SettingsScreen = ({ navigation }) => {
         {/* About */}
         <AboutSection />
       </ScrollView>
+
+      <BadgesModal
+        visible={badgesModalVisible}
+        onClose={() => setBadgesModalVisible(false)}
+        unlockedAchievements={profileInsights.unlockedAchievements}
+        colors={colors}
+      />
     </>
   );
 };
@@ -697,9 +878,12 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   profileContainer: {
+    gap: 14,
+  },
+  profileTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 15,
+    paddingBottom: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: "#ccc",
   },
@@ -765,6 +949,59 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 15,
     borderRadius: 10,
+    marginLeft: 10,
+  },
+  profileStatsPanel: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  profileStatsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  profileStatsTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  profileStatsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  profileStatTile: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  profileStatTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 6,
+  },
+  profileStatLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    letterSpacing: 0.45,
+    textTransform: "uppercase",
+  },
+  profileStatValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  profileStatSubtitle: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginTop: 3,
   },
   notLoggedIn: {
     paddingVertical: 20,

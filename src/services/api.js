@@ -65,6 +65,11 @@ const MAX_REQUEST_RETRIES = 2;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const createIdempotencyKey = (prefix = "evt") => {
+  const randomPart = Math.random().toString(36).slice(2, 12);
+  return `${prefix}-${Date.now()}-${randomPart}`;
+};
+
 const isRetryableError = (error) => {
   const status = error?.response?.status;
   const code = error?.code;
@@ -868,15 +873,49 @@ export const getGamificationData = async () => {
  */
 export const syncGamificationData = async (state) => {
   try {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) return;
-    await apiClient.put("/user/gamification", state, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // Legacy endpoint is intentionally disabled server-side.
+    // Keep this function as a no-op for backwards compatibility.
+    void state;
   } catch (error) {
-    // Silent fail — offline / unauthenticated is expected
-    console.warn("⚠️ Gamification cloud sync failed:", error.message);
+    console.warn("⚠️ Legacy gamification sync ignored:", error.message);
   }
+};
+
+export const recordGamificationWatch = async (movieId, listName) => {
+  const idempotencyKey = createIdempotencyKey("watch");
+  const data = await apiClient.post("/user/gamification/actions/watch", {
+    movieId,
+    listName,
+  }, {
+    headers: {
+      "X-Idempotency-Key": idempotencyKey,
+    },
+  });
+  return data || null;
+};
+
+export const recordGamificationListCreated = async (listName) => {
+  const idempotencyKey = createIdempotencyKey("list-created");
+  const data = await apiClient.post("/user/gamification/actions/list-created", {
+    listName,
+  }, {
+    headers: {
+      "X-Idempotency-Key": idempotencyKey,
+    },
+  });
+  return data || null;
+};
+
+export const recordGamificationListCompleted = async (listName) => {
+  const idempotencyKey = createIdempotencyKey("list-completed");
+  const data = await apiClient.post("/user/gamification/actions/list-completed", {
+    listName,
+  }, {
+    headers: {
+      "X-Idempotency-Key": idempotencyKey,
+    },
+  });
+  return data || null;
 };
 
 export const getWatchedEpisodes = async (contentId) => {
