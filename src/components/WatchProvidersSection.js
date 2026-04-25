@@ -9,10 +9,11 @@ import {
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import logger from "../services/logger";
 
 const WatchProvidersSection = React.memo(
   ({ providers, userSubscriptions, loading, colors, theme }) => {
-    console.log("🎬 WatchProvidersSection render:", {
+    logger.info("🎬 WatchProvidersSection render:", {
       loading,
       providers,
       userSubscriptions,
@@ -42,7 +43,7 @@ const WatchProvidersSection = React.memo(
         providers.buy?.length);
 
     if (!hasData) {
-      console.log("⚠️ No providers data:", providers);
+      logger.info("⚠️ No providers data:", providers);
       return (
         <View
           style={[

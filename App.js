@@ -24,6 +24,7 @@ import analyticsService, {
   Sentry,
   SENTRY_INITIALIZED,
 } from "./src/services/analytics";
+import logger from "./src/services/logger";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
 
@@ -40,20 +41,20 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("❌ App Error:", error);
-    console.error("Error Info:", errorInfo);
+    logger.error("❌ App Error:", error);
+    logger.error("Error Info:", errorInfo);
 
     // Log environment status for debugging
     const extra = Constants?.expoConfig?.extra || {};
-    console.log("🔍 Environment Debug:");
-    console.log("  Constants available:", !!Constants);
-    console.log("  expoConfig available:", !!Constants?.expoConfig);
-    console.log("  extra available:", !!extra);
-    console.log(
+    logger.info("🔍 Environment Debug:");
+    logger.info("  Constants available:", !!Constants);
+    logger.info("  expoConfig available:", !!Constants?.expoConfig);
+    logger.info("  extra available:", !!extra);
+    logger.info(
       "  Firebase API Key:",
       extra.FIREBASE_API_KEY ? "✅ Set" : "❌ Missing",
     );
-    console.log(
+    logger.info(
       "  OMDB API Key:",
       extra.OMDB_API_KEY ? "✅ Set" : "❌ Missing",
     );
@@ -71,7 +72,7 @@ class ErrorBoundary extends Component {
         this.setState({ hasError: false, error: null, errorInfo: null });
       }
     } catch (e) {
-      console.error("Reload failed:", e);
+      logger.error("Reload failed:", e);
       this.setState({ hasError: false, error: null, errorInfo: null });
     }
   }
@@ -266,7 +267,7 @@ if (
   try {
     ExportedApp = Sentry.wrap(App);
   } catch (e) {
-    console.warn("Sentry wrap failed:", e);
+    logger.warn("Sentry wrap failed:", e);
   }
 }
 

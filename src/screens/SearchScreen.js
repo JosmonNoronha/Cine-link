@@ -12,6 +12,7 @@ import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import analyticsService from "../services/analytics";
+import logger from "../services/logger";
 
 // Components
 import SearchInput from "../components/SearchInput";
@@ -91,7 +92,7 @@ const SearchScreen = ({ navigation }) => {
   useEffect(() => {
     // Only track if we have a search query and not loading (results are ready)
     if (searchQuery && !isLoading && hasSearched) {
-      console.log(
+      logger.info(
         `📊 Analytics: search "${searchQuery}" with ${results?.length || 0} results (total: ${totalResults})`,
       );
       analyticsService.trackSearch(searchQuery, results?.length || 0);
@@ -125,7 +126,7 @@ const SearchScreen = ({ navigation }) => {
       await saveToHistory(trimmedQuery);
       // Analytics now tracked by useEffect when results update
     } catch (error) {
-      console.warn("Search failed:", error);
+      logger.warn("Search failed", error);
     }
   }, [query, filterType, performSearch, saveToHistory]);
 
@@ -143,7 +144,7 @@ const SearchScreen = ({ navigation }) => {
         await saveToHistory(suggestion);
         // Analytics now tracked by useEffect when results update
       } catch (error) {
-        console.warn("Search failed:", error);
+        logger.warn("Search failed", error);
       }
     },
     [filterType, performSearch, saveToHistory],
@@ -160,7 +161,7 @@ const SearchScreen = ({ navigation }) => {
         try {
           await performSearch(searchQuery, type);
         } catch (error) {
-          console.warn("Filter change failed:", error);
+          logger.warn("Filter change failed", error);
         }
       }
     },
@@ -192,7 +193,7 @@ const SearchScreen = ({ navigation }) => {
         generateSuggestions(query, []);
       }
     } catch (error) {
-      console.warn("Failed to clear history:", error);
+      logger.warn("Failed to clear history", error);
     }
   }, [clearAllHistory, showSuggestions, generateSuggestions, query]);
 
@@ -209,7 +210,7 @@ const SearchScreen = ({ navigation }) => {
           generateSuggestions(query, updatedHistory);
         }
       } catch (error) {
-        console.warn("Failed to delete history item:", error);
+        logger.warn("Failed to delete history item", error);
       }
     },
     [

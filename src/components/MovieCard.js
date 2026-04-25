@@ -11,6 +11,7 @@ import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useFavorites } from "../contexts/FavoritesContext";
+import logger from "../services/logger";
 
 const MovieCard = ({ movie, onPress, style }) => {
   const { colors } = useTheme();
@@ -45,7 +46,7 @@ const MovieCard = ({ movie, onPress, style }) => {
         await addToFavorites({ ...movie, imdbID: movieId });
       }
     } catch (e) {
-      console.warn("Failed to toggle favorite:", e?.message || e);
+      logger.warn("Failed to toggle favorite", e?.message || e);
     }
   };
 

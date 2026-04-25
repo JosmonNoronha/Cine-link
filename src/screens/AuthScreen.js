@@ -19,6 +19,7 @@ import {
 } from "firebase/auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import analyticsService from "../services/analytics";
+import logger from "../services/logger";
 
 const SHOW_AUTH_DEBUG_PANEL = true;
 
@@ -117,7 +118,7 @@ const AuthScreen = () => {
         "Please check your inbox for the verification email.",
       );
     } catch (error) {
-      console.error("Resend verification error:", error);
+      logger.error("Resend verification error", error);
       if (SHOW_AUTH_DEBUG_PANEL) {
         setDebugError(getDebugError(error));
       }
@@ -178,42 +179,42 @@ const AuthScreen = () => {
         analyticsService.trackAction("user_login", { method: "email" });
       } else {
         // Create account
-        console.log("=== ACCOUNT CREATION DEBUG ===");
-        console.log("Email:", email);
-        console.log("Username:", username);
+        logger.info("=== ACCOUNT CREATION DEBUG ===");
+        logger.info("Email:", email);
+        logger.info("Username:", username);
 
         const userCredential = await auth.createUserWithEmailAndPassword(
           email,
           password,
         );
         const user = userCredential.user;
-        console.log("✅ User created successfully:", user.uid);
+        logger.info("✅ User created successfully:", user.uid);
 
         // First, update profile
         try {
-          console.log("Updating profile with displayName:", username);
+          logger.info("Updating profile with displayName:", username);
           await updateProfile(user, {
             displayName: username,
           });
-          console.log("✅ Profile updated successfully");
+          logger.info("✅ Profile updated successfully");
         } catch (profileError) {
-          console.error("❌ Profile update failed:", profileError);
+          logger.error("❌ Profile update failed", profileError);
           // Continue anyway
         }
 
         // Send verification email
         try {
-          console.log("Sending verification email...");
+          logger.info("Sending verification email...");
           await sendEmailVerification(user);
-          console.log("✅ Verification email sent");
+          logger.info("✅ Verification email sent");
         } catch (emailError) {
-          console.error("❌ Verification email failed:", emailError);
+          logger.error("❌ Verification email failed", emailError);
         }
 
         // Sign out immediately after account creation
-        console.log("Signing out user...");
+        logger.info("Signing out user...");
         await auth.signOut();
-        console.log("✅ User signed out");
+        logger.info("✅ User signed out");
 
         // Show verification modal
 
@@ -224,7 +225,7 @@ const AuthScreen = () => {
         setErrorMessage("");
       }
     } catch (error) {
-      console.error("❌ Auth error:", error);
+      logger.error("❌ Auth error", error);
       setErrorMessage(getFriendlyError(error));
       if (SHOW_AUTH_DEBUG_PANEL) {
         setDebugError(getDebugError(error));

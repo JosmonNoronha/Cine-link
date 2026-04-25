@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { auth } from "../../firebaseConfig";
 import { getUserSubscriptions, updateUserSubscriptions } from "../services/api";
 import { getProviderOptions } from "../config/streamingProviders";
+import logger from "../services/logger";
 
 const ManageSubscriptionsScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -44,7 +45,7 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
       setUserSubscriptions(subscriptions);
       setInitialSubscriptions(subscriptions);
     } catch (error) {
-      console.error("Failed to load subscriptions:", error);
+      logger.error("Failed to load subscriptions", error);
     } finally {
       setLoadingSubscriptions(false);
     }
@@ -79,7 +80,7 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
       setHasChanges(false);
       Alert.alert("Success", "Your streaming subscriptions have been saved!");
     } catch (error) {
-      console.error("Failed to save subscriptions:", error);
+      logger.error("Failed to save subscriptions", error);
       Alert.alert("Error", "Failed to save your subscriptions. Please try again.");
     } finally {
       setSavingSubscriptions(false);

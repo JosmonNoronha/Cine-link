@@ -23,6 +23,7 @@ import WatchlistCard from "../components/WatchlistCard";
 import EmptyState from "../components/EmptyState";
 import CreateWatchlistModal from "../components/CreateWatchlistModal";
 import RetryState from "../components/RetryState";
+import logger from "../services/logger";
 
 import {
   getWatchlists,
@@ -101,11 +102,11 @@ const WatchlistsScreen = ({ navigation }) => {
 
     try {
       const data = await getWatchlists();
-      console.log("Fetched watchlists:", data);
+      logger.info("Fetched watchlists:", data);
       setWatchlists(data || {});
       setWatchlistsLoadError(false);
     } catch (error) {
-      console.error("Error fetching watchlists:", error);
+      logger.error("Error fetching watchlists", error);
       setWatchlistsLoadError(true);
       setWatchlistsLoadMessage(
         error?.message
@@ -224,7 +225,7 @@ const WatchlistsScreen = ({ navigation }) => {
           : `Created "${name}"`,
       );
     } catch (error) {
-      console.error("Error adding watchlist:", error);
+      logger.error("Error adding watchlist", error);
       showCustomAlert({
         title: "Unable to Create Watchlist",
         message:
@@ -256,7 +257,7 @@ const WatchlistsScreen = ({ navigation }) => {
               navigation.setParams({ watchlistsModified: Date.now() });
               showCreateToast(`Deleted "${name}"`);
             } catch (error) {
-              console.error("Error deleting watchlist:", error);
+              logger.error("Error deleting watchlist", error);
               showCustomAlert({
                 title: "Unable to Delete Watchlist",
                 message:
@@ -579,7 +580,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
       setMovies(listMovies);
       setContentLoadError(false);
     } catch (error) {
-      console.error("Failed to fetch movies in watchlist:", error);
+      logger.error("Failed to fetch movies in watchlist", error);
       setContentLoadError(true);
       setContentLoadMessage(
         error?.message
@@ -622,7 +623,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         swipeRefs.current[imdbID].close();
       }
     } catch (error) {
-      console.error("Failed to remove movie:", error);
+      logger.error("Failed to remove movie", error);
     }
   };
 
@@ -695,7 +696,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
         }
       }, 300); // Small delay to show the action completed
     } catch (error) {
-      console.error("Failed to toggle watched status:", error);
+      logger.error("Failed to toggle watched status", error);
 
       // Revert optimistic update on error
       setMovies((prev) =>

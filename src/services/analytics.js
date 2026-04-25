@@ -2,6 +2,7 @@ import * as Device from "expo-device";
 import * as Application from "expo-application";
 import { Platform } from "react-native";
 import axios from "axios";
+import logger from "./logger";
 
 // Sentry placeholder - add @sentry/react-native back + its Expo plugin when you have a DSN
 let Sentry = null;
@@ -32,7 +33,7 @@ class AnalyticsService {
     // Set device context
     this.setDeviceContext();
 
-    console.log("📊 Analytics service initialized");
+    logger.info("📊 Analytics service initialized");
   }
 
   /**
@@ -179,7 +180,7 @@ class AnalyticsService {
    * Track error
    */
   trackError(error, context = {}) {
-    console.error("Analytics: Error tracked", error, context);
+    logger.error("Analytics: Error tracked", error, context);
 
     if (SENTRY_INITIALIZED) {
       Sentry.captureException(error, {
@@ -222,7 +223,7 @@ class AnalyticsService {
    */
   trackEvent(eventType, data = {}) {
     if (!this.isInitialized) {
-      console.warn("Analytics not initialized");
+      logger.warn("Analytics not initialized");
       return;
     }
 
@@ -243,7 +244,7 @@ class AnalyticsService {
       this.flushEvents();
     }
 
-    console.log("📊 Event tracked:", eventType, data);
+    logger.info("📊 Event tracked:", eventType, data);
   }
 
   /**
@@ -265,10 +266,10 @@ class AnalyticsService {
         })
         .catch((err) => {
           // Silently fail - analytics shouldn't break the app
-          console.warn("Failed to send analytics events:", err.message);
+          logger.warn("Failed to send analytics events:", err.message);
         });
     } catch (error) {
-      console.warn("Failed to flush analytics:", error.message);
+      logger.warn("Failed to flush analytics:", error.message);
     }
   }
 

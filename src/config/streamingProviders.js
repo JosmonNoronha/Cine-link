@@ -126,6 +126,8 @@ export const getSubscriptionProviders = () => {
   );
 };
 
+import logger from "../services/logger";
+
 /**
  * Get provider names for user selection
  */
@@ -142,10 +144,10 @@ export const getProviderOptions = () => {
  * Format watch providers for display
  */
 export const formatWatchProviders = (providers, region = 'US') => {
-  console.log('🔧 formatWatchProviders input:', { providers, region });
+  logger.info('🔧 formatWatchProviders input:', { providers, region });
   
   if (!providers) {
-    console.log('⚠️ No providers object');
+    logger.info('⚠️ No providers object');
     return {
       streaming: [],
       rent: [],
@@ -154,7 +156,7 @@ export const formatWatchProviders = (providers, region = 'US') => {
   }
 
   if (!providers.results) {
-    console.log('⚠️ No results in providers');
+    logger.info('⚠️ No results in providers');
     return {
       streaming: [],
       rent: [],
@@ -163,7 +165,7 @@ export const formatWatchProviders = (providers, region = 'US') => {
   }
 
   if (!providers.results[region]) {
-    console.log(`⚠️ No data for region ${region}. Available regions:`, Object.keys(providers.results));
+    logger.info(`⚠️ No data for region ${region}. Available regions:`, Object.keys(providers.results));
     return {
       streaming: [],
       rent: [],
@@ -172,7 +174,7 @@ export const formatWatchProviders = (providers, region = 'US') => {
   }
 
   const regionData = providers.results[region];
-  console.log('📊 Region data:', regionData);
+  logger.info('📊 Region data:', regionData);
 
   const result = {
     streaming: (regionData.flatrate || []).map((p) => getProviderById(p.provider_id)),
@@ -181,7 +183,7 @@ export const formatWatchProviders = (providers, region = 'US') => {
     link: regionData.link,
   };
   
-  console.log('✅ Formatted result:', result);
+  logger.info('✅ Formatted result:', result);
   return result;
 };
 

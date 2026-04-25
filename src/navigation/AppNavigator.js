@@ -36,6 +36,7 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import { FavoritesProvider } from "../contexts/FavoritesContext";
 import { auth } from "../../firebaseConfig";
 import SplashLoader from "../components/SplashLoader";
+import logger from "../services/logger";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -288,7 +289,7 @@ const RootNavigator = () => {
 
       if (!savedVersion || savedVersion !== CURRENT_APP_VERSION) {
         // This is either first install or a version change
-        console.log("Fresh installation detected, clearing auth state");
+        logger.info("Fresh installation detected, clearing auth state");
 
         // Sign out any existing user (if auth is available)
         if (auth && auth.currentUser) {
@@ -302,7 +303,7 @@ const RootNavigator = () => {
         await AsyncStorage.setItem(APP_VERSION_KEY, CURRENT_APP_VERSION);
       }
     } catch (error) {
-      console.error("Error checking app version:", error);
+      logger.error("Error checking app version", error);
     }
   };
 
@@ -311,7 +312,7 @@ const RootNavigator = () => {
       await checkAppVersion();
 
       const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
-        console.log(
+        logger.info(
           "Auth state changed:",
           firebaseUser ? "User logged in" : "No user",
         );

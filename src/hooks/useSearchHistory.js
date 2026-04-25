@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HISTORY_CONFIG, SEARCH_CONFIG } from "../config/searchConstants";
+import logger from "../services/logger";
 
 const useSearchHistory = () => {
   const [searchHistory, setSearchHistory] = useState([]);
@@ -19,7 +20,7 @@ const useSearchHistory = () => {
           setSearchHistory(history);
         }
       } catch (error) {
-        console.warn("Failed to initialize search history:", error);
+        logger.warn("Failed to initialize search history", error);
       }
     };
 

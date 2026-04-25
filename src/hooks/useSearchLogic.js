@@ -10,6 +10,7 @@ import {
   FUSE_SEARCH_OPTIONS,
   ERROR_MESSAGES,
 } from "../config/searchConstants";
+import logger from "../services/logger";
 
 const useSearchLogic = () => {
   const [results, setResults] = useState([]);
@@ -83,7 +84,7 @@ const useSearchLogic = () => {
         }
       }
     } catch (error) {
-      console.warn("Failed to initialize cache:", error);
+      logger.warn("Failed to initialize cache", error);
     }
   }, [rebuildFuseIndex]);
 
@@ -167,7 +168,7 @@ const useSearchLogic = () => {
       );
 
       if (isGenreSearch) {
-        console.log("🎭 Skipping local cache for genre search:", searchQuery);
+        logger.info("🎭 Skipping local cache for genre search:", searchQuery);
         return { results: [], hasMore: false, total: 0 };
       }
 
@@ -199,7 +200,7 @@ const useSearchLogic = () => {
           total: localResults.length,
         };
       } catch (error) {
-        console.warn("Local search error:", error);
+        logger.warn("Local search error", error);
         return { results: [], hasMore: false, total: 0 };
       }
     },
@@ -448,7 +449,7 @@ const useSearchLogic = () => {
       } catch (error) {
         // Ignore abort errors
         if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
-          console.log("Search aborted");
+          logger.info("Search aborted");
           return;
         }
 
@@ -457,23 +458,23 @@ const useSearchLogic = () => {
 
         if (error.message && error.message.includes("timeout")) {
           errorMessage = ERROR_MESSAGES.TIMEOUT;
-          console.warn("Search timeout:", error);
+          logger.warn("Search timeout", error);
         } else if (
           error.message &&
           (error.message.includes("Network") || error.message.includes("fetch"))
         ) {
           errorMessage = ERROR_MESSAGES.NETWORK_ERROR;
-          console.warn("Network error during search:", error);
+          logger.warn("Network error during search", error);
         } else if (error.response) {
           // API returned an error response
           errorMessage = ERROR_MESSAGES.API_ERROR;
-          console.warn(
+          logger.warn(
             "API error during search:",
             error.response?.status,
             error.response?.data,
           );
         } else {
-          console.warn("Unknown search error:", error);
+          logger.warn("Unknown search error", error);
         }
 
         // Try local fallback

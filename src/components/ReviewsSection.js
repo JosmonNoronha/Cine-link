@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import logger from "../services/logger";
 
 const { width: screenWidth } = Dimensions.get("window");
 const CARD_WIDTH = screenWidth * 0.8;
@@ -29,7 +30,7 @@ const ReviewsSection = React.memo(
   ({ reviews, loading, colors, theme, totalReviews, onLoadMore }) => {
     const [selectedReview, setSelectedReview] = useState(null);
 
-    console.log("📝 ReviewsSection render:", {
+    logger.info("📝 ReviewsSection render:", {
       loading,
       reviewCount: reviews?.length || 0,
       totalReviews,
@@ -99,7 +100,7 @@ const ReviewsSection = React.memo(
     const openTMDBReview = (url) => {
       if (url) {
         Linking.openURL(url).catch((err) =>
-          console.error("Failed to open TMDB review:", err),
+          logger.error("Failed to open TMDB review", err),
         );
       }
     };

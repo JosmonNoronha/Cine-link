@@ -21,6 +21,7 @@ import RecommendationCard from "../components/RecommendationCard";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { getFavorites, getWatchlists } from "../utils/storage";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import logger from "../services/logger";
 
 // Fetch recommendation map (example for Firebase hosting JSON)
 const fetchRecommendationsMap = async () => {
@@ -61,13 +62,13 @@ const HomeScreen = ({ navigation }) => {
       const shuffled = [...trending].sort(() => 0.5 - Math.random());
       setYouMayLike(shuffled.slice(0, 5));
     } catch (error) {
-      console.error("Error fetching static movies:", error);
+      logger.error("Error fetching static movies", error);
       setBackendError(true);
 
       // Check if it's a backend connection issue
       const backendStatus = getBackendStatus();
       if (!backendStatus.available) {
-        console.log("Backend unavailable, but fallback should work");
+        logger.info("Backend unavailable, but fallback should work");
       }
     } finally {
       setIsLoading(false);
@@ -100,14 +101,14 @@ const HomeScreen = ({ navigation }) => {
 
       // Only fetch recommendations if data has actually changed
       if (currentHash !== lastDataHash) {
-        console.log("Data changed, updating recommendations...");
+        logger.info("Data changed, updating recommendations...");
         setLastDataHash(currentHash);
         await fetchRecommendations(favorites, watchlists);
       } else {
-        console.log("No data changes, keeping existing recommendations");
+        logger.info("No data changes, keeping existing recommendations");
       }
     } catch (error) {
-      console.error("Error checking for recommendation updates:", error);
+      logger.error("Error checking for recommendation updates", error);
     }
   };
 
@@ -131,7 +132,7 @@ const HomeScreen = ({ navigation }) => {
         // Get recommendations based on multiple titles for better variety
         const recommendationPromises = allTitles.slice(0, 3).map((title) =>
           getRecommendations(title).catch((err) => {
-            console.warn(`Failed to get recommendations for ${title}:`, err);
+            logger.warn(`Failed to get recommendations for ${title}`, err);
             return [];
           }),
         );
@@ -156,7 +157,7 @@ const HomeScreen = ({ navigation }) => {
         setRecommendedMovies([]);
       }
     } catch (err) {
-      console.error("Error fetching recommendations:", err);
+      logger.error("Error fetching recommendations", err);
       setRecommendedMovies([]);
     } finally {
       setIsLoadingRecommendations(false);

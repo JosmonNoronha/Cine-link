@@ -2,6 +2,7 @@ import axios from "axios";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { auth } from "../../firebaseConfig";
+import logger from "./logger";
 
 const normalizeDevBaseUrl = (url) => {
   if (!url) return url;
@@ -41,12 +42,12 @@ const isLocalhost =
 const API_BASE_URL =
   isLocalhost && __DEV__ ? NORMALIZED_EXPLICIT_BASE_URL : PRODUCTION_BASE_URL;
 
-console.log("🔧 API Configuration:");
-console.log("  - Base URL:", API_BASE_URL);
-console.log("  - Platform:", Platform.OS);
-console.log("  - Dev Mode:", __DEV__);
-console.log("  - Production URL:", PRODUCTION_BASE_URL);
-console.log("  - Explicit URL:", NORMALIZED_EXPLICIT_BASE_URL);
+logger.info("🔧 API Configuration:");
+logger.info("  - Base URL:", API_BASE_URL);
+logger.info("  - Platform:", Platform.OS);
+logger.info("  - Dev Mode:", __DEV__);
+logger.info("  - Production URL:", PRODUCTION_BASE_URL);
+logger.info("  - Explicit URL:", NORMALIZED_EXPLICIT_BASE_URL);
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -84,7 +85,7 @@ const isRetryableError = (error) => {
 
 // Add auth token to requests
 apiClient.interceptors.request.use(async (config) => {
-  console.log(
+  logger.info(
     "🌐 API Request:",
     config.method?.toUpperCase(),
     config.baseURL,
@@ -98,7 +99,7 @@ apiClient.interceptors.request.use(async (config) => {
     }
     config.__retryCount = config.__retryCount || 0;
   } catch (error) {
-    console.warn("Failed to get auth token:", error);
+    logger.warn("Failed to get auth token:", error);
   }
   return config;
 });
@@ -106,7 +107,7 @@ apiClient.interceptors.request.use(async (config) => {
 // Enhanced response interceptor
 apiClient.interceptors.response.use(
   (response) => {
-    console.log("✅ API Response:", response.config.url, response.data);
+    logger.info("✅ API Response:", response.config.url, response.data);
     backendAvailable = true;
     lastBackendError = null;
     // Backend returns a standard envelope: { success: true, data: ... }
@@ -122,9 +123,9 @@ apiClient.interceptors.response.use(
     return response.data;
   },
   async (error) => {
-    console.log("🚨 API Error:", error.message, error.config?.url);
-    console.log("🚨 API Error Code:", error.code);
-    console.log("🚨 API Error Config:", error.config?.url);
+    logger.info("🚨 API Error:", error.message, error.config?.url);
+    logger.info("🚨 API Error Code:", error.code);
+    logger.info("🚨 API Error Config:", error.config?.url);
 
     // If auth token is stale/expired, refresh once and retry.
     if (
@@ -184,7 +185,7 @@ export const searchMovies = async (
   const normType = filter && filter !== "all" ? filter : "all";
 
   try {
-    console.log("🎬 Using unified backend search:", trimmedQuery, filter, page);
+    logger.info("🎬 Using unified backend search:", trimmedQuery, filter, page);
 
     const requestBody = {
       query: trimmedQuery,
@@ -212,7 +213,7 @@ export const searchMovies = async (
     if (error.name === "AbortError" || error.code === "ERR_CANCELED") {
       throw error;
     }
-    console.warn(
+    logger.warn(
       "⚠️ Unified search failed, falling back to legacy search:",
       error.message,
     );
@@ -234,7 +235,7 @@ export const searchMovies = async (
         };
       }
     } catch (fallbackError) {
-      console.warn("⚠️ Legacy search fallback failed:", fallbackError.message);
+      logger.warn("⚠️ Legacy search fallback failed:", fallbackError.message);
     }
 
     throw new Error("Backend search unavailable. Please try again.");
@@ -242,181 +243,181 @@ export const searchMovies = async (
 };
 
 export const getMovieDetails = async (imdbID) => {
-  console.log("🎬 Using backend for movie details:", imdbID);
+  logger.info("🎬 Using backend for movie details:", imdbID);
   const result = await apiClient.get(`/movies/details/${imdbID}`);
-  console.log("✅ Backend details successful");
+  logger.info("✅ Backend details successful");
   return result;
 };
 
 export const getSeasonDetails = async (imdbID, season) => {
-  console.log("🎬 Using backend for season details:", imdbID, season);
+  logger.info("🎬 Using backend for season details:", imdbID, season);
   const result = await apiClient.get(`/movies/season/${imdbID}/${season}`);
-  console.log("✅ Backend season details successful");
+  logger.info("✅ Backend season details successful");
   return result;
 };
 
 export const getEpisodeDetails = async (imdbID, season, episode) => {
-  console.log("🎬 Using backend for episode details:", imdbID, season, episode);
+  logger.info("🎬 Using backend for episode details:", imdbID, season, episode);
   const result = await apiClient.get(
     `/movies/episode/${imdbID}/${season}/${episode}`,
   );
-  console.log("✅ Backend episode details successful");
+  logger.info("✅ Backend episode details successful");
   return result;
 };
 
 export const getRecommendations = async (title) => {
   try {
-    console.log("🎬 Getting recommendations from backend:", title);
+    logger.info("🎬 Getting recommendations from backend:", title);
     const data = await apiClient.post("/recommendations", {
       title,
       top_n: 10,
     });
-    console.log("✅ Backend recommendations successful");
+    logger.info("✅ Backend recommendations successful");
     return data.recommendations || [];
   } catch (error) {
-    console.error("❌ Failed to get recommendations:", error.message);
+    logger.error("❌ Failed to get recommendations:", error.message);
     return [];
   }
 };
 
 export const getBatchMovieDetails = async (imdbIDs) => {
-  console.log("🎬 Using backend for batch movie details:", imdbIDs);
+  logger.info("🎬 Using backend for batch movie details:", imdbIDs);
   const data = await apiClient.post("/movies/batch-details", { imdbIDs });
-  console.log("✅ Backend batch details successful");
+  logger.info("✅ Backend batch details successful");
   return data.results || [];
 };
 
 export const getUserProfile = async () => {
   try {
-    console.log("🎬 Fetching user profile");
+    logger.info("🎬 Fetching user profile");
     const result = await apiClient.get("/user/profile");
-    console.log("✅ User profile fetched successfully");
+    logger.info("✅ User profile fetched successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to fetch user profile:", error.message);
+    logger.warn("⚠️ Failed to fetch user profile:", error.message);
     throw error;
   }
 };
 
 export const addToFavorites = async (movie) => {
   try {
-    console.log("🎬 Adding to favorites:", movie);
+    logger.info("🎬 Adding to favorites:", movie);
     const result = await apiClient.post("/user/favorites", { movie });
-    console.log("✅ Added to favorites successfully");
+    logger.info("✅ Added to favorites successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to add to favorites:", error.message);
+    logger.warn("⚠️ Failed to add to favorites:", error.message);
     throw error;
   }
 };
 
 export const getFavorites = async () => {
   try {
-    console.log("🎬 Fetching favorites");
+    logger.info("🎬 Fetching favorites");
     const result = await apiClient.get("/user/favorites");
-    console.log("✅ Favorites fetched successfully");
+    logger.info("✅ Favorites fetched successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to fetch favorites:", error.message);
+    logger.warn("⚠️ Failed to fetch favorites:", error.message);
     throw error;
   }
 };
 
 export const removeFromFavorites = async (imdbID) => {
   try {
-    console.log("🎬 Removing from favorites:", imdbID);
+    logger.info("🎬 Removing from favorites:", imdbID);
     const result = await apiClient.delete(
       `/user/favorites/${encodeURIComponent(imdbID)}`,
     );
-    console.log("✅ Removed from favorites successfully");
+    logger.info("✅ Removed from favorites successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to remove from favorites:", error.message);
+    logger.warn("⚠️ Failed to remove from favorites:", error.message);
     throw error;
   }
 };
 
 export const getWatchlists = async () => {
   try {
-    console.log("🎬 Fetching watchlists");
+    logger.info("🎬 Fetching watchlists");
     const result = await apiClient.get("/user/watchlists");
-    console.log("✅ Watchlists fetched successfully");
+    logger.info("✅ Watchlists fetched successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to fetch watchlists:", error.message);
+    logger.warn("⚠️ Failed to fetch watchlists:", error.message);
     throw error;
   }
 };
 
 export const deleteWatchlist = async (name) => {
   try {
-    console.log("🎬 Deleting watchlist:", name);
+    logger.info("🎬 Deleting watchlist:", name);
     const result = await apiClient.delete(
       `/user/watchlists/${encodeURIComponent(name)}`,
     );
-    console.log("✅ Watchlist deleted successfully");
+    logger.info("✅ Watchlist deleted successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to delete watchlist:", error.message);
+    logger.warn("⚠️ Failed to delete watchlist:", error.message);
     throw error;
   }
 };
 
 export const createWatchlist = async (name) => {
   try {
-    console.log("🎬 Creating watchlist:", name);
+    logger.info("🎬 Creating watchlist:", name);
     const result = await apiClient.post("/user/watchlists", { name });
-    console.log("✅ Watchlist created successfully");
+    logger.info("✅ Watchlist created successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to create watchlist:", error.message);
+    logger.warn("⚠️ Failed to create watchlist:", error.message);
     throw error;
   }
 };
 
 export const addToWatchlist = async (watchlistName, movie) => {
   try {
-    console.log("🎬 Adding to watchlist:", watchlistName, movie);
+    logger.info("🎬 Adding to watchlist:", watchlistName, movie);
     const safeName = encodeURIComponent(watchlistName);
     const result = await apiClient.post(`/user/watchlists/${safeName}/movies`, {
       movie,
     });
-    console.log("✅ Added to watchlist successfully");
+    logger.info("✅ Added to watchlist successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to add to watchlist:", error.message);
+    logger.warn("⚠️ Failed to add to watchlist:", error.message);
     throw error;
   }
 };
 
 export const removeFromWatchlist = async (watchlistName, imdbID) => {
   try {
-    console.log("🎬 Removing from watchlist:", watchlistName, imdbID);
+    logger.info("🎬 Removing from watchlist:", watchlistName, imdbID);
     const safeName = encodeURIComponent(watchlistName);
     const safeId = encodeURIComponent(imdbID);
     const result = await apiClient.delete(
       `/user/watchlists/${safeName}/movies/${safeId}`,
     );
-    console.log("✅ Removed from watchlist successfully");
+    logger.info("✅ Removed from watchlist successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to remove from watchlist:", error.message);
+    logger.warn("⚠️ Failed to remove from watchlist:", error.message);
     throw error;
   }
 };
 
 export const toggleWatchedStatus = async (watchlistName, imdbID) => {
   try {
-    console.log("🎬 Toggling watched status:", watchlistName, imdbID);
+    logger.info("🎬 Toggling watched status:", watchlistName, imdbID);
     const safeName = encodeURIComponent(watchlistName);
     const safeId = encodeURIComponent(imdbID);
     const result = await apiClient.patch(
       `/user/watchlists/${safeName}/movies/${safeId}/watched`,
     );
-    console.log("✅ Watched status toggled successfully");
+    logger.info("✅ Watched status toggled successfully");
     return result;
   } catch (error) {
-    console.warn("⚠️ Failed to toggle watched status:", error.message);
+    logger.warn("⚠️ Failed to toggle watched status:", error.message);
     throw error;
   }
 };
@@ -462,7 +463,7 @@ export const getTrending = async (type = "movie", timeWindow = "week") => {
     const data = await apiClient.get(`/trending/${type}/${timeWindow}`);
     return Array.isArray(data) ? data : data.results || [];
   } catch (error) {
-    console.warn("⚠️ Trending API failed:", error.message);
+    logger.warn("⚠️ Trending API failed:", error.message);
     return [];
   }
 };
@@ -473,7 +474,7 @@ export const getTrendingKeywords = async () => {
     const data = await apiClient.get("/trending/search/keywords");
     return data.keywords || [];
   } catch (error) {
-    console.warn("⚠️ Trending keywords API failed:", error.message);
+    logger.warn("⚠️ Trending keywords API failed:", error.message);
     return [];
   }
 };
@@ -486,7 +487,7 @@ export const getPopularSearches = async (limit = 10) => {
     });
     return (data.searches || []).map((item) => item.query).filter(Boolean);
   } catch (error) {
-    console.warn("⚠️ Popular searches API failed:", error.message);
+    logger.warn("⚠️ Popular searches API failed:", error.message);
     return [];
   }
 };
@@ -501,7 +502,7 @@ export const getSearchSuggestions = async (query = "", limit = 8) => {
     });
     return data?.suggestions || [];
   } catch (error) {
-    console.warn("⚠️ Search suggestions API failed:", error.message);
+    logger.warn("⚠️ Search suggestions API failed:", error.message);
     return [];
   }
 };
@@ -512,7 +513,7 @@ export const getPopular = async (page = 1) => {
     const data = await apiClient.get("/movies/popular", { params: { page } });
     return Array.isArray(data) ? data : data.results || [];
   } catch (error) {
-    console.warn("⚠️ Popular API failed:", error.message);
+    logger.warn("⚠️ Popular API failed:", error.message);
     return [];
   }
 };
@@ -523,7 +524,7 @@ export const getNewReleases = async (type = "movie") => {
     const data = await apiClient.get(`/trending/${type}/week`);
     return Array.isArray(data) ? data : data.results || [];
   } catch (error) {
-    console.warn("⚠️ New releases API failed:", error.message);
+    logger.warn("⚠️ New releases API failed:", error.message);
     return [];
   }
 };
@@ -540,7 +541,7 @@ export const searchByGenre = async (genre, type = "all") => {
     });
     return data.Search || data.results || [];
   } catch (error) {
-    console.warn("⚠️ Genre search failed:", error.message);
+    logger.warn("⚠️ Genre search failed:", error.message);
     return [];
   }
 };
@@ -551,7 +552,7 @@ export const getTopRated = async () => {
     const data = await apiClient.get("/movies/top-rated");
     return Array.isArray(data) ? data : data.results || [];
   } catch (error) {
-    console.warn("⚠️ Top Rated API failed:", error.message);
+    logger.warn("⚠️ Top Rated API failed:", error.message);
     return [];
   }
 };
@@ -563,13 +564,13 @@ export const getTrendingMovies = async () => {
 // Get trailers/videos for a movie
 export const getMovieVideos = async (tmdbId) => {
   try {
-    console.log(`🎬 Fetching movie videos for TMDB ID: ${tmdbId}`);
+    logger.info(`🎬 Fetching movie videos for TMDB ID: ${tmdbId}`);
     const response = await apiClient.get(`/movies/${tmdbId}/videos`);
-    console.log("🎬 Movie videos response:", response);
+    logger.info("🎬 Movie videos response:", response);
     // Response is already unwrapped by interceptor
     return response;
   } catch (error) {
-    console.error("❌ Error fetching movie videos:", error);
+    logger.error("❌ Error fetching movie videos:", error);
     throw error;
   }
 };
@@ -577,12 +578,12 @@ export const getMovieVideos = async (tmdbId) => {
 // Get trailers/videos for a TV series
 export const getTVVideos = async (tmdbId) => {
   try {
-    console.log(`🎬 Fetching TV videos for TMDB ID: ${tmdbId}`);
+    logger.info(`🎬 Fetching TV videos for TMDB ID: ${tmdbId}`);
     const response = await apiClient.get(`/tv/${tmdbId}/videos`);
-    console.log("🎬 TV videos response:", response);
+    logger.info("🎬 TV videos response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Error fetching TV videos:", error);
+    logger.error("❌ Error fetching TV videos:", error);
     throw error;
   }
 };
@@ -590,30 +591,30 @@ export const getTVVideos = async (tmdbId) => {
 // Get trailers/videos for a specific season
 export const getSeasonVideos = async (tmdbId, seasonNumber) => {
   try {
-    console.log(
+    logger.info(
       `🎬 Fetching season ${seasonNumber} videos for TMDB ID: ${tmdbId}`,
     );
     const response = await apiClient.get(
       `/tv/${tmdbId}/season/${seasonNumber}/videos`,
     );
-    console.log("🎬 Season videos response:", response);
+    logger.info("🎬 Season videos response:", response);
     return response;
   } catch (error) {
-    console.error("❌ Error fetching season videos:", error);
+    logger.error("❌ Error fetching season videos:", error);
     throw error;
   }
 };
 
 // Helper function to extract YouTube trailer from TMDB results
 export const extractYouTubeTrailer = (videosData) => {
-  console.log("🎬 Extracting trailer from:", videosData);
+  logger.info("🎬 Extracting trailer from:", videosData);
 
   if (!videosData?.results || !Array.isArray(videosData.results)) {
-    console.warn("⚠️ No results array in videos data");
+    logger.warn("⚠️ No results array in videos data");
     return null;
   }
 
-  console.log(`🎬 Found ${videosData.results.length} videos`);
+  logger.info(`🎬 Found ${videosData.results.length} videos`);
 
   // Priority order: Official Trailer > Trailer > Teaser > Clip
   const priorities = ["Trailer", "Teaser", "Clip", "Featurette"];
@@ -624,7 +625,7 @@ export const extractYouTubeTrailer = (videosData) => {
       (v) => v.site === "YouTube" && v.type === type && v.official === true,
     );
     if (video) {
-      console.log(`✅ Found official ${type}: ${video.key}`);
+      logger.info(`✅ Found official ${type}: ${video.key}`);
       return video.key;
     }
   }
@@ -635,7 +636,7 @@ export const extractYouTubeTrailer = (videosData) => {
       (v) => v.site === "YouTube" && v.type === type,
     );
     if (video) {
-      console.log(`✅ Found ${type}: ${video.key}`);
+      logger.info(`✅ Found ${type}: ${video.key}`);
       return video.key;
     }
   }
@@ -644,11 +645,11 @@ export const extractYouTubeTrailer = (videosData) => {
   const anyYoutubeVideo = videosData.results.find((v) => v.site === "YouTube");
 
   if (anyYoutubeVideo) {
-    console.log(`✅ Found YouTube video: ${anyYoutubeVideo.key}`);
+    logger.info(`✅ Found YouTube video: ${anyYoutubeVideo.key}`);
     return anyYoutubeVideo.key;
   }
 
-  console.warn("❌ No YouTube trailers found");
+  logger.warn("❌ No YouTube trailers found");
   return null;
 };
 
@@ -659,12 +660,12 @@ export const extractYouTubeTrailer = (videosData) => {
  */
 export const getMovieWatchProviders = async (tmdbId) => {
   try {
-    console.log("🎬 Fetching watch providers for movie:", tmdbId);
+    logger.info("🎬 Fetching watch providers for movie:", tmdbId);
     const data = await apiClient.get(`/movies/${tmdbId}/watch-providers`);
-    console.log("✅ Watch providers fetched:", data);
+    logger.info("✅ Watch providers fetched:", data);
     return data || {};
   } catch (error) {
-    console.error("❌ Error fetching movie watch providers:", error);
+    logger.error("❌ Error fetching movie watch providers:", error);
     // Return empty structure instead of throwing
     return { results: {} };
   }
@@ -675,12 +676,12 @@ export const getMovieWatchProviders = async (tmdbId) => {
  */
 export const getTVWatchProviders = async (tmdbId) => {
   try {
-    console.log("📺 Fetching watch providers for TV:", tmdbId);
+    logger.info("📺 Fetching watch providers for TV:", tmdbId);
     const data = await apiClient.get(`/tv/${tmdbId}/watch-providers`);
-    console.log("✅ Watch providers fetched:", data);
+    logger.info("✅ Watch providers fetched:", data);
     return data || {};
   } catch (error) {
-    console.error("❌ Error fetching TV watch providers:", error);
+    logger.error("❌ Error fetching TV watch providers:", error);
     return { results: {} };
   }
 };
@@ -690,7 +691,7 @@ export const getTVWatchProviders = async (tmdbId) => {
  */
 export const getWatchProviders = async (imdbID) => {
   try {
-    console.log("🔍 getWatchProviders called with:", imdbID);
+    logger.info("🔍 getWatchProviders called with:", imdbID);
 
     // Parse the imdbID to determine type and TMDB ID
     if (imdbID.startsWith("tmdb:")) {
@@ -698,7 +699,7 @@ export const getWatchProviders = async (imdbID) => {
       const mediaType = parts[1]; // 'movie' or 'tv'
       const tmdbId = parseInt(parts[2], 10);
 
-      console.log("📊 Parsed TMDB format:", { mediaType, tmdbId });
+      logger.info("📊 Parsed TMDB format:", { mediaType, tmdbId });
 
       if (mediaType === "tv") {
         return await getTVWatchProviders(tmdbId);
@@ -708,9 +709,9 @@ export const getWatchProviders = async (imdbID) => {
     }
 
     // For legacy IMDb IDs, get details first to determine type
-    console.log("🔄 Legacy IMDb ID, fetching details first...");
+    logger.info("🔄 Legacy IMDb ID, fetching details first...");
     const details = await getMovieDetails(imdbID);
-    console.log("📄 Movie details:", {
+    logger.info("📄 Movie details:", {
       Type: details.Type,
       imdbID: details.imdbID,
     });
@@ -718,22 +719,22 @@ export const getWatchProviders = async (imdbID) => {
     if (details.Type === "series") {
       // Extract TMDB ID from imdbID in the response
       const tmdbId = extractTmdbId(details.imdbID);
-      console.log("📺 Series TMDB ID:", tmdbId);
+      logger.info("📺 Series TMDB ID:", tmdbId);
       if (tmdbId) {
         return await getTVWatchProviders(tmdbId);
       }
     } else {
       const tmdbId = extractTmdbId(details.imdbID);
-      console.log("🎬 Movie TMDB ID:", tmdbId);
+      logger.info("🎬 Movie TMDB ID:", tmdbId);
       if (tmdbId) {
         return await getMovieWatchProviders(tmdbId);
       }
     }
 
-    console.warn("⚠️ Could not extract TMDB ID, returning empty results");
+    logger.warn("⚠️ Could not extract TMDB ID, returning empty results");
     return { results: {} };
   } catch (error) {
-    console.error("❌ Error in getWatchProviders:", error);
+    logger.error("❌ Error in getWatchProviders:", error);
     return { results: {} };
   }
 };
@@ -758,18 +759,18 @@ const extractTmdbId = (id) => {
  */
 export const getMovieReviews = async (tmdbId, page = 1) => {
   try {
-    console.log(`🎬 Fetching reviews for movie ${tmdbId}, page ${page}`);
+    logger.info(`🎬 Fetching reviews for movie ${tmdbId}, page ${page}`);
     const data = await apiClient.get(`/movies/${tmdbId}/reviews`, {
       params: { page },
     });
-    console.log(
+    logger.info(
       "✅ Movie reviews fetched:",
       data?.results?.length || 0,
       "reviews",
     );
     return data || { results: [], total_results: 0 };
   } catch (error) {
-    console.error("❌ Error fetching movie reviews:", error);
+    logger.error("❌ Error fetching movie reviews:", error);
     return { results: [], total_results: 0 };
   }
 };
@@ -782,18 +783,18 @@ export const getMovieReviews = async (tmdbId, page = 1) => {
  */
 export const getTVReviews = async (tmdbId, page = 1) => {
   try {
-    console.log(`📺 Fetching reviews for TV ${tmdbId}, page ${page}`);
+    logger.info(`📺 Fetching reviews for TV ${tmdbId}, page ${page}`);
     const data = await apiClient.get(`/tv/${tmdbId}/reviews`, {
       params: { page },
     });
-    console.log(
+    logger.info(
       "✅ TV reviews fetched:",
       data?.results?.length || 0,
       "reviews",
     );
     return data || { results: [], total_results: 0 };
   } catch (error) {
-    console.error("❌ Error fetching TV reviews:", error);
+    logger.error("❌ Error fetching TV reviews:", error);
     return { results: [], total_results: 0 };
   }
 };
@@ -807,17 +808,17 @@ export const getUserSubscriptions = async () => {
   try {
     const token = await auth.currentUser?.getIdToken();
     if (!token) {
-      console.warn("⚠️ No auth token available for subscriptions");
+      logger.warn("⚠️ No auth token available for subscriptions");
       return [];
     }
 
     const data = await apiClient.get("/user/subscriptions", {
       headers: { Authorization: `Bearer ${token}` },
     });
-    console.log("✅ User subscriptions fetched:", data);
+    logger.info("✅ User subscriptions fetched:", data);
     return data?.subscriptions || [];
   } catch (error) {
-    console.error("❌ Error fetching user subscriptions:", error);
+    logger.error("❌ Error fetching user subscriptions:", error);
     return [];
   }
 };
@@ -839,10 +840,10 @@ export const updateUserSubscriptions = async (subscriptions) => {
         headers: { Authorization: `Bearer ${token}` },
       },
     );
-    console.log("✅ User subscriptions updated:", data);
+    logger.info("✅ User subscriptions updated:", data);
     return data;
   } catch (error) {
-    console.error("❌ Error updating user subscriptions:", error);
+    logger.error("❌ Error updating user subscriptions:", error);
     throw error;
   }
 };
@@ -862,7 +863,7 @@ export const getGamificationData = async () => {
     });
     return data?.gamification || null;
   } catch (error) {
-    console.warn("⚠️ Could not fetch gamification from cloud:", error.message);
+    logger.warn("⚠️ Could not fetch gamification from cloud:", error.message);
     return null;
   }
 };
@@ -877,7 +878,7 @@ export const syncGamificationData = async (state) => {
     // Keep this function as a no-op for backwards compatibility.
     void state;
   } catch (error) {
-    console.warn("⚠️ Legacy gamification sync ignored:", error.message);
+    logger.warn("⚠️ Legacy gamification sync ignored:", error.message);
   }
 };
 
@@ -924,7 +925,7 @@ export const getWatchedEpisodes = async (contentId) => {
     const data = await apiClient.get(`/user/watched/${safeContentId}`);
     return data?.episodes || {};
   } catch (error) {
-    console.warn("⚠️ Could not fetch watched episodes:", error.message);
+    logger.warn("⚠️ Could not fetch watched episodes:", error.message);
     return {};
   }
 };
@@ -961,3 +962,4 @@ const ApiService = {
 
 export { API_BASE_URL };
 export default ApiService;
+

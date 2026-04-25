@@ -13,6 +13,7 @@ import {
   getSearchSuggestions,
   getTrendingKeywords,
 } from "../services/api";
+import logger from "../services/logger";
 
 const useSuggestions = () => {
   const [suggestions, setSuggestions] = useState([]);
@@ -64,7 +65,7 @@ const useSuggestions = () => {
           String(Date.now()),
         );
       } catch (error) {
-        console.warn("Failed to load suggestion keywords:", error);
+        logger.warn("Failed to load suggestion keywords", error);
         setTrendingKeywords([
           "action movies",
           "comedy series",
@@ -92,7 +93,7 @@ const useSuggestions = () => {
         suggestionFuseRef.current = new Fuse(cache, FUSE_SUGGESTION_OPTIONS);
       }
     } catch (error) {
-      console.warn("Failed to initialize suggestions:", error);
+      logger.warn("Failed to initialize suggestions", error);
     }
   }, []);
 

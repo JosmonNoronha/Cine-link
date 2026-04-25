@@ -35,6 +35,7 @@ import { useFavorites } from "../contexts/FavoritesContext";
 import { getWatchlists } from "../utils/storage";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { Ionicons } from "@expo/vector-icons";
+import logger from "../services/logger";
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
@@ -100,7 +101,7 @@ const HomeScreen = ({ navigation }) => {
       setHomeLoadError(false);
       return lists;
     } catch (error) {
-      console.error("Error loading watchlists:", error);
+      logger.error("Error loading watchlists", error);
       setHomeLoadError(true);
       return null;
     } finally {
@@ -179,40 +180,40 @@ const HomeScreen = ({ navigation }) => {
 
       const apiCalls = [
         getTrending("all", "week").catch((err) => {
-          console.warn("Trending failed:", err);
+          logger.warn("Trending failed", err);
           return null;
         }),
         getNewReleases("movie").catch((err) => {
-          console.warn("New releases failed:", err);
+          logger.warn("New releases failed", err);
           return null;
         }),
         getPopular().catch((err) => {
-          console.warn("Popular failed:", err);
+          logger.warn("Popular failed", err);
           return null;
         }),
         !isNewUser && userProfile.randomFavorite
           ? getRecommendations(userProfile.randomFavorite.Title).catch(
               (err) => {
-                console.warn("Recommendations failed:", err);
+                logger.warn("Recommendations failed", err);
                 return null;
               },
             )
           : Promise.resolve(null),
         topGenre
           ? searchByGenre(topGenre, "movie").catch((err) => {
-              console.warn(`Genre ${topGenre} failed:`, err);
+              logger.warn(`Genre ${topGenre} failed`, err);
               return null;
             })
           : Promise.resolve(null),
         userProfile.contentPreference === "series" && !isNewUser
           ? getTrending("tv", "week").catch((err) => {
-              console.warn("Series failed:", err);
+              logger.warn("Series failed", err);
               return null;
             })
           : Promise.resolve(null),
         secondGenre
           ? searchByGenre(secondGenre, "all").catch((err) => {
-              console.warn(`Second genre ${secondGenre} failed:`, err);
+              logger.warn(`Second genre ${secondGenre} failed`, err);
               return null;
             })
           : Promise.resolve(null),
@@ -364,7 +365,7 @@ const HomeScreen = ({ navigation }) => {
 
       setSections(newSections);
     } catch (error) {
-      console.error("Error building sections:", error);
+      logger.error("Error building sections", error);
       setHomeLoadError(true);
     } finally {
       setSectionsLoading(false);
@@ -417,7 +418,7 @@ const HomeScreen = ({ navigation }) => {
       watchlistsLoaded &&
       dataHash !== lastDataHashRef.current
     ) {
-      console.log("📊 Data changed, rebuilding sections...");
+      logger.info("📊 Data changed, rebuilding sections...");
       lastDataHashRef.current = dataHash;
       buildSections();
     }

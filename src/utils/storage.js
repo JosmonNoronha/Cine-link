@@ -13,8 +13,9 @@ import {
   getWatchedEpisodes as apiGetWatchedEpisodes,
   setEpisodeWatched as apiSetEpisodeWatched,
 } from "../services/api";
+import logger from "../services/logger";
 
-console.log("Storage.js loaded - auth:", auth); // Debug log
+logger.info("Storage.js loaded - auth:", auth); // Debug log
 
 const toOmdbLikeMovie = (item) => {
   if (!item || typeof item !== "object") return null;
@@ -166,7 +167,7 @@ export const toggleWatchedStatus = async (watchlistName, imdbID) => {
     await apiToggleWatchedStatus(watchlistName, imdbID);
     return true;
   } catch (error) {
-    console.error("Error toggling watched status:", error);
+    logger.error("Error toggling watched status", error);
     throw error;
   }
 };
@@ -191,17 +192,17 @@ export const markEpisodeWatched = async (
 ) => {
   try {
     if (!auth) {
-      console.warn("Authentication not initialized, skipping episode tracking");
+      logger.warn("Authentication not initialized, skipping episode tracking");
       return;
     }
     const user = auth.currentUser;
     if (!user) {
-      console.warn("No user logged in, skipping episode tracking");
+      logger.warn("No user logged in, skipping episode tracking");
       return;
     }
     await apiSetEpisodeWatched(imdbID, season, episode, watched);
   } catch (error) {
-    console.warn(
+    logger.warn(
       "Could not track episode watch status (non-critical):",
       error.message,
     );
@@ -217,7 +218,7 @@ export const getWatchedEpisodes = async (imdbID) => {
     const response = await apiGetWatchedEpisodes(imdbID);
     return response || {};
   } catch (error) {
-    console.warn("Could not retrieve watched episodes:", error.message);
+    logger.warn("Could not retrieve watched episodes:", error.message);
     return {};
   }
 };

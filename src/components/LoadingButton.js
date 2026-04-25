@@ -22,7 +22,7 @@ const LoadingButton = ({
           toValue: 1,
           duration: 1000,
           useNativeDriver: true,
-        })
+        }),
       );
       spinAnimation.start();
       return () => spinAnimation.stop();

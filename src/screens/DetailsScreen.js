@@ -59,6 +59,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import WatchProvidersSection from "../components/WatchProvidersSection";
 import ReviewsSection from "../components/ReviewsSection";
 import { StatusBar } from "expo-status-bar";
+import logger from "../services/logger";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY =
@@ -934,7 +935,7 @@ const DetailsScreen = ({ route, navigation }) => {
     // Check cache first
     const cached = seasonCacheRef.current.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < 30 * 60 * 1000) {
-      console.log(`✅ Using cached season ${seasonNumber}`);
+      logger.info(`✅ Using cached season ${seasonNumber}`);
       return cached.data;
     }
 
@@ -973,7 +974,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
       return processedSeason;
     } catch (error) {
-      console.error(`Failed to load season ${seasonNumber}:`, error);
+      logger.error(`Failed to load season ${seasonNumber}`, error);
       return null;
     }
   }, []);
@@ -1015,7 +1016,7 @@ const DetailsScreen = ({ route, navigation }) => {
           }
         }
       } catch (err) {
-        console.error("Error fetching trailer:", err);
+        logger.error("Error fetching trailer", err);
         setTrailerError("Failed to load trailer. Please try again.");
         showToast("Failed to load trailer", "error");
       } finally {
@@ -1055,7 +1056,7 @@ const DetailsScreen = ({ route, navigation }) => {
         showToast("Movie not loaded yet", "info");
       }
     } catch (error) {
-      console.error("Error toggling favorite:", error);
+      logger.error("Error toggling favorite", error);
       showToast("Failed to update favorites", "error");
     }
   }, [
@@ -1091,7 +1092,7 @@ const DetailsScreen = ({ route, navigation }) => {
       const lists = await getWatchlists();
       syncWatchlistState(lists);
     } catch (error) {
-      console.error("Error checking watchlist status:", error);
+      logger.error("Error checking watchlist status", error);
     }
   }, [syncWatchlistState]);
 
@@ -1133,7 +1134,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
       setShowWatchlistModal(true);
     } catch (error) {
-      console.error("Error opening watchlist:", error);
+      logger.error("Error opening watchlist", error);
       showToast("Failed to load watchlists", "error");
       // Revert optimistic update on error
       checkInAnyWatchlist();
@@ -1218,7 +1219,7 @@ const DetailsScreen = ({ route, navigation }) => {
         // Recheck watchlist status
         checkInAnyWatchlist();
       } catch (error) {
-        console.error("Error handling watchlist:", error);
+        logger.error("Error handling watchlist", error);
         showToast("Failed to update watchlist", "error");
 
         // REVERT OPTIMISTIC UPDATE on error
@@ -1269,7 +1270,7 @@ const DetailsScreen = ({ route, navigation }) => {
           showToast(`No trailer found for Season ${seasonNumber}`, "info");
         }
       } catch (err) {
-        console.error(`Error fetching season ${seasonNumber} trailer:`, err);
+        logger.error(`Error fetching season ${seasonNumber} trailer`, err);
         showToast("Failed to load season trailer", "error");
       } finally {
         setLoadingSeasonTrailers((prev) => ({
@@ -1343,7 +1344,7 @@ const DetailsScreen = ({ route, navigation }) => {
           "success",
         );
       } catch (error) {
-        console.error("Failed to update watch status:", error);
+        logger.error("Failed to update watch status", error);
         // Revert optimistic update
         setWatchedEpisodes((prev) => {
           const reverted = { ...prev };
@@ -1393,7 +1394,7 @@ const DetailsScreen = ({ route, navigation }) => {
             }));
           }
         } catch (error) {
-          console.error(`Error loading season ${seasonNumber}:`, error);
+          logger.error(`Error loading season ${seasonNumber}`, error);
           showToast("Failed to load season details", "error");
         } finally {
           setLoadingEpisodes((prev) => {
@@ -1420,7 +1421,7 @@ const DetailsScreen = ({ route, navigation }) => {
           const watched = await getWatchedEpisodes(effectiveImdbID);
           setWatchedEpisodes(watched);
         } catch (error) {
-          console.error("Failed to load watched episodes:", error);
+          logger.error("Failed to load watched episodes", error);
         }
       }
     };
@@ -1451,7 +1452,7 @@ const DetailsScreen = ({ route, navigation }) => {
         const subs = await getUserSubscriptions();
         setUserSubscriptions(subs);
       } catch (error) {
-        console.error("Failed to load user subscriptions:", error);
+        logger.error("Failed to load user subscriptions", error);
       }
     };
 
@@ -1462,20 +1463,20 @@ const DetailsScreen = ({ route, navigation }) => {
   useEffect(() => {
     const loadWatchProviders = async () => {
       if (!effectiveImdbID) {
-        console.log("⚠️ No effectiveImdbID, skipping watch providers");
+        logger.info("⚠️ No effectiveImdbID, skipping watch providers");
         return;
       }
 
-      console.log("🎬 Loading watch providers for:", effectiveImdbID);
+      logger.info("🎬 Loading watch providers for:", effectiveImdbID);
       setLoadingWatchProviders(true);
       try {
         const providersData = await getWatchProviders(effectiveImdbID);
-        console.log("📊 Providers data received:", providersData);
+        logger.info("📊 Providers data received:", providersData);
         const formatted = formatWatchProviders(providersData, "US");
-        console.log("✅ Formatted providers:", formatted);
+        logger.info("✅ Formatted providers:", formatted);
         setWatchProviders(formatted);
       } catch (error) {
-        console.error("❌ Failed to load watch providers:", error);
+        logger.error("❌ Failed to load watch providers", error);
         setWatchProviders(null);
       } finally {
         setLoadingWatchProviders(false);
@@ -1483,7 +1484,7 @@ const DetailsScreen = ({ route, navigation }) => {
     };
 
     if (movie) {
-      console.log("🎥 Movie loaded, fetching watch providers...");
+      logger.info("🎥 Movie loaded, fetching watch providers...");
       loadWatchProviders();
     }
   }, [effectiveImdbID, movie]);
@@ -1492,11 +1493,11 @@ const DetailsScreen = ({ route, navigation }) => {
   useEffect(() => {
     const loadReviews = async () => {
       if (!tmdbInfo) {
-        console.log("⚠️ No TMDB info, skipping reviews");
+        logger.info("⚠️ No TMDB info, skipping reviews");
         return;
       }
 
-      console.log(`📝 Loading reviews for ${tmdbInfo.type} ${tmdbInfo.id}`);
+      logger.info(`📝 Loading reviews for ${tmdbInfo.type} ${tmdbInfo.id}`);
       setLoadingReviews(true);
       setReviews([]);
       setReviewsPage(1);
@@ -1507,11 +1508,11 @@ const DetailsScreen = ({ route, navigation }) => {
             ? await getMovieReviews(tmdbInfo.id, 1)
             : await getTVReviews(tmdbInfo.id, 1);
 
-        console.log("✅ Reviews fetched:", reviewsData?.results?.length || 0);
+        logger.info("✅ Reviews fetched:", reviewsData?.results?.length || 0);
         setReviews(reviewsData.results || []);
         setTotalReviews(reviewsData.total_results || 0);
       } catch (error) {
-        console.error("❌ Failed to load reviews:", error);
+        logger.error("❌ Failed to load reviews", error);
         setReviews([]);
         setTotalReviews(0);
       } finally {
@@ -1520,7 +1521,7 @@ const DetailsScreen = ({ route, navigation }) => {
     };
 
     if (movie && tmdbInfo) {
-      console.log("🎥 Movie loaded, fetching reviews...");
+      logger.info("🎥 Movie loaded, fetching reviews...");
       loadReviews();
     }
   }, [tmdbInfo, movie]);
@@ -1530,7 +1531,7 @@ const DetailsScreen = ({ route, navigation }) => {
     if (!tmdbInfo || loadingReviews) return;
 
     const nextPage = reviewsPage + 1;
-    console.log(`📝 Loading more reviews, page ${nextPage}`);
+    logger.info(`📝 Loading more reviews, page ${nextPage}`);
     setLoadingReviews(true);
 
     try {
@@ -1541,9 +1542,9 @@ const DetailsScreen = ({ route, navigation }) => {
 
       setReviews((prev) => [...prev, ...(reviewsData.results || [])]);
       setReviewsPage(nextPage);
-      console.log("✅ More reviews loaded:", reviewsData?.results?.length || 0);
+      logger.info("✅ More reviews loaded:", reviewsData?.results?.length || 0);
     } catch (error) {
-      console.error("❌ Failed to load more reviews:", error);
+      logger.error("❌ Failed to load more reviews", error);
     } finally {
       setLoadingReviews(false);
     }
@@ -1573,7 +1574,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
         checkInAnyWatchlist();
       } catch (error) {
-        console.error("Failed to load movie details:", error);
+        logger.error("Failed to load movie details", error);
         setMovie(null);
         showToast("Failed to load movie details", "error");
       }

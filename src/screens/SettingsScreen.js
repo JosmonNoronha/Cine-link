@@ -25,6 +25,7 @@ import { useFavorites } from "../contexts/FavoritesContext";
 import { getWatchlists } from "../utils/storage";
 import { getGamificationState, getLevelInfo } from "../utils/gamification";
 import BadgesModal from "../components/BadgesModal";
+import logger from "../services/logger";
 
 const SettingsScreen = ({ navigation }) => {
   const { colors } = useTheme();
@@ -94,7 +95,7 @@ const SettingsScreen = ({ navigation }) => {
         unlockedAchievements: gamificationState?.unlockedAchievements || [],
       });
     } catch (error) {
-      console.error("Failed to load profile insights:", error);
+      logger.error("Failed to load profile insights", error);
       setProfileInsights((prev) => ({
         ...prev,
         favorites: favorites.length,
@@ -133,7 +134,7 @@ const SettingsScreen = ({ navigation }) => {
       const update = await Updates.checkForUpdateAsync();
       setUpdateAvailable(update.isAvailable);
     } catch (error) {
-      console.error("Error checking for updates:", error);
+      logger.error("Error checking for updates", error);
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -171,7 +172,7 @@ const SettingsScreen = ({ navigation }) => {
       }
     } catch (error) {
       Alert.alert("Error", "Failed to update the app");
-      console.error("Error updating app:", error);
+      logger.error("Error updating app", error);
     }
   };
 
@@ -179,7 +180,7 @@ const SettingsScreen = ({ navigation }) => {
     try {
       await auth.signOut();
     } catch (error) {
-      console.log("Sign Out Error", error.message);
+      logger.error("Sign Out Error", error);
     }
   };
 

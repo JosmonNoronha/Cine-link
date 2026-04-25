@@ -10,6 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
 import { initializeAuth } from "firebase/auth";
 import { getReactNativePersistence } from "@firebase/auth/dist/rn/index.js";
+import logger from "./src/services/logger";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -21,9 +22,9 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-console.log("Firebase config check:");
-console.log("  API Key:", firebaseConfig.apiKey ? "✅" : "❌");
-console.log("  Project ID:", firebaseConfig.projectId ? "✅" : "❌");
+logger.info("Firebase config check:");
+logger.info("  API Key:", firebaseConfig.apiKey ? "✅" : "❌");
+logger.info("  Project ID:", firebaseConfig.projectId ? "✅" : "❌");
 
 let firebaseApp;
 let firebaseAuth;
@@ -37,9 +38,9 @@ try {
   });
 
   db = getFirestore(firebaseApp);
-  console.log("✅ Firebase initialized successfully");
+  logger.info("✅ Firebase initialized successfully");
 } catch (error) {
-  console.error("❌ Firebase init error:", error.message);
+  logger.error("❌ Firebase init error:", error.message);
 }
 
 const createMockAuth = (reason) => ({

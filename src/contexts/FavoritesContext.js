@@ -11,6 +11,7 @@ import {
   saveFavorite as apiSaveFavorite,
   removeFavorite as apiRemoveFavorite,
 } from "../utils/storage";
+import logger from "../services/logger";
 
 const FavoritesContext = createContext();
 
@@ -22,53 +23,50 @@ export const useFavorites = () => {
   return context;
 };
 
-export const FavoritesProvider = ({ children }) => {
+export const FavoritesProvider = ({ children, authClient = auth }) => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
-  // Load favorites on mount and when user changes
-  const loadFavorites = useCallback(async () => {
-    try {
-      const user = auth?.currentUser;
-      if (!user) {
+  // Load favorites for the current auth user (or a supplied auth user)
+  const loadFavorites = useCallback(
+    async (authUser = authClient?.currentUser) => {
+      try {
+        if (!authUser) {
+          setFavorites([]);
+          setLoading(false);
+          setInitialized(true);
+          return;
+        }
+
+        setLoading(true);
+        const data = await apiGetFavorites();
+        setFavorites(Array.isArray(data) ? data : []);
+      } catch (error) {
+        logger.error("Failed to load favorites", error);
         setFavorites([]);
+      } finally {
         setLoading(false);
         setInitialized(true);
-        return;
       }
-
-      setLoading(true);
-      const data = await apiGetFavorites();
-      setFavorites(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Failed to load favorites:", error);
-      setFavorites([]);
-    } finally {
-      setLoading(false);
-      setInitialized(true);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Listen for auth state changes (handles both mount and auth changes)
   useEffect(() => {
-    if (!auth) return;
+    if (!authClient?.onAuthStateChanged) {
+      setLoading(false);
+      setInitialized(true);
+      return;
+    }
 
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        // Only load if not already initialized (prevents duplicate call)
-        if (!initialized) {
-          loadFavorites();
-        }
-      } else {
-        setFavorites([]);
-        setLoading(false);
-        setInitialized(true);
-      }
+    const unsubscribe = authClient.onAuthStateChanged((user) => {
+      void loadFavorites(user);
     });
 
     return () => unsubscribe();
-  }, [loadFavorites, initialized]);
+  }, [authClient, loadFavorites]);
 
   // Check if a movie is in favorites (instant lookup from cache)
   const isFavorite = useCallback(
@@ -97,7 +95,7 @@ export const FavoritesProvider = ({ children }) => {
       // Sync with backend/Firestore
       await apiSaveFavorite(movie);
     } catch (error) {
-      console.error("Failed to add to favorites:", error);
+      logger.error("Failed to add to favorites", error);
       // Revert on failure
       setFavorites((prev) => prev.filter((m) => m.imdbID !== movie.imdbID));
       throw error;
@@ -121,7 +119,7 @@ export const FavoritesProvider = ({ children }) => {
         // Sync with backend/Firestore
         await apiRemoveFavorite(imdbID);
       } catch (error) {
-        console.error("Failed to remove from favorites:", error);
+        logger.error("Failed to remove from favorites", error);
         // Revert on failure
         if (removedMovie) {
           setFavorites((prev) => [...prev, removedMovie]);
