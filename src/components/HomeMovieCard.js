@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { getCardImageUri } from "../utils/imageHelper";
 
 const HomeMovieCard = ({ movie, onPress, style }) => {
   const { colors } = useTheme();
@@ -93,13 +94,10 @@ const HomeMovieCard = ({ movie, onPress, style }) => {
             <>
               <Image
                 source={{
-                  uri:
-                    movie.Poster ||
-                    (movie.poster_path
-                      ? `https://image.tmdb.org/t/p/w185${movie.poster_path}`
-                      : null),
+                  uri: getCardImageUri(movie),
                 }}
                 style={styles.poster}
+                cachePolicy="memory-disk"
               />
               <Animated.View
                 style={[styles.pressOverlay, { opacity: overlayOpacity }]}

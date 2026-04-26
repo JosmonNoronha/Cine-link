@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Swipeable } from "react-native-gesture-handler";
+import { getCardImageUri } from "../utils/imageHelper";
 
 import CustomAlert from "../components/CustomAlert";
 import WatchlistCard from "../components/WatchlistCard";
@@ -830,10 +831,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
     const movieType = typeof item?.Type === "string" ? item.Type : "movie";
     const movieTitle = item?.Title || "Untitled";
     const movieYear = item?.Year || "Unknown";
-    const moviePoster =
-      typeof item?.Poster === "string" && item.Poster !== "N/A"
-        ? item.Poster
-        : "https://via.placeholder.com/300x450?text=No+Poster";
+    const moviePoster = getCardImageUri(item);
     const isWatched = !!item?.watched;
     const isLoading = loadingStates[movieId];
 

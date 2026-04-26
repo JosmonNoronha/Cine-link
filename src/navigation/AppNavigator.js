@@ -24,14 +24,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import HomeScreen from "../screens/HomeScreen";
 import SearchScreen from "../screens/SearchScreen";
 import DetailsScreen from "../screens/DetailsScreen";
-import FavoritesScreen from "../screens/FavoritesScreen";
-import {
-  WatchlistsScreen,
-  WatchlistContentScreen,
-} from "../screens/WatchlistScreen";
-import SettingsScreen from "../screens/SettingsScreen";
-import ManageSubscriptionsScreen from "../screens/ManageSubscriptionsScreen";
-import AuthScreen from "../screens/AuthScreen";
+
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { FavoritesProvider } from "../contexts/FavoritesContext";
 import { auth } from "../../firebaseConfig";
@@ -44,6 +37,17 @@ const Tab = createBottomTabNavigator();
 // Add a version key to track app installations
 const APP_VERSION_KEY = "@app_version";
 const CURRENT_APP_VERSION = "1.0.0"; // Update this when you want to force logout
+
+// Metro-safe deferred loading for non-critical routes.
+const getFavoritesScreen = () => require("../screens/FavoritesScreen").default;
+const getWatchlistsScreen = () =>
+  require("../screens/WatchlistScreen").WatchlistsScreen;
+const getWatchlistContentScreen = () =>
+  require("../screens/WatchlistScreen").WatchlistContentScreen;
+const getSettingsScreen = () => require("../screens/SettingsScreen").default;
+const getManageSubscriptionsScreen = () =>
+  require("../screens/ManageSubscriptionsScreen").default;
+const getAuthScreen = () => require("../screens/AuthScreen").default;
 
 /* ---------- STACKS FOR EACH TAB ---------- */
 const HomeStack = () => (
@@ -94,7 +98,7 @@ const FavoritesStack = () => (
       animation: "slide_from_right",
     }}
   >
-    <Stack.Screen name="Favorites" component={FavoritesScreen} />
+    <Stack.Screen name="Favorites" getComponent={getFavoritesScreen} />
     <Stack.Screen
       name="Details"
       component={DetailsScreen}
@@ -114,8 +118,11 @@ const WatchlistStack = () => (
       animation: "slide_from_right",
     }}
   >
-    <Stack.Screen name="Watchlists" component={WatchlistsScreen} />
-    <Stack.Screen name="WatchlistContent" component={WatchlistContentScreen} />
+    <Stack.Screen name="Watchlists" getComponent={getWatchlistsScreen} />
+    <Stack.Screen
+      name="WatchlistContent"
+      getComponent={getWatchlistContentScreen}
+    />
     <Stack.Screen
       name="Details"
       component={DetailsScreen}
@@ -134,10 +141,10 @@ const SettingsStack = () => (
       contentStyle: { backgroundColor: "transparent" },
     }}
   >
-    <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="Settings" getComponent={getSettingsScreen} />
     <Stack.Screen
       name="ManageSubscriptions"
-      component={ManageSubscriptionsScreen}
+      getComponent={getManageSubscriptionsScreen}
     />
   </Stack.Navigator>
 );
@@ -150,7 +157,7 @@ const AuthStack = () => (
       contentStyle: { backgroundColor: "transparent" },
     }}
   >
-    <Stack.Screen name="Auth" component={AuthScreen} />
+    <Stack.Screen name="Auth" getComponent={getAuthScreen} />
   </Stack.Navigator>
 );
 

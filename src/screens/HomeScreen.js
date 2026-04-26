@@ -26,6 +26,7 @@ import {
   searchByGenre,
   getRecommendations,
 } from "../services/api";
+import { getFeaturedImageUri, getCardImageUri } from "../utils/imageHelper";
 import MovieCard from "../components/HomeMovieCard";
 import HomeScreenSkeleton from "../components/HomeScreenSkeleton";
 import RetryState from "../components/RetryState";
@@ -379,29 +380,6 @@ const HomeScreen = ({ navigation }) => {
     lastDataHashRef.current = "";
     await loadWatchlists();
   }, [loadWatchlists]);
-
-  const getFeaturedImageUri = useCallback((movie) => {
-    if (!movie) return "https://via.placeholder.com/1280x720";
-
-    // Prefer backdrop images for the hero banner to avoid portrait cropping.
-    if (movie.backdrop_path) {
-      return `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`;
-    }
-
-    if (movie.poster_path) {
-      return `https://image.tmdb.org/t/p/w780${movie.poster_path}`;
-    }
-
-    if (movie.Poster && movie.Poster !== "N/A") {
-      // Upgrade low-resolution TMDB poster URLs used for card thumbnails.
-      if (movie.Poster.includes("image.tmdb.org/t/p/w185")) {
-        return movie.Poster.replace("/w185", "/w780");
-      }
-      return movie.Poster;
-    }
-
-    return "https://via.placeholder.com/1280x720";
-  }, []);
 
   // Initial load
   useEffect(() => {
