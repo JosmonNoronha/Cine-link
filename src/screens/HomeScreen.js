@@ -26,6 +26,7 @@ import {
   searchByGenre,
   getRecommendations,
 } from "../services/api";
+import { auth } from "../../firebaseConfig";
 import { getFeaturedImageUri, getCardImageUri } from "../utils/imageHelper";
 import MovieCard from "../components/HomeMovieCard";
 import HomeScreenSkeleton from "../components/HomeScreenSkeleton";
@@ -193,12 +194,12 @@ const HomeScreen = ({ navigation }) => {
           return null;
         }),
         !isNewUser && userProfile.randomFavorite
-          ? getRecommendations(userProfile.randomFavorite.Title).catch(
-              (err) => {
-                logger.warn("Recommendations failed", err);
-                return null;
-              },
-            )
+          ? getRecommendations(userProfile.randomFavorite.Title, {
+              personalize: Boolean(auth.currentUser),
+            }).catch((err) => {
+              logger.warn("Recommendations failed", err);
+              return null;
+            })
           : Promise.resolve(null),
         topGenre
           ? searchByGenre(topGenre, "movie").catch((err) => {

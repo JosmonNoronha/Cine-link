@@ -96,24 +96,82 @@ export const getEpisodeDetails = async (imdbID, season, episode) => {
   return result;
 };
 
-export const getRecommendations = async (title) => {
+export const getRecommendations = async (titleOrParams, options = {}) => {
+  // titleOrParams may be a legacy title string or an object { media_type, tmdb_id, page }
+  const personalize = Boolean(options.personalize);
+  const isTitleMode = typeof titleOrParams === "string";
+  const requestBody = isTitleMode
+    ? { title: titleOrParams, top_n: 10 }
+    : { ...(titleOrParams || {}) };
+  if (personalize) requestBody.personalize = true;
+
   try {
-    logger.info("🎬 Getting recommendations from backend:", title);
-    const data = await apiClient.post("/recommendations", {
-      title,
-      top_n: 10,
-    });
+    logger.info("🎬 Getting recommendations from backend:", requestBody);
+    const data = await apiClient.post("/recommendations", requestBody);
     logger.info("✅ Backend recommendations successful");
     return data.recommendations || [];
   } catch (error) {
+    // If personalization was requested but the user is not authenticated,
+    // the backend returns 401 — fall back to a public recommendation call.
+    const status = error?.response?.status;
+    if (personalize && status === 401) {
+      logger.warn(
+        "🔒 Personalized recommendations unauthorized — falling back to public",
+      );
+      try {
+        delete requestBody.personalize;
+        const fallback = await apiClient.post("/recommendations", requestBody);
+        return fallback.recommendations || [];
+      } catch (e) {
+        logger.error("❌ Fallback recommendations failed:", e.message);
+        return [];
+      }
+    }
+
     logger.error("❌ Failed to get recommendations:", error.message);
     return [];
   }
 };
 
+// Simple in-memory cache and inflight dedupe for batch details to avoid
+// client-side bursts hitting the new rate limiter.
+const _batchCache = new Map(); // key -> { ts, results }
+const _batchInflight = new Map(); // key -> Promise
+const BATCH_CACHE_TTL_MS = 60 * 1000; // 60s
+
 export const getBatchMovieDetails = async (imdbIDs) => {
+  const key = JSON.stringify(imdbIDs || []);
+  const now = Date.now();
+
+  // Return cached result if fresh
+  const cached = _batchCache.get(key);
+  if (cached && now - cached.ts < BATCH_CACHE_TTL_MS) {
+    logger.info("🔁 Returning cached batch details");
+    return cached.results;
+  }
+
+  // Return in-flight promise if request already running
+  if (_batchInflight.has(key)) {
+    logger.info("⏳ Reusing in-flight batch request");
+    return _batchInflight.get(key);
+  }
+
   logger.info("🎬 Using backend for batch movie details:", imdbIDs);
-  const data = await apiClient.post("/movies/batch-details", { imdbIDs });
-  logger.info("✅ Backend batch details successful");
-  return data.results || [];
+  const p = apiClient
+    .post("/movies/batch-details", { imdbIDs })
+    .then((data) => {
+      const results = data.results || [];
+      _batchCache.set(key, { ts: Date.now(), results });
+      return results;
+    })
+    .catch((err) => {
+      logger.error("❌ Backend batch details failed:", err.message);
+      return [];
+    })
+    .finally(() => {
+      _batchInflight.delete(key);
+    });
+
+  _batchInflight.set(key, p);
+  return p;
 };

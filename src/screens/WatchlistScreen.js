@@ -253,8 +253,9 @@ const WatchlistsScreen = ({ navigation }) => {
           style: "destructive",
           onPress: async () => {
             try {
+              hideAlert();
               await removeWatchlist(name);
-              fetchWatchlists();
+              await fetchWatchlists();
               navigation.setParams({ watchlistsModified: Date.now() });
               showCreateToast(`Deleted "${name}"`);
             } catch (error) {
@@ -1215,7 +1216,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   listContainer: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   watchlistsLoadingContainer: {
     flex: 1,
@@ -1243,7 +1244,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: "absolute",
-    bottom: 24,
+    bottom: 100,
     right: 24,
     borderRadius: 28,
     elevation: 8,
