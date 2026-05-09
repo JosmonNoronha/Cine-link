@@ -25,6 +25,7 @@ import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { Ionicons } from "@expo/vector-icons";
 import AppLoader from "../components/AppLoader";
 import RetryState from "../components/RetryState";
@@ -73,6 +74,8 @@ const FavoritesScreen = ({ navigation }) => {
     refreshFavorites,
     removeFromFavorites,
   } = useFavorites();
+
+  const tabBarHeight = useTabBarHeight();
 
   const loadGamification = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -853,7 +856,10 @@ const FavoritesScreen = ({ navigation }) => {
               renderItem={viewType === "list" ? renderListItem : renderGridItem}
               numColumns={viewType === "grid" ? 2 : 1}
               key={viewType} // Force re-render when switching views
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: tabBarHeight },
+              ]}
               columnWrapperStyle={
                 viewType === "grid" ? styles.gridRow : undefined
               }

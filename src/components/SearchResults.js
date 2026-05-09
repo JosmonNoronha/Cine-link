@@ -72,7 +72,9 @@ const SearchResults = ({
         onPress={onLoadMorePress || onEndReached}
         activeOpacity={0.8}
       >
-        <Text style={[styles.loadMoreText, { color: colors.text }]}>Load more</Text>
+        <Text style={[styles.loadMoreText, { color: colors.text }]}>
+          Load more
+        </Text>
       </TouchableOpacity>
     );
   };

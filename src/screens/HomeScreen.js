@@ -16,6 +16,7 @@ import {
   Image,
   useWindowDimensions,
 } from "react-native";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -66,6 +67,7 @@ const HomeScreen = ({ navigation }) => {
   const { theme } = useCustomTheme();
   const { favorites, initialized: favoritesInitialized } = useFavorites();
   const { width: screenWidth } = useWindowDimensions();
+  const tabBarHeight = useTabBarHeight();
   const featuredCardWidth = Math.max(screenWidth - 40, 280);
   const appNameSheenTranslate = appNameSheenProgress.interpolate({
     inputRange: [0, 1],
@@ -805,7 +807,10 @@ const HomeScreen = ({ navigation }) => {
         keyExtractor={(item) => item.key}
         renderItem={renderContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: tabBarHeight },
+        ]}
         removeClippedSubviews={true}
         maxToRenderPerBatch={1}
         windowSize={3}

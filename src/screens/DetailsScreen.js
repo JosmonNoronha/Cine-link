@@ -20,6 +20,7 @@ import {
   Linking,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import analyticsService from "../services/analytics";
@@ -872,6 +873,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
+  const tabBarHeight = useTabBarHeight();
   const { isFavorite, addToFavorites, removeFromFavorites } = useFavorites();
 
   // The backend can resolve a tmdb:* id into a real IMDb tt* id.
@@ -1623,7 +1625,10 @@ const DetailsScreen = ({ route, navigation }) => {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: tabBarHeight },
+        ]}
         scrollEnabled={!showWatchlistModal}
       >
         <Header onBack={handleBack} colors={colors} />

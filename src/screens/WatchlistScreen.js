@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Swipeable } from "react-native-gesture-handler";
@@ -64,6 +65,7 @@ const WatchlistsScreen = ({ navigation }) => {
   const hudAnimated = useRef(false);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
 
   const loadGamification = useCallback(async () => {
     const state = await getGamificationState();
@@ -396,7 +398,10 @@ const WatchlistsScreen = ({ navigation }) => {
           data={watchlistKeys}
           keyExtractor={(item) => item}
           renderItem={renderWatchlistItem}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            { paddingBottom: tabBarHeight },
+          ]}
           ListEmptyComponent={
             <EmptyState
               title="No Watchlists Yet"
@@ -496,6 +501,7 @@ const WatchlistContentScreen = ({ route, navigation }) => {
   const swipeRefs = useRef({}); // Store refs for each swipeable item
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useTabBarHeight();
 
   const showCustomAlert = (config) => {
     setAlertConfig({ ...config, visible: true });
@@ -1038,7 +1044,10 @@ const WatchlistContentScreen = ({ route, navigation }) => {
             item?.imdbID || item?.id || `movie-${index}`
           }
           renderItem={renderMovie}
-          contentContainerStyle={styles.movieListContainer}
+          contentContainerStyle={[
+            styles.movieListContainer,
+            { paddingBottom: tabBarHeight },
+          ]}
           showsVerticalScrollIndicator={false}
         />
       )}

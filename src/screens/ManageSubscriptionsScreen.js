@@ -13,6 +13,7 @@ import { useTheme } from "@react-navigation/native";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { auth } from "../../firebaseConfig";
 import { getUserSubscriptions, updateUserSubscriptions } from "../services/api";
 import { getProviderOptions } from "../config/streamingProviders";
@@ -53,7 +54,10 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
 
   const toggleSubscription = (providerId) => {
     if (!user) {
-      Alert.alert("Sign In Required", "Please sign in to save your subscriptions");
+      Alert.alert(
+        "Sign In Required",
+        "Please sign in to save your subscriptions",
+      );
       return;
     }
 
@@ -61,18 +65,20 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
       const newSubs = prev.includes(providerId)
         ? prev.filter((id) => id !== providerId)
         : [...prev, providerId];
-      
+
       // Check if there are changes
-      const changed = JSON.stringify(newSubs.sort()) !== JSON.stringify(initialSubscriptions.sort());
+      const changed =
+        JSON.stringify(newSubs.sort()) !==
+        JSON.stringify(initialSubscriptions.sort());
       setHasChanges(changed);
-      
+
       return newSubs;
     });
   };
 
   const saveSubscriptions = async () => {
     if (!user) return;
-    
+
     setSavingSubscriptions(true);
     try {
       await updateUserSubscriptions(userSubscriptions);
@@ -81,7 +87,10 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
       Alert.alert("Success", "Your streaming subscriptions have been saved!");
     } catch (error) {
       logger.error("Failed to save subscriptions", error);
-      Alert.alert("Error", "Failed to save your subscriptions. Please try again.");
+      Alert.alert(
+        "Error",
+        "Failed to save your subscriptions. Please try again.",
+      );
     } finally {
       setSavingSubscriptions(false);
     }
@@ -94,9 +103,13 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
 
   const providers = getProviderOptions();
   const selectedCount = userSubscriptions.length;
+  const tabBarHeight = useTabBarHeight();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card }]}>
         <TouchableOpacity
@@ -112,19 +125,26 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: tabBarHeight },
+        ]}
+      >
         {/* Info Card */}
         <LinearGradient
-          colors={theme === "dark" ? ["#1e3a8a", "#1e40af"] : ["#3b82f6", "#2563eb"]}
+          colors={
+            theme === "dark" ? ["#1e3a8a", "#1e40af"] : ["#3b82f6", "#2563eb"]
+          }
           style={styles.infoCard}
         >
           <Ionicons name="information-circle" size={32} color="#fff" />
           <Text style={styles.infoTitle}>Why Add Your Subscriptions?</Text>
           <Text style={styles.infoText}>
-            • See which movies/shows are available on your services{"\n"}
-            • Get personalized recommendations{"\n"}
-            • Filter content by your streaming platforms{"\n"}
-            • Discover what's trending on services you have
+            • See which movies/shows are available on your services{"\n"}• Get
+            personalized recommendations{"\n"}• Filter content by your streaming
+            platforms{"\n"}• Discover what's trending on services you have
           </Text>
         </LinearGradient>
 
@@ -132,13 +152,23 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
         {user && (
           <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>{selectedCount}</Text>
-              <Text style={[styles.statLabel, { color: colors.text }]}>Active Services</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {selectedCount}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.text }]}>
+                Active Services
+              </Text>
             </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+            <View
+              style={[styles.statDivider, { backgroundColor: colors.border }]}
+            />
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>{providers.length}</Text>
-              <Text style={[styles.statLabel, { color: colors.text }]}>Available Services</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {providers.length}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.text }]}>
+                Available Services
+              </Text>
             </View>
           </View>
         )}
@@ -146,12 +176,17 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
         {/* Sign In Prompt */}
         {!user && (
           <View style={[styles.signInPrompt, { backgroundColor: colors.card }]}>
-            <Ionicons name="lock-closed-outline" size={40} color={colors.text} />
+            <Ionicons
+              name="lock-closed-outline"
+              size={40}
+              color={colors.text}
+            />
             <Text style={[styles.signInTitle, { color: colors.text }]}>
               Sign In to Save Your Preferences
             </Text>
             <Text style={[styles.signInText, { color: colors.text }]}>
-              Create an account or sign in to save your streaming subscriptions across all your devices
+              Create an account or sign in to save your streaming subscriptions
+              across all your devices
             </Text>
           </View>
         )}
@@ -182,15 +217,16 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
                     style={[
                       styles.subscriptionItem,
                       {
-                        backgroundColor: theme === "dark"
-                          ? "rgba(255,255,255,0.05)"
-                          : "rgba(0,0,0,0.03)",
+                        backgroundColor:
+                          theme === "dark"
+                            ? "rgba(255,255,255,0.05)"
+                            : "rgba(0,0,0,0.03)",
                         borderWidth: isSelected ? 3 : 1,
                         borderColor: isSelected
                           ? "#10b981"
                           : theme === "dark"
-                          ? "#333"
-                          : "#ddd",
+                            ? "#333"
+                            : "#ddd",
                       },
                     ]}
                     onPress={() => toggleSubscription(provider.id)}
@@ -212,7 +248,11 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
                     </Text>
                     {isSelected && (
                       <View style={styles.subscriptionCheckmark}>
-                        <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={24}
+                          color="#10b981"
+                        />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -228,9 +268,21 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
 
       {/* Save Button (Fixed at bottom when changes are made) */}
       {hasChanges && user && (
-        <View style={[styles.actionBar, { backgroundColor: colors.card }]}>
+        <View
+          style={[
+            styles.actionBar,
+            { backgroundColor: colors.card, marginBottom: tabBarHeight },
+          ]}
+        >
           <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: "transparent", borderColor: colors.border, borderWidth: 1 }]}
+            style={[
+              styles.cancelButton,
+              {
+                backgroundColor: "transparent",
+                borderColor: colors.border,
+                borderWidth: 1,
+              },
+            ]}
             onPress={cancelChanges}
             disabled={savingSubscriptions}
           >
@@ -238,7 +290,7 @@ const ManageSubscriptionsScreen = ({ navigation }) => {
               Cancel
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: "#10b981" }]}
             onPress={saveSubscriptions}

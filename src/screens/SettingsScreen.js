@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import * as Updates from "expo-updates";
 import NetInfo from "@react-native-community/netinfo";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -25,6 +26,7 @@ import { useFavorites } from "../contexts/FavoritesContext";
 import { getWatchlists } from "../utils/storage";
 import { getGamificationState, getLevelInfo } from "../utils/gamification";
 import BadgesModal from "../components/BadgesModal";
+import ProfileSection from "../components/ProfileSection";
 import logger from "../services/logger";
 
 const SettingsScreen = ({ navigation }) => {
@@ -282,149 +284,7 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
-  const ProfileSection = () => (
-    <SectionCard title="Profile">
-      {user ? (
-        <View style={styles.profileContainer}>
-          <View style={styles.profileTopRow}>
-            <View style={styles.avatarContainer}>
-              <LinearGradient
-                colors={["#4a90e2", "#9013fe"]}
-                style={styles.avatarGradient}
-              >
-                <View style={styles.avatarInner}>
-                  {user?.displayName && (
-                    <Text style={styles.avatarInitial}>
-                      {user.displayName.charAt(0).toUpperCase()}
-                    </Text>
-                  )}
-                </View>
-              </LinearGradient>
-              <View
-                style={[
-                  styles.profileStatusDot,
-                  {
-                    backgroundColor:
-                      backendStatus?.available === true ? "#10B981" : "#EF4444",
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.profileInfo}>
-              <Text
-                style={[styles.profileName, { color: colors.text }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {user.displayName || "No Username Set"}
-              </Text>
-              <Text
-                style={[styles.profileEmail, { color: colors.text }]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {user.email}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.signOutButton, { backgroundColor: "#ff3b30" }]}
-              onPress={handleSignOut}
-            >
-              <Ionicons
-                name="log-out-outline"
-                size={20}
-                color="#fff"
-                style={{ marginRight: 8 }}
-              />
-              <Text style={styles.buttonText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View
-            style={[
-              styles.profileStatsPanel,
-              {
-                borderColor:
-                  theme === "dark"
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.08)",
-                backgroundColor:
-                  theme === "dark"
-                    ? "rgba(255,255,255,0.03)"
-                    : "rgba(0,0,0,0.015)",
-              },
-            ]}
-          >
-            <View style={styles.profileStatsHeader}>
-              <Text style={[styles.profileStatsTitle, { color: colors.text }]}>
-                Profile Insights
-              </Text>
-              {insightsLoading ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : null}
-            </View>
-            <View style={styles.profileStatsGrid}>
-              <ProfileStatTile
-                icon="sparkles-outline"
-                label="Level"
-                value={`${profileInsights.levelIcon} L${profileInsights.level}`}
-                accent="#8B5CF6"
-              />
-              <ProfileStatTile
-                icon="flash-outline"
-                label="XP"
-                value={`${profileInsights.xp}`}
-                subtitle={
-                  profileInsights.xpProgressText === "MAX"
-                    ? "Max level"
-                    : `${profileInsights.xpProgressText} in level`
-                }
-                accent="#F59E0B"
-              />
-              <ProfileStatTile
-                icon="heart-outline"
-                label="Favorites"
-                value={`${profileInsights.favorites}`}
-                accent="#E11D48"
-              />
-              <ProfileStatTile
-                icon="list-outline"
-                label="Watchlists"
-                value={`${profileInsights.watchlists}`}
-                accent="#06B6D4"
-              />
-              <ProfileStatTile
-                icon="flame-outline"
-                label="Streak"
-                value={`${profileInsights.streak}`}
-                subtitle="Current"
-                accent="#EF4444"
-              />
-              <ProfileStatTile
-                icon="trophy-outline"
-                label="Badges"
-                value={`${profileInsights.badges}`}
-                subtitle="Tap to view"
-                accent="#10B981"
-                onPress={() => setBadgesModalVisible(true)}
-              />
-            </View>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.notLoggedIn}>
-          <Text
-            style={[
-              styles.settingDescription,
-              { color: colors.text, textAlign: "center" },
-            ]}
-          >
-            Not logged in. Please log in from the Auth screen.
-          </Text>
-        </View>
-      )}
-    </SectionCard>
-  );
+  // ProfileSection is now provided by a separate component in components/ProfileSection
 
   const StreamingSubscriptionsSection = () => {
     return (
@@ -586,8 +446,18 @@ const SettingsScreen = ({ navigation }) => {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: useTabBarHeight() }}
       >
-        <ProfileSection />
+        <ProfileSection
+          user={user}
+          backendStatus={backendStatus}
+          profileInsights={profileInsights}
+          insightsLoading={insightsLoading}
+          onSignOut={handleSignOut}
+          onBadgesPress={() => setBadgesModalVisible(true)}
+          theme={theme}
+          colors={colors}
+        />
 
         {/* <BackendStatusSection /> */}
 
