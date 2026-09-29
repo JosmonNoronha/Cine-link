@@ -1,114 +1,119 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  withDelay,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
-  FadeInDown,
-  FadeInUp,
+  Easing,
+  FadeIn,
   FadeOut,
 } from "react-native-reanimated";
 
-const PulsingDot = ({ delay = 0 }) => {
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
+/* ───────────────────────── icon tile ─────────────────────────
+ * A quick, punchy pop — spring overshoot past 1, settle, done.
+ * No idle loop: the splash isn't on screen long enough to earn one.
+ */
+const IconTile = ({ size = 116 }) => {
+  const pop = useSharedValue(0);
+  const sweep = useSharedValue(-1);
 
   useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.5, { duration: 600 }),
-        withTiming(1, { duration: 600 }),
-      ),
-      -1,
-      true,
+    pop.value = withSpring(1, { damping: 9, stiffness: 220, mass: 0.7 });
+    sweep.value = withDelay(
+      150,
+      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
     );
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.5, { duration: 600 }),
-        withTiming(1, { duration: 600 }),
-      ),
-      -1,
-      true,
-    );
-  }, []);
+  }, [pop, sweep]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
+  const tileStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(pop.value * 1.6, 1),
+    transform: [{ scale: pop.value }, { rotate: `${(1 - pop.value) * -6}deg` }],
   }));
 
-  return <Animated.View style={[styles.dot, animatedStyle]} />;
-};
+  const sweepStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: sweep.value * size * 1.4 }, { rotate: "20deg" }],
+    opacity: sweep.value > 0.85 ? 0 : 1,
+  }));
 
-const SplashLoader = ({
-  appName = "CineLink",
-  message = "Preparing your experience...",
-}) => {
   return (
-    <Animated.View style={styles.container} exiting={FadeOut.duration(600)}>
-      <Animated.View
-        entering={FadeInDown.duration(800).springify().damping(12)}
-      >
+    <Animated.View style={[styles.iconShadowWrap, tileStyle]}>
+      <View style={[styles.iconTile, { width: size, height: size, borderRadius: size * 0.24 }]}>
         <Image
           source={require("../../../assets/logo.png")}
-          style={styles.logo}
+          style={styles.iconImage}
           contentFit="contain"
         />
-      </Animated.View>
+        <Animated.View style={[styles.sweep, sweepStyle]} pointerEvents="none" />
+      </View>
+    </Animated.View>
+  );
+};
+
+/* ───────────────────── loading dots (fast, staggered) ───────────────────── */
+const Dot = ({ delay, color }) => {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withDelay(
+      delay,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 260, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [t, delay]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.35 + t.value * 0.65,
+    transform: [{ scale: 0.7 + t.value * 0.3 }],
+  }));
+
+  return <Animated.View style={[styles.dot, { backgroundColor: color }, style]} />;
+};
+
+/* ───────────────────────── splash loader ───────────────────────── */
+
+const SplashLoader = ({ appName = "CineLink" }) => {
+  const accent = "#74b7ff";
+
+  return (
+    <Animated.View style={styles.container} exiting={FadeOut.duration(280)}>
+      <LinearGradient
+        colors={["#0c1220", "#05070d", "#000000"]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <IconTile />
+
+      <Animated.Text
+        entering={FadeIn.delay(120).duration(280)}
+        style={styles.appName}
+      >
+        {appName}
+      </Animated.Text>
 
       <Animated.View
-        entering={FadeInUp.delay(400).duration(800).springify().damping(12)}
+        entering={FadeIn.delay(260).duration(240)}
+        style={styles.dotsRow}
       >
-        <Text style={styles.appName}>{appName}</Text>
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInUp.delay(800).duration(800)}
-        style={styles.loaderContainer}
-      >
-        <View style={styles.dotsContainer}>
-          <PulsingDot delay={0} />
-          <PulsingDot delay={200} />
-          <PulsingDot delay={400} />
-        </View>
-        <Text style={styles.loadingText}>{message}</Text>
-      </Animated.View>
-      {/* OMDB Credits */}
-      <Animated.View
-        entering={FadeInUp.delay(1200).duration(800)}
-        style={styles.creditContainer}
-      >
-        <Text style={styles.creditText}>Powered by OMDB API</Text>
+        <Dot delay={0} color={accent} />
+        <Dot delay={120} color={accent} />
+        <Dot delay={240} color={accent} />
       </Animated.View>
     </Animated.View>
   );
 };
 
-const MainApp = (
-  { appName = "CineLink" }, // Pass appName as a prop
-) => (
-  <View style={styles.mainAppContainer}>
-    <Text style={styles.mainAppText}>Welcome to {appName}</Text>
-  </View>
-);
-
-const App = () => {
-  const [showSplash, setShowSplash] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 6000); // Increased to 6 seconds
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  return showSplash ? <SplashLoader /> : <MainApp />;
-};
-
-export default App;
+export default SplashLoader;
 
 const styles = StyleSheet.create({
   container: {
@@ -116,63 +121,53 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
-  logo: {
-    width: 150,
-    height: 150,
-    marginBottom: 10,
+
+  iconShadowWrap: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 18,
+    marginBottom: 18,
   },
-  appName: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#ffffff",
-    letterSpacing: 1.5,
-    marginTop: 8,
-  },
-  loaderContainer: {
-    marginTop: 30,
+  iconTile: {
+    backgroundColor: "#12151c",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
     alignItems: "center",
-  },
-  dotsContainer: {
-    flexDirection: "row",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  iconImage: {
+    width: "68%",
+    height: "68%",
+  },
+  sweep: {
+    position: "absolute",
+    top: -40,
+    bottom: -40,
+    width: 32,
+    backgroundColor: "rgba(255,255,255,0.22)",
+  },
+
+  appName: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#ffffff",
+    letterSpacing: 0.6,
+    textAlign: "center",
+  },
+
+  dotsRow: {
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 22,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#ffffff",
-    marginHorizontal: 6,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#ffffff",
-    fontWeight: "500",
-    opacity: 0.8,
-  },
-  creditContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 40,
-    justifyContent: "center", // Ensure text is centered
-  },
-  creditText: {
-    fontSize: 12,
-    color: "#ffffff",
-    opacity: 0.6,
-    fontStyle: "italic",
-  },
-  mainAppContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#1a1a1a",
-  },
-  mainAppText: {
-    fontSize: 24,
-    color: "#ffffff",
-    fontWeight: "600",
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });

@@ -25,7 +25,10 @@ import WatchlistCard from "../components/watchlist/WatchlistCard";
 import EmptyState from "../components/shared/EmptyState";
 import CreateWatchlistModal from "../components/watchlist/CreateWatchlistModal";
 import RetryState from "../components/shared/RetryState";
+import FavoritesScreen from "./FavoritesScreen";
 import logger from "../services/logger";
+import IconToggleButton from "../components/shared/IconToggleButton";
+
 
 import {
   getWatchlists,
@@ -35,42 +38,37 @@ import {
   toggleWatchedStatus,
 } from "../utils/storage";
 import {
-  getGamificationState,
-  getLevelInfo,
   recordMovieWatched,
   recordMovieUnwatched,
   recordListCreatedWithName,
   recordListCompleted,
 } from "../utils/gamification";
 
+import GlassSegmentedControl from "../components/shared/GlassSegmentedControl";
+import LibraryPageHeader from "../components/shared/LibraryPageHeader";
+import { useFavorites } from "../contexts/FavoritesContext";
+import { useCustomTheme } from "../contexts/ThemeContext";
+
 const WatchlistsScreen = ({ navigation }) => {
+  const [activeTab, setActiveTab] = useState("watchlists");
   const [watchlists, setWatchlists] = useState({});
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const [isCreatingWatchlist, setIsCreatingWatchlist] = useState(false);
   const [createToast, setCreateToast] = useState(null);
-  const [gamification, setGamification] = useState(null);
   const [watchlistsLoading, setWatchlistsLoading] = useState(true);
   const [watchlistsLoadError, setWatchlistsLoadError] = useState(false);
   const [watchlistsLoadMessage, setWatchlistsLoadMessage] = useState(
     "Unable to load your watchlists. Check your internet and try again.",
   );
-  const xpBlockAnims = useRef(
-    Array.from({ length: 20 }, () => new Animated.Value(0)),
-  ).current;
-  const cursorBlink = useRef(new Animated.Value(1)).current;
-  const scanAnim = useRef(new Animated.Value(0)).current;
+  const [libraryViewType, setLibraryViewType] = useState("list");
+  const { theme } = useCustomTheme();
+  const { favorites } = useFavorites();
   const createToastAnim = useRef(new Animated.Value(0)).current;
-  const hudAnimated = useRef(false);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
-
-  const loadGamification = useCallback(async () => {
-    const state = await getGamificationState();
-    setGamification(state);
-  }, []);
 
   const showCustomAlert = (config) => {
     setAlertConfig({ ...config, visible: true });
@@ -130,13 +128,11 @@ const WatchlistsScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchWatchlists({ showLoader: true });
-    loadGamification();
     const unsubscribe = navigation.addListener("focus", () => {
       fetchWatchlists();
-      loadGamification();
     });
     return unsubscribe;
-  }, [navigation, loadGamification]);
+  }, [navigation]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
@@ -144,51 +140,6 @@ const WatchlistsScreen = ({ navigation }) => {
     });
     return unsubscribe;
   }, [navigation]);
-
-  useEffect(() => {
-    if (!gamification) return;
-    const li = getLevelInfo(gamification.xp);
-    const filled = li.next ? Math.round(li.progress * 20) : 20;
-
-    if (!hudAnimated.current) {
-      // First time: run intro animation (scan + cursor)
-      hudAnimated.current = true;
-
-      Animated.timing(scanAnim, {
-        toValue: 1,
-        duration: 900,
-        useNativeDriver: false,
-      }).start();
-
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(cursorBlink, {
-            toValue: 0,
-            duration: 450,
-            useNativeDriver: false,
-          }),
-          Animated.timing(cursorBlink, {
-            toValue: 1,
-            duration: 450,
-            useNativeDriver: false,
-          }),
-        ]),
-      ).start();
-    }
-
-    // Always update the XP block positions so the bar reflects current XP
-    Animated.stagger(
-      38,
-      xpBlockAnims.map((a, i) =>
-        Animated.spring(a, {
-          toValue: i < filled ? 1 : 0.45,
-          useNativeDriver: false,
-          tension: 220,
-          friction: 11,
-        }),
-      ),
-    ).start();
-  }, [gamification]);
 
   const handleAddWatchlist = async () => {
     const name = newName.trim();
@@ -220,7 +171,6 @@ const WatchlistsScreen = ({ navigation }) => {
 
       // Record gamification (server-authoritative)
       const listCreateGamification = await recordListCreatedWithName(name);
-      loadGamification();
 
       showCreateToast(
         listCreateGamification?.xpGained > 0
@@ -297,8 +247,6 @@ const WatchlistsScreen = ({ navigation }) => {
 
   const watchlistKeys = Object.keys(watchlists);
 
-  const levelInfo = gamification ? getLevelInfo(gamification.xp) : null;
-
   return (
     <KeyboardAvoidingView
       style={[
@@ -307,169 +255,141 @@ const WatchlistsScreen = ({ navigation }) => {
       ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* ─── Clean Page Header ─── */}
-      <View style={styles.pageHeader}>
-        <Text style={[styles.pageTitle, { color: colors.text }]}>
-          MY WATCHLISTS
-        </Text>
-      </View>
+      <GlassSegmentedControl
+        options={[
+          { key: "watchlists", label: "Watchlists", icon: "bookmark-outline" },
+          { key: "favorites", label: "Favorites", icon: "heart-outline" },
+        ]}
+        value={activeTab}
+        onChange={setActiveTab}
+        theme={theme}
+      />
+      <View style={{ height: 14 }} />
 
-      {/* ─── Gamification HUD Panel ─── */}
-      {gamification && levelInfo && (
-        <View style={styles.hudPanel}>
-          <View style={styles.hudCornerTL} />
-          <View style={styles.hudCornerTR} />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.hudScanLine,
-              {
-                transform: [
-                  {
-                    translateX: scanAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-60, 600],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-          {/* XP progress */}
-          {levelInfo.next ? (
-            <View style={styles.hudXpBarInline}>
-              <View style={styles.hudXpSegments}>
-                {Array.from({ length: 20 }, (_, i) => (
-                  <Animated.View
-                    key={i}
-                    style={[
-                      styles.hudXpBlock,
-                      i / 20 < levelInfo.progress
-                        ? styles.hudXpBlockFilled
-                        : styles.hudXpBlockEmpty,
-                      { transform: [{ scaleY: xpBlockAnims[i] }] },
-                    ]}
-                  />
-                ))}
-              </View>
-              <View style={styles.hudProgressFooter}>
-                <View style={styles.hudProgressLeft}>
-                  <Text style={styles.hudProgressLabel} numberOfLines={1}>
-                    {levelInfo.current.icon} LVL {levelInfo.current.level}
-                  </Text>
-                  <Animated.Text
-                    style={[styles.hudCursor, { opacity: cursorBlink }]}
-                  >
-                    █
-                  </Animated.Text>
-                </View>
-                <Text
-                  style={[styles.hudXpMetaText, { color: colors.text }]}
-                  numberOfLines={1}
-                >
-                  {levelInfo.xpInLevel}/{levelInfo.xpForNext} XP
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.hudMaxLvlText}>
-              MAX LEVEL • {gamification.xp} XP
-            </Text>
-          )}
-        </View>
-      )}
-
-      {watchlistsLoading && watchlistKeys.length === 0 ? (
-        <View style={styles.watchlistsLoadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.watchlistsLoadingText, { color: colors.text }]}>
-            Loading watchlists...
-          </Text>
-        </View>
-      ) : watchlistsLoadError && watchlistKeys.length === 0 ? (
-        <RetryState
-          title="Unable to load watchlists"
-          message={watchlistsLoadMessage}
-          onRetry={handleRetryWatchlists}
-          compact
-        />
-      ) : (
-        <FlatList
-          data={watchlistKeys}
-          keyExtractor={(item) => item}
-          renderItem={renderWatchlistItem}
-          contentContainerStyle={[
-            styles.listContainer,
-            { paddingBottom: tabBarHeight },
-          ]}
-          ListEmptyComponent={
-            <EmptyState
-              title="No Watchlists Yet"
-              subtitle="Create your first watchlist to organize your favorite movies"
-              buttonText="Create Watchlist"
-              onButtonPress={() => setModalVisible(true)}
-              showButton
+      <LibraryPageHeader
+        title={activeTab === "watchlists" ? "My Watchlists" : "My Favorites"}
+        colors={colors}
+        right={
+          activeTab === "favorites" && favorites.length > 0 ? (
+            <IconToggleButton
+              icon={
+                libraryViewType === "list" ? "grid-outline" : "list-outline"
+              }
+              onPress={() =>
+                setLibraryViewType(libraryViewType === "list" ? "grid" : "list")
+              }
+              theme={theme}
             />
-          }
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      {watchlistKeys.length > 0 && (
-        <TouchableOpacity
-          onPress={() => setModalVisible(true)}
-          style={styles.fab}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={["#667eea", "#764ba2"]}
-            style={styles.fabGradient}
-          >
-            <Ionicons name="add" size={28} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
-      <CreateWatchlistModal
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        newName={newName}
-        setNewName={setNewName}
-        onSubmit={handleAddWatchlist}
-        isLoading={isCreatingWatchlist}
+          ) : null
+        }
       />
 
-      {createToast && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.createToast,
-            {
-              opacity: createToastAnim,
-              transform: [
+      {activeTab === "favorites" ? (
+        <View style={styles.embeddedFavorites}>
+          <FavoritesScreen
+            navigation={navigation}
+            embedded
+            viewType={libraryViewType}
+            onChangeViewType={setLibraryViewType}
+          />
+        </View>
+      ) : (
+        <>
+          {watchlistsLoading && watchlistKeys.length === 0 ? (
+            <View style={styles.watchlistsLoadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text
+                style={[styles.watchlistsLoadingText, { color: colors.text }]}
+              >
+                Loading watchlists...
+              </Text>
+            </View>
+          ) : watchlistsLoadError && watchlistKeys.length === 0 ? (
+            <RetryState
+              title="Unable to load watchlists"
+              message={watchlistsLoadMessage}
+              onRetry={handleRetryWatchlists}
+              compact
+            />
+          ) : (
+            <FlatList
+              data={watchlistKeys}
+              keyExtractor={(item) => item}
+              renderItem={renderWatchlistItem}
+              contentContainerStyle={[
+                styles.listContainer,
+                { paddingBottom: tabBarHeight },
+              ]}
+              ListEmptyComponent={
+                <EmptyState
+                  title="No Watchlists Yet"
+                  subtitle="Create your first watchlist to organize your favorite movies"
+                  buttonText="Create Watchlist"
+                  onButtonPress={() => setModalVisible(true)}
+                  showButton
+                />
+              }
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+
+          {watchlistKeys.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setModalVisible(true)}
+              style={styles.fab}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#667eea", "#764ba2"]}
+                style={styles.fabGradient}
+              >
+                <Ionicons name="add" size={28} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          <CreateWatchlistModal
+            visible={modalVisible}
+            onClose={() => setModalVisible(false)}
+            newName={newName}
+            setNewName={setNewName}
+            onSubmit={handleAddWatchlist}
+            isLoading={isCreatingWatchlist}
+          />
+
+          {createToast && (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.createToast,
                 {
-                  translateY: createToastAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [18, 0],
-                  }),
+                  opacity: createToastAnim,
+                  transform: [
+                    {
+                      translateY: createToastAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [18, 0],
+                      }),
+                    },
+                  ],
                 },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.createToastText}>{createToast}</Text>
-        </Animated.View>
-      )}
+              ]}
+            >
+              <Text style={styles.createToastText}>{createToast}</Text>
+            </Animated.View>
+          )}
 
-      <CustomAlert
-        visible={alertConfig.visible}
-        onClose={hideAlert}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        buttons={alertConfig.buttons}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-      />
+          <CustomAlert
+            visible={alertConfig.visible}
+            onClose={hideAlert}
+            title={alertConfig.title}
+            message={alertConfig.message}
+            buttons={alertConfig.buttons}
+            icon={alertConfig.icon}
+            iconColor={alertConfig.iconColor}
+          />
+        </>
+      )}
     </KeyboardAvoidingView>
   );
 };
@@ -1219,6 +1139,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 18,
   },
+  embeddedFavorites: {
+    flex: 1,
+    marginHorizontal: -16,
+  },
   header: {
     fontSize: 26,
     fontWeight: "800",
@@ -1484,16 +1408,6 @@ const styles = StyleSheet.create({
   },
 
   // ─── PIXEL HUD STYLES ────────────────────────────────────
-  pageHeader: {
-    paddingHorizontal: 4,
-    paddingBottom: 6,
-    marginBottom: 14,
-  },
-  pageTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-  },
   hudPanel: {
     borderWidth: 1,
     borderColor: "rgba(229,9,20,0.22)",

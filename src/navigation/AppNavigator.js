@@ -49,16 +49,17 @@ const CURRENT_APP_VERSION = "1.0.0";
 const TAB_CONFIG = [
   { name: "Home", icon: "home-outline", iconFocused: "home" },
   { name: "Search", icon: "search-outline", iconFocused: "search-sharp" },
-  { name: "Favorites", icon: "heart-outline", iconFocused: "heart" },
   { name: "Watchlist", icon: "bookmark-outline", iconFocused: "bookmark" },
   { name: "Settings", icon: "settings-outline", iconFocused: "settings" },
 ];
 
 const NUM_TABS = TAB_CONFIG.length;
-const BAR_H_MARGIN = 20;
+const BAR_H_MARGIN = 36;
 const BAR_WIDTH = SCREEN_WIDTH - BAR_H_MARGIN * 2;
 const BAR_INNER_INSET = 6;
-const PILL_WIDTH = (BAR_WIDTH - BAR_INNER_INSET * 2) / NUM_TABS;
+const BAR_BORDER_WIDTH = 1;
+const PILL_WIDTH =
+  (BAR_WIDTH - BAR_BORDER_WIDTH * 2 - BAR_INNER_INSET * 2) / NUM_TABS;
 
 // ─── Spring / timing presets ───────────────────────────────────────────────────
 const SP_SNAPPY = { damping: 20, stiffness: 300, mass: 0.6 };
@@ -66,7 +67,6 @@ const SP_BOUNCY = { damping: 11, stiffness: 260, mass: 0.65 };
 const SP_GENTLE = { damping: 24, stiffness: 200, mass: 0.8 };
 
 // ─── Deferred screen imports ───────────────────────────────────────────────────
-const getFavoritesScreen = () => require("../screens/FavoritesScreen").default;
 const getWatchlistsScreen = () =>
   require("../screens/WatchlistScreen").WatchlistsScreen;
 const getWatchlistContentScreen = () =>
@@ -98,16 +98,6 @@ const HomeStack = () => (
 const SearchStack = () => (
   <Stack.Navigator screenOptions={stackOpts}>
     <Stack.Screen name="Search" component={SearchScreen} />
-    <Stack.Screen
-      name="Details"
-      component={DetailsScreen}
-      options={detailOpts}
-    />
-  </Stack.Navigator>
-);
-const FavoritesStack = () => (
-  <Stack.Navigator screenOptions={stackOpts}>
-    <Stack.Screen name="Favorites" getComponent={getFavoritesScreen} />
     <Stack.Screen
       name="Details"
       component={DetailsScreen}
@@ -347,7 +337,6 @@ const AppTabs = () => {
         >
           <Tab.Screen name="Home" component={HomeStack} />
           <Tab.Screen name="Search" component={SearchStack} />
-          <Tab.Screen name="Favorites" component={FavoritesStack} />
           <Tab.Screen name="Watchlist" component={WatchlistStack} />
           <Tab.Screen name="Settings" component={SettingsStack} />
         </Tab.Navigator>
@@ -459,7 +448,7 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     left: BAR_INNER_INSET,
-    borderRadius: 22,
+    borderRadius: 30,
   },
 
   tabsRow: {

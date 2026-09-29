@@ -30,41 +30,38 @@ import { Ionicons } from "@expo/vector-icons";
 import AppLoader from "../components/shared/AppLoader";
 import RetryState from "../components/shared/RetryState";
 import { getBackendStatus } from "../services/api";
-import {
-  getGamificationState,
-  getLevelInfo,
-  ACHIEVEMENTS,
-} from "../utils/gamification";
+import IconToggleButton from "../components/shared/IconToggleButton";
+import LibraryPageHeader from "../components/shared/LibraryPageHeader";
 
 const { width } = Dimensions.get("window");
 const FAVORITES_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 
-const FavoritesScreen = ({ navigation }) => {
+const FavoritesScreen = ({
+  navigation,
+  embedded = false,
+  viewType: viewTypeProp,
+  onChangeViewType,
+}) => {
   const hasLoadedOnce = useRef(false);
   const lastRefreshAt = useRef(0);
   const previousFavoritesCount = useRef(0);
   const sortButtonRef = useRef(null);
   const filterButtonRef = useRef(null);
 
-  const [viewType, setViewType] = useState("list"); // 'list' or 'grid'
   const [sortBy, setSortBy] = useState("recent"); // 'recent', 'title', 'year', 'rating'
   const [filterType, setFilterType] = useState("all"); // 'all', 'movie', 'series'
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
-  const [gamification, setGamification] = useState(null);
-  const [gamificationLoading, setGamificationLoading] = useState(true);
-  const [showAchievementModal, setShowAchievementModal] = useState(false);
   const [favoritesLoadError, setFavoritesLoadError] = useState(false);
   const [favoritesLoadMessage, setFavoritesLoadMessage] = useState(
     "Unable to load favorites. Please check your internet connection.",
   );
-  const xpBlockAnims = useRef(
-    Array.from({ length: 20 }, () => new Animated.Value(0)),
-  ).current;
-  const cursorBlink = useRef(new Animated.Value(1)).current;
-  const scanAnim = useRef(new Animated.Value(0)).current;
-  const hudAnimated = useRef(false);
+  const [viewTypeState, setViewTypeState] = useState("list");
+  const viewType = embedded ? (viewTypeProp ?? "list") : viewTypeState;
+  const setViewType = embedded
+    ? onChangeViewType || (() => {})
+    : setViewTypeState;
 
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
@@ -76,23 +73,6 @@ const FavoritesScreen = ({ navigation }) => {
   } = useFavorites();
 
   const tabBarHeight = useTabBarHeight();
-
-  const loadGamification = useCallback(async ({ silent = false } = {}) => {
-    try {
-      if (!silent) {
-        setGamificationLoading(true);
-      }
-
-      const state = await getGamificationState();
-      setGamification(state);
-    } finally {
-      setGamificationLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadGamification();
-  }, [loadGamification]);
 
   // Track changes for navigation updates
   useEffect(() => {
@@ -115,10 +95,9 @@ const FavoritesScreen = ({ navigation }) => {
         lastRefreshAt.current = Date.now();
         refreshFavorites();
       }
-      loadGamification({ silent: true });
     });
     return unsubscribe;
-  }, [navigation, refreshFavorites, loadGamification]);
+  }, [navigation, refreshFavorites]);
 
   useEffect(() => {
     if (!initialLoading) {
@@ -158,51 +137,6 @@ const FavoritesScreen = ({ navigation }) => {
       );
     }
   }, [refreshFavorites]);
-
-  useEffect(() => {
-    if (!gamification) return;
-    const li = getLevelInfo(gamification.xp);
-    const filled = li.next ? Math.round(li.progress * 20) : 20;
-
-    if (!hudAnimated.current) {
-      // First time: run full intro animation (scan line, bar entrance, cursor)
-      hudAnimated.current = true;
-
-      Animated.timing(scanAnim, {
-        toValue: 1,
-        duration: 900,
-        useNativeDriver: true,
-      }).start();
-
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(cursorBlink, {
-            toValue: 0,
-            duration: 450,
-            useNativeDriver: true,
-          }),
-          Animated.timing(cursorBlink, {
-            toValue: 1,
-            duration: 450,
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start();
-    }
-
-    // Always update the XP block positions so the bar reflects current XP
-    Animated.stagger(
-      38,
-      xpBlockAnims.map((a, i) =>
-        Animated.spring(a, {
-          toValue: i < filled ? 1 : 0.45,
-          useNativeDriver: true,
-          tension: 220,
-          friction: 11,
-        }),
-      ),
-    ).start();
-  }, [gamification]);
 
   // Filter and sort favorites
   const processedFavorites = useMemo(() => {
@@ -521,109 +455,39 @@ const FavoritesScreen = ({ navigation }) => {
     </TouchableOpacity>
   );
 
-  const showInitialLoading = initialLoading || gamificationLoading;
+  const showInitialLoading = initialLoading;
+  const ScreenContainer = embedded ? View : SafeAreaView;
 
   return (
-    <SafeAreaView
+    <ScreenContainer
       style={[styles.safeContainer, { backgroundColor: colors.background }]}
     >
-      <StatusBar
-        barStyle={theme === "dark" ? "light-content" : "dark-content"}
-        backgroundColor={colors.background}
-      />
+      {!embedded && (
+        <StatusBar
+          barStyle={theme === "dark" ? "light-content" : "dark-content"}
+          backgroundColor={colors.background}
+        />
+      )}
 
       <View style={styles.container}>
         {/* Clean page header */}
-        <View style={styles.pageHeader}>
-          <Text style={[styles.pageTitle, { color: colors.text }]}>
-            YOUR FAVORITES
-          </Text>
-          {!initialLoading && favorites.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setViewType(viewType === "list" ? "grid" : "list")}
-              style={[styles.viewToggle, { backgroundColor: colors.card }]}
-            >
-              <Ionicons
-                name={viewType === "list" ? "grid-outline" : "list-outline"}
-                size={20}
-                color={colors.text}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Gamification HUD panel */}
-        {gamification &&
-          (() => {
-            const li = getLevelInfo(gamification.xp);
-            return (
-              <View style={styles.hudPanel}>
-                <View style={styles.hudCornerTL} />
-                <View style={styles.hudCornerTR} />
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.hudScanLine,
-                    {
-                      transform: [
-                        {
-                          translateX: scanAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-60, 600],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
+        {!embedded && (
+          <LibraryPageHeader
+            title="My Favorites"
+            colors={colors}
+            right={
+              !initialLoading && favorites.length > 0 ? (
+                <IconToggleButton
+                  icon={viewType === "list" ? "grid-outline" : "list-outline"}
+                  onPress={() =>
+                    setViewType(viewType === "list" ? "grid" : "list")
+                  }
+                  theme={theme}
                 />
-                {li.next ? (
-                  <View style={styles.hudXpBarInline}>
-                    <View style={{ zIndex: 1 }}>
-                      <View style={styles.hudXpSegments}>
-                        {Array.from({ length: 20 }, (_, i) => (
-                          <Animated.View
-                            key={i}
-                            style={[
-                              styles.hudXpBlock,
-                              i / 20 < li.progress
-                                ? styles.hudXpBlockFilled
-                                : styles.hudXpBlockEmpty,
-                              { transform: [{ scaleY: xpBlockAnims[i] }] },
-                            ]}
-                          />
-                        ))}
-                      </View>
-                      <View style={styles.hudProgressFooter}>
-                        <View style={styles.hudProgressLeft}>
-                          <Text
-                            style={styles.hudProgressLabel}
-                            numberOfLines={1}
-                          >
-                            {li.current.icon} LVL {li.current.level}
-                          </Text>
-                          <Animated.Text
-                            style={[styles.hudCursor, { opacity: cursorBlink }]}
-                          >
-                            █
-                          </Animated.Text>
-                        </View>
-                        <Text
-                          style={[styles.hudXpMetaText, { color: colors.text }]}
-                          numberOfLines={1}
-                        >
-                          {li.xpInLevel}/{li.xpForNext} XP
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <Text style={styles.hudMaxLvlText}>
-                    MAX LEVEL • {gamification.xp} XP
-                  </Text>
-                )}
-              </View>
-            );
-          })()}
+              ) : null
+            }
+          />
+        )}
 
         {showInitialLoading ? (
           <AppLoader message="Loading favorites" />
@@ -867,7 +731,7 @@ const FavoritesScreen = ({ navigation }) => {
           </>
         )}
       </View>
-    </SafeAreaView>
+    </ScreenContainer>
   );
 };
 
@@ -885,19 +749,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 10,
-  },
-  pageHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 4,
-    paddingBottom: 6,
-    marginBottom: 14,
-  },
-  pageTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.5,
   },
   hudPanel: {
     borderWidth: 1,
@@ -1164,13 +1015,6 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 26,
     fontWeight: "bold",
-  },
-  viewToggle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
   },
   emptyContainer: {
     flex: 1,
