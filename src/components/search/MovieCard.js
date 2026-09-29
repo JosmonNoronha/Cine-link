@@ -10,8 +10,8 @@ import { Image } from "expo-image";
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useFavorites } from "../contexts/FavoritesContext";
-import logger from "../services/logger";
+import { useFavorites } from "../../contexts/FavoritesContext";
+import logger from "../../services/logger";
 
 const MovieCard = ({ movie, onPress, style }) => {
   const { colors } = useTheme();

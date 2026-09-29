@@ -52,7 +52,7 @@ const SplashLoader = ({
         entering={FadeInDown.duration(800).springify().damping(12)}
       >
         <Image
-          source={require("../../assets/logo.png")}
+          source={require("../../../assets/logo.png")}
           style={styles.logo}
           contentFit="contain"
         />

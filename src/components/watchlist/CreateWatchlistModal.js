@@ -12,7 +12,7 @@ import {
 import { useTheme } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import LoadingButton from "./LoadingButton";
+import LoadingButton from "../shared/LoadingButton";
 
 const { width } = Dimensions.get("window");
 

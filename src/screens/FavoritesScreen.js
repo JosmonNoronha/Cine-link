@@ -27,8 +27,8 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { Ionicons } from "@expo/vector-icons";
-import AppLoader from "../components/AppLoader";
-import RetryState from "../components/RetryState";
+import AppLoader from "../components/shared/AppLoader";
+import RetryState from "../components/shared/RetryState";
 import { getBackendStatus } from "../services/api";
 import {
   getGamificationState,

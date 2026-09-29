@@ -25,8 +25,8 @@ import { getBackendStatus, retestBackendConnection } from "../services/api";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { getWatchlists } from "../utils/storage";
 import { getGamificationState, getLevelInfo } from "../utils/gamification";
-import BadgesModal from "../components/BadgesModal";
-import ProfileSection from "../components/ProfileSection";
+import BadgesModal from "../components/profile/BadgesModal";
+import ProfileSection from "../components/profile/ProfileSection";
 import logger from "../services/logger";
 
 const SettingsScreen = ({ navigation }) => {

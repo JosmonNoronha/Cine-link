@@ -105,6 +105,34 @@ describe("FavoritesContext", () => {
     });
   });
 
+  it("loads favorites again after a failed initial request", async () => {
+    const favorite = { imdbID: "tt004", Title: "Retry Movie" };
+    apiGetFavorites
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([favorite]);
+
+    const { result } = renderHook(() => useFavorites(), { wrapper });
+
+    await waitForAuthListenerRegistration();
+
+    mockAuth.currentUser = { uid: "u1" };
+    await act(async () => {
+      await mockAuthListener(mockAuth.currentUser);
+    });
+
+    await waitFor(() => {
+      expect(result.current.initialized).toBe(true);
+      expect(result.current.favorites).toEqual([]);
+    });
+
+    await act(async () => {
+      await result.current.refreshFavorites();
+    });
+
+    expect(result.current.favorites).toEqual([favorite]);
+    expect(apiGetFavorites).toHaveBeenCalledTimes(2);
+  });
+
   it("applies optimistic add and persists it", async () => {
     const { result } = renderHook(() => useFavorites(), { wrapper });
 

@@ -41,6 +41,30 @@ export const getSeasonVideos = async (tmdbId, seasonNumber) => {
   }
 };
 
+export const getMovieImages = async (tmdbId) => {
+  try {
+    logger.info(`🖼️ Fetching movie images for TMDB ID: ${tmdbId}`);
+    const response = await apiClient.get(`/movies/${tmdbId}/images`);
+    logger.info("🖼️ Movie images response:", response);
+    return response || { backdrops: [], posters: [] };
+  } catch (error) {
+    logger.error("❌ Error fetching movie images:", error);
+    return { backdrops: [], posters: [] };
+  }
+};
+
+export const getTVImages = async (tmdbId) => {
+  try {
+    logger.info(`🖼️ Fetching TV images for TMDB ID: ${tmdbId}`);
+    const response = await apiClient.get(`/tv/${tmdbId}/images`);
+    logger.info("🖼️ TV images response:", response);
+    return response || { backdrops: [], posters: [] };
+  } catch (error) {
+    logger.error("❌ Error fetching TV images:", error);
+    return { backdrops: [], posters: [] };
+  }
+};
+
 export const extractYouTubeTrailer = (videosData) => {
   logger.info("🎬 Extracting trailer from:", videosData);
 

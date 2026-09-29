@@ -9,7 +9,7 @@ import {
   Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import logger from "../services/logger";
+import logger from "../../services/logger";
 
 const WatchProvidersSection = React.memo(
   ({ providers, userSubscriptions, loading, colors, theme }) => {

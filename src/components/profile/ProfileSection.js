@@ -325,7 +325,15 @@ const ProfileSection = ({
               style={[
                 s.onlineDot,
                 {
-                  backgroundColor: isOnline ? P.online : P.offline,
+                  backgroundColor:
+                    // If backend baseUrl points to localhost, show orange
+                    backendStatus?.baseUrl &&
+                    (backendStatus.baseUrl.includes("localhost") ||
+                      backendStatus.baseUrl.includes("127.0.0.1"))
+                      ? "#fb923c"
+                      : isOnline
+                        ? P.online
+                        : P.offline,
                   borderColor: P.card,
                 },
               ]}

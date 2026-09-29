@@ -29,13 +29,13 @@ import {
   getMovieDetails,
   getSeasonDetails,
   getMovieVideos,
+  getMovieImages,
   getTVVideos,
+  getTVImages,
   getSeasonVideos,
   extractYouTubeTrailer,
   getWatchProviders,
   getUserSubscriptions,
-  getMovieReviews,
-  getTVReviews,
 } from "../services/api";
 import {
   getWatchlists,
@@ -53,14 +53,19 @@ import Animated, {
   withTiming,
   withSequence,
   withRepeat,
+  withSpring,
   useAnimatedStyle,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
-import WatchProvidersSection from "../components/WatchProvidersSection";
-import ReviewsSection from "../components/ReviewsSection";
+import WatchProvidersSection from "../components/details/WatchProvidersSection";
+import ReviewsSection from "../components/details/ReviewsSection";
+import ImageGallery from "../components/details/ImageGallery";
 import { StatusBar } from "expo-status-bar";
 import logger from "../services/logger";
+import useReviews from "../hooks/useReviews";
+import useCollection from "../hooks/useCollection";
+import TimelineSection from "../components/details/TimelineSection";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY =
@@ -119,17 +124,53 @@ const Toast = React.memo(({ visible, message, type, onHide }) => {
 Toast.displayName = "Toast";
 
 // Header Component
-const Header = React.memo(({ onBack, colors }) => (
-  <View style={styles.header}>
-    <TouchableOpacity
-      onPress={onBack}
-      style={[styles.backButton, { backgroundColor: colors.primary }]}
-      activeOpacity={0.8}
-    >
-      <Ionicons name="arrow-back" size={26} color="#fff" />
-    </TouchableOpacity>
-  </View>
-));
+
+const Header = React.memo(({ onBack, theme }) => {
+  const isDark = theme === "dark";
+  const pressScale = useSharedValue(1);
+
+  // Same palette logic as FloatingTabBar in AppNavigator.js, so the back
+  // button reads as part of the same design system as the nav bar.
+  const accent = isDark ? "#74b7ff" : "#2f6bff";
+  const barBg = isDark ? "rgba(18, 18, 22, 0.86)" : "rgba(216, 224, 238, 0.86)";
+  const barBorder = isDark ? "rgba(255,255,255,0.15)" : "rgba(37,56,94,0.28)";
+  const topSheen = isDark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.54)";
+
+  const handlePressIn = useCallback(() => {
+    pressScale.value = withSpring(0.88, { damping: 14, stiffness: 380 });
+  }, [pressScale]);
+  const handlePressOut = useCallback(() => {
+    pressScale.value = withSpring(1, { damping: 11, stiffness: 260, mass: 0.65 });
+  }, [pressScale]);
+
+  const wrapStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
+
+  return (
+    <View style={styles.header} pointerEvents="box-none">
+      <Animated.View style={wrapStyle}>
+        <TouchableOpacity
+          onPress={onBack}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={1}
+          style={[
+            styles.backButton,
+            {
+              backgroundColor: barBg,
+              borderColor: barBorder,
+              shadowColor: isDark ? "#000" : "#162035",
+            },
+          ]}
+        >
+          <View style={[styles.backButtonSheen, { backgroundColor: topSheen }]} />
+          <Ionicons name="arrow-back" size={22} color={accent} />
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+});
 
 Header.displayName = "Header";
 
@@ -859,10 +900,11 @@ const DetailsScreen = ({ route, navigation }) => {
   const [userSubscriptions, setUserSubscriptions] = useState([]);
 
   // Reviews state
-  const [reviews, setReviews] = useState([]);
-  const [loadingReviews, setLoadingReviews] = useState(false);
-  const [reviewsPage, setReviewsPage] = useState(1);
-  const [totalReviews, setTotalReviews] = useState(0);
+
+  // Images state
+  const [images, setImages] = useState({ backdrops: [], posters: [] });
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [imagesError, setImagesError] = useState(null);
 
   // Toast state
   const [toast, setToast] = useState({
@@ -900,6 +942,8 @@ const DetailsScreen = ({ route, navigation }) => {
     }
     return null;
   }, [effectiveImdbID]);
+  const reviewsState = useReviews(tmdbInfo);
+  const collectionState = useCollection(movie, tmdbInfo);
 
   const candidateIds = useMemo(
     () => Array.from(new Set([imdbID, movie?.imdbID].filter(Boolean))),
@@ -912,6 +956,37 @@ const DetailsScreen = ({ route, navigation }) => {
   }, [candidateIds, isFavorite]);
 
   const loadingOpacity = useSharedValue(1);
+
+  // Fetch TMDB images (posters/backdrops) when we have a TMDB id
+  useEffect(() => {
+    let mounted = true;
+    const loadImages = async () => {
+      if (!tmdbInfo?.id || !tmdbInfo?.type) return;
+      setLoadingImages(true);
+      setImagesError(null);
+      try {
+        const data =
+          tmdbInfo.type === "tv"
+            ? await getTVImages(tmdbInfo.id)
+            : await getMovieImages(tmdbInfo.id);
+
+        // TMDB returns { backdrops: [], posters: [], ... }
+        const backdrops = data?.backdrops || data?.images?.backdrops || [];
+        const posters = data?.posters || data?.images?.posters || [];
+        if (mounted) setImages({ backdrops, posters });
+      } catch (err) {
+        logger.error("Failed to load TMDB images", err);
+        if (mounted) setImagesError("Failed to load images");
+      } finally {
+        if (mounted) setLoadingImages(false);
+      }
+    };
+
+    loadImages();
+    return () => {
+      mounted = false;
+    };
+  }, [tmdbInfo?.id, tmdbInfo?.type]);
 
   // Memoized functions
   const showToast = useCallback((message, type = "info") => {
@@ -1415,6 +1490,14 @@ const DetailsScreen = ({ route, navigation }) => {
     setTimeout(checkInAnyWatchlist, 200);
   }, [checkInAnyWatchlist]);
 
+  const openCollectionPart = useCallback(
+    (part) => {
+      if (!part?.id) return;
+      navigation.push("Details", { imdbID: `tmdb:movie:${part.id}` });
+    },
+    [navigation],
+  );
+
   // Load watched episodes for series
   useEffect(() => {
     const loadWatchedEpisodes = async () => {
@@ -1491,67 +1574,6 @@ const DetailsScreen = ({ route, navigation }) => {
     }
   }, [effectiveImdbID, movie]);
 
-  // Load reviews when TMDB info is available
-  useEffect(() => {
-    const loadReviews = async () => {
-      if (!tmdbInfo) {
-        logger.info("⚠️ No TMDB info, skipping reviews");
-        return;
-      }
-
-      logger.info(`📝 Loading reviews for ${tmdbInfo.type} ${tmdbInfo.id}`);
-      setLoadingReviews(true);
-      setReviews([]);
-      setReviewsPage(1);
-
-      try {
-        const reviewsData =
-          tmdbInfo.type === "movie"
-            ? await getMovieReviews(tmdbInfo.id, 1)
-            : await getTVReviews(tmdbInfo.id, 1);
-
-        logger.info("✅ Reviews fetched:", reviewsData?.results?.length || 0);
-        setReviews(reviewsData.results || []);
-        setTotalReviews(reviewsData.total_results || 0);
-      } catch (error) {
-        logger.error("❌ Failed to load reviews", error);
-        setReviews([]);
-        setTotalReviews(0);
-      } finally {
-        setLoadingReviews(false);
-      }
-    };
-
-    if (movie && tmdbInfo) {
-      logger.info("🎥 Movie loaded, fetching reviews...");
-      loadReviews();
-    }
-  }, [tmdbInfo, movie]);
-
-  // Load more reviews handler
-  const handleLoadMoreReviews = useCallback(async () => {
-    if (!tmdbInfo || loadingReviews) return;
-
-    const nextPage = reviewsPage + 1;
-    logger.info(`📝 Loading more reviews, page ${nextPage}`);
-    setLoadingReviews(true);
-
-    try {
-      const reviewsData =
-        tmdbInfo.type === "movie"
-          ? await getMovieReviews(tmdbInfo.id, nextPage)
-          : await getTVReviews(tmdbInfo.id, nextPage);
-
-      setReviews((prev) => [...prev, ...(reviewsData.results || [])]);
-      setReviewsPage(nextPage);
-      logger.info("✅ More reviews loaded:", reviewsData?.results?.length || 0);
-    } catch (error) {
-      logger.error("❌ Failed to load more reviews", error);
-    } finally {
-      setLoadingReviews(false);
-    }
-  }, [tmdbInfo, reviewsPage, loadingReviews]);
-
   // Initial data fetch
   useEffect(() => {
     const fetchDetails = async () => {
@@ -1622,6 +1644,8 @@ const DetailsScreen = ({ route, navigation }) => {
         onHide={hideToast}
       />
 
+      <Header onBack={handleBack} theme={theme} />
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -1631,7 +1655,7 @@ const DetailsScreen = ({ route, navigation }) => {
         ]}
         scrollEnabled={!showWatchlistModal}
       >
-        <Header onBack={handleBack} colors={colors} />
+        
 
         <HeroSection movie={movie} colors={colors} />
 
@@ -1789,6 +1813,23 @@ const DetailsScreen = ({ route, navigation }) => {
           </View>
         )}
 
+        <ImageGallery
+          images={images}
+          loading={loadingImages}
+          error={imagesError}
+          colors={colors}
+          theme={theme}
+        />
+
+        <TimelineSection
+          collectionStatus={collectionState.status}
+          collection={collectionState.data}
+          currentTmdbId={tmdbInfo?.id}
+          colors={colors}
+          theme={theme}
+          onOpen={openCollectionPart}
+        />
+
         <TrailerSection
           isTrailerLoading={isTrailerLoading}
           trailerError={trailerError}
@@ -1802,14 +1843,16 @@ const DetailsScreen = ({ route, navigation }) => {
         />
 
         <ReviewsSection
-          reviews={reviews}
-          loading={loadingReviews}
+          reviews={reviewsState.reviews}
+          total={reviewsState.total}
+          status={reviewsState.status}
+          loadingMore={reviewsState.loadingMore}
+          loadMoreError={reviewsState.loadMoreError}
+          hasMore={reviewsState.hasMore}
+          onLoadMore={reviewsState.loadMore}
+          onRetry={reviewsState.retry}
           colors={colors}
           theme={theme}
-          totalReviews={totalReviews}
-          onLoadMore={
-            reviews.length < totalReviews ? handleLoadMoreReviews : null
-          }
         />
       </ScrollView>
 
@@ -1871,13 +1914,22 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    overflow: "hidden", // clips the sheen strip to the circle
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  backButtonSheen: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    zIndex: 1,
   },
   heroSection: {
     position: "relative",

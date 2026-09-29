@@ -6,7 +6,7 @@
  * and cinematic iconography. No generic emoji, no icon fonts.
  *
  * Usage:
- *   import LevelSymbol, { LEVEL_META } from "../components/LevelSymbol";
+ *   import LevelSymbol, { LEVEL_META } from "./LevelSymbol";
  *   <LevelSymbol level={3} size={48} />
  *
  * Peer dep: react-native-svg (included in Expo SDK)

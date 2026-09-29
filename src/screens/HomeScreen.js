@@ -1,1000 +1,257 @@
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  useRef,
-  useMemo,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   FlatList,
-  Animated,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  Image,
+  RefreshControl,
   useWindowDimensions,
 } from "react-native";
-import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import {
-  getTrending,
-  getPopular,
-  getNewReleases,
-  searchByGenre,
-  getRecommendations,
-} from "../services/api";
-import { auth } from "../../firebaseConfig";
-import { getFeaturedImageUri, getCardImageUri } from "../utils/imageHelper";
-import MovieCard from "../components/HomeMovieCard";
-import HomeScreenSkeleton from "../components/HomeScreenSkeleton";
-import RetryState from "../components/RetryState";
-import RecommendationCard from "../components/RecommendationCard";
+import { Ionicons } from "@expo/vector-icons";
+import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
-import { getWatchlists } from "../utils/storage";
 import { useUserProfile } from "../hooks/useUserProfile";
-import { Ionicons } from "@expo/vector-icons";
+import useHomeFeed from "../hooks/useHomeFeed";
+import { getWatchlists } from "../utils/storage";
+import HomeScreenSkeleton from "../components/home/HomeScreenSkeleton";
+import RetryState from "../components/shared/RetryState";
+import HomeHeader from "../components/home/HomeHeader";
+import FeaturedCarousel from "../components/home/FeaturedCarousel";
+import HomeSection from "../components/home/HomeSections";
+import { GenreChips } from "../components/home/HomeCards";
 import logger from "../services/logger";
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+// Cheap change-detection so focus-refreshes don't re-render when nothing changed
+const listsSignature = (lists) =>
+  Object.entries(lists || {})
+    .map(
+      ([name, items]) =>
+        `${name}:${(Array.isArray(items) ? items : [])
+          .map((i) => `${i.imdbID}${i.watched ? 1 : 0}`)
+          .join(",")}`,
+    )
+    .join("|");
+
+const WelcomeCard = React.memo(({ colors, onExplore }) => (
+  <View style={[styles.welcome, { backgroundColor: colors.card }]}>
+    <Ionicons name="heart-outline" size={48} color={colors.primary} />
+    <Text style={[styles.welcomeTitle, { color: colors.text }]}>
+      Welcome to CineLink!
+    </Text>
+    <Text style={[styles.welcomeText, { color: colors.text }]}>
+      Add movies to your favorites to get personalized recommendations
+    </Text>
+    <TouchableOpacity
+      style={[styles.welcomeButton, { backgroundColor: colors.primary }]}
+      onPress={onExplore}
+    >
+      <Text style={styles.welcomeButtonText}>Start Exploring</Text>
+    </TouchableOpacity>
+  </View>
+));
+WelcomeCard.displayName = "WelcomeCard";
+
+const sectionKey = (s) => s.id;
 
 const HomeScreen = ({ navigation }) => {
-  // State management
-  const [sections, setSections] = useState([]);
-  const [watchlists, setWatchlists] = useState({});
-  const [sectionsLoading, setSectionsLoading] = useState(true);
-  const [watchlistsLoaded, setWatchlistsLoaded] = useState(false);
-  const [featuredItems, setFeaturedItems] = useState([]);
-  const [activeFeaturedIndex, setActiveFeaturedIndex] = useState(0);
-  const [homeLoadError, setHomeLoadError] = useState(false);
-
-  // Refs to track loading state and prevent unnecessary reloads
-  const hasLoadedRef = useRef(false);
-  const lastDataHashRef = useRef("");
-  const featuredCarouselRef = useRef(null);
-  const featuredScrollX = useRef(new Animated.Value(0)).current;
-  const appNameOpacity = useRef(new Animated.Value(0)).current;
-  const appNameTranslateY = useRef(new Animated.Value(10)).current;
-  const appTaglineOpacity = useRef(new Animated.Value(0)).current;
-  const appTaglineTranslateY = useRef(new Animated.Value(6)).current;
-  const appNameSheenProgress = useRef(new Animated.Value(0)).current;
-
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
-  const { favorites, initialized: favoritesInitialized } = useFavorites();
-  const { width: screenWidth } = useWindowDimensions();
+  const {
+    favorites,
+    initialized: favoritesInitialized,
+    refreshFavorites,
+  } = useFavorites();
+  const { width } = useWindowDimensions();
   const tabBarHeight = useTabBarHeight();
-  const featuredCardWidth = Math.max(screenWidth - 40, 280);
-  const appNameSheenTranslate = appNameSheenProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-140, 180],
-  });
 
-  // Generate hash to detect actual data changes
-  const dataHash = useMemo(() => {
-    const favIds = favorites
-      .map((f) => f.imdbID)
-      .sort()
-      .join(",");
-    const watchlistIds = Object.keys(watchlists).sort().join(",");
-    const watchlistItems = Object.values(watchlists).flat().length;
-    return `${favIds}|${watchlistIds}|${watchlistItems}`;
-  }, [favorites, watchlists]);
+  const [watchlists, setWatchlists] = useState({});
+  const [watchlistsLoaded, setWatchlistsLoaded] = useState(false);
+  const [watchlistError, setWatchlistError] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
-  // Determine if user is truly new (has no data at all)
-  const isNewUser = useMemo(() => {
-    return (
-      favoritesInitialized &&
-      watchlistsLoaded &&
-      favorites.length === 0 &&
-      Object.keys(watchlists).length === 0
-    );
-  }, [favorites, watchlists, favoritesInitialized, watchlistsLoaded]);
-
-  const userProfile = useUserProfile(watchlists);
-
-  // Fetch watchlists
   const loadWatchlists = useCallback(async () => {
     try {
       const lists = await getWatchlists();
-      setWatchlists(lists);
-      setHomeLoadError(false);
-      return lists;
+      setWatchlists((prev) =>
+        listsSignature(prev) === listsSignature(lists) ? prev : lists,
+      );
+      setWatchlistError(false);
     } catch (error) {
       logger.error("Error loading watchlists", error);
-      setHomeLoadError(true);
-      return null;
+      setWatchlistError(true);
     } finally {
       setWatchlistsLoaded(true);
     }
   }, []);
 
-  // Build dynamic sections based on user profile
-  const buildSections = useCallback(async () => {
-    setSectionsLoading(true);
-    const newSections = [];
-
-    // Helper function to normalize movie data and ensure proper ID format
-    const normalizeMovie = (item) => {
-      if (!item) return null;
-
-      // If already has proper imdbID, return as is
-      if (
-        item.imdbID &&
-        (item.imdbID.startsWith("tt") || item.imdbID.startsWith("tmdb:"))
-      ) {
-        return item;
-      }
-
-      // Create TMDB format ID if item has id
-      if (item.id) {
-        // Determine media type: use media_type if available, otherwise infer from context
-        const mediaType =
-          item.media_type || (item.first_air_date ? "tv" : "movie");
-        const type = mediaType === "tv" ? "series" : "movie";
-
-        return {
-          ...item,
-          imdbID: `tmdb:${mediaType}:${item.id}`,
-          Title: item.Title || item.title || item.name,
-          Year:
-            item.Year ||
-            item.release_date?.split("-")[0] ||
-            item.first_air_date?.split("-")[0],
-          Type: item.Type || type,
-          Poster:
-            item.Poster ||
-            (item.poster_path
-              ? `https://image.tmdb.org/t/p/w185${item.poster_path}`
-              : "N/A"),
-        };
-      }
-
-      return item;
-    };
-
-    try {
-      // SECTION 1: Continue Watching (Priority - show first if applicable)
-      if (userProfile.watchProgress.unwatched > 0) {
-        const unwatchedItems = Object.values(watchlists)
-          .flat()
-          .filter((item) => !item.watched)
-          .slice(0, 10);
-
-        if (unwatchedItems.length > 0) {
-          newSections.push({
-            id: "continue-watching",
-            title: "Continue Watching",
-            subtitle: `${userProfile.watchProgress.unwatched} unwatched`,
-            data: unwatchedItems,
-            type: "watchlist",
-            priority: 1,
-          });
-        }
-      }
-
-      // PARALLEL API CALLS - Fetch all sections simultaneously for 3-5x faster load
-      const topGenre = userProfile.topGenres?.[0];
-      const secondGenre = userProfile.topGenres?.[1];
-      const currentYear = new Date().getFullYear();
-
-      const apiCalls = [
-        getTrending("all", "week").catch((err) => {
-          logger.warn("Trending failed", err);
-          return null;
-        }),
-        getNewReleases("movie").catch((err) => {
-          logger.warn("New releases failed", err);
-          return null;
-        }),
-        getPopular().catch((err) => {
-          logger.warn("Popular failed", err);
-          return null;
-        }),
-        !isNewUser && userProfile.randomFavorite
-          ? getRecommendations(userProfile.randomFavorite.Title, {
-              personalize: Boolean(auth.currentUser),
-            }).catch((err) => {
-              logger.warn("Recommendations failed", err);
-              return null;
-            })
-          : Promise.resolve(null),
-        topGenre
-          ? searchByGenre(topGenre, "movie").catch((err) => {
-              logger.warn(`Genre ${topGenre} failed`, err);
-              return null;
-            })
-          : Promise.resolve(null),
-        userProfile.contentPreference === "series" && !isNewUser
-          ? getTrending("tv", "week").catch((err) => {
-              logger.warn("Series failed", err);
-              return null;
-            })
-          : Promise.resolve(null),
-        secondGenre
-          ? searchByGenre(secondGenre, "all").catch((err) => {
-              logger.warn(`Second genre ${secondGenre} failed`, err);
-              return null;
-            })
-          : Promise.resolve(null),
-      ];
-
-      const [
-        trendingData,
-        newReleasesData,
-        popularData,
-        recommendationsData,
-        genreData,
-        seriesData,
-        secondGenreData,
-      ] = await Promise.all(apiCalls);
-
-      // SECTION 2: Trending Now
-      if (trendingData) {
-        const trending = Array.isArray(trendingData)
-          ? trendingData.map(normalizeMovie).filter(Boolean).slice(0, 10)
-          : [];
-
-        if (trending.length > 0) {
-          setFeaturedItems(trending.slice(0, 6));
-          setActiveFeaturedIndex(0);
-          newSections.push({
-            id: "trending",
-            title: "Trending This Week",
-            subtitle: "What everyone's watching",
-            data: trending,
-            type: "movies",
-            priority: 2,
-          });
-        } else {
-          setFeaturedItems([]);
-          setActiveFeaturedIndex(0);
-        }
-      } else {
-        setFeaturedItems([]);
-        setActiveFeaturedIndex(0);
-      }
-
-      // SECTION 3: Because You Liked
-      if (recommendationsData && recommendationsData.length > 0) {
-        newSections.push({
-          id: "because-you-liked",
-          title: `Because You Liked "${userProfile.randomFavorite.Title}"`,
-          subtitle: "More movies like this",
-          data: recommendationsData.slice(0, 10),
-          type: "recommendations",
-          priority: 3,
-        });
-      }
-
-      // SECTION 4: New Releases
-      if (newReleasesData) {
-        const releases = Array.isArray(newReleasesData)
-          ? newReleasesData.map(normalizeMovie).filter(Boolean).slice(0, 10)
-          : [];
-
-        if (releases.length > 0) {
-          newSections.push({
-            id: "new-releases",
-            title: `New in ${currentYear}`,
-            subtitle: "Fresh releases",
-            data: releases,
-            type: "movies",
-            priority: 4,
-          });
-        }
-      }
-
-      // SECTION 5: Genre-based
-      if (genreData && topGenre) {
-        const genreLabel = topGenre.charAt(0).toUpperCase() + topGenre.slice(1);
-        const genreMovies = Array.isArray(genreData)
-          ? genreData.map(normalizeMovie).filter(Boolean).slice(0, 10)
-          : [];
-
-        if (genreMovies.length > 0) {
-          newSections.push({
-            id: `genre-${topGenre}`,
-            title: `Popular ${genreLabel}`,
-            subtitle: `Because you love ${genreLabel.toLowerCase()}`,
-            data: genreMovies,
-            type: "movies",
-            priority: 5,
-          });
-        }
-      }
-
-      // SECTION 6: Content Type Preference (Series)
-      if (seriesData) {
-        const series = Array.isArray(seriesData)
-          ? seriesData.map(normalizeMovie).filter(Boolean).slice(0, 10)
-          : [];
-
-        if (series.length > 0) {
-          newSections.push({
-            id: "more-series",
-            title: "Popular Series For You",
-            subtitle: "Based on your preferences",
-            data: series,
-            type: "series",
-            priority: 6,
-          });
-        }
-      }
-
-      // SECTION 7: Popular
-      if (popularData) {
-        const popular = Array.isArray(popularData)
-          ? popularData.map(normalizeMovie).filter(Boolean).slice(0, 10)
-          : [];
-
-        if (popular.length > 0) {
-          newSections.push({
-            id: "popular",
-            title: "Popular Right Now",
-            subtitle: "Top picks worldwide",
-            data: popular,
-            type: "movies",
-            priority: 7,
-          });
-        }
-      }
-
-      // SECTION 8: Second Genre
-      if (secondGenreData && secondGenre) {
-        const genreLabel =
-          secondGenre.charAt(0).toUpperCase() + secondGenre.slice(1);
-        const genreMovies = Array.isArray(secondGenreData)
-          ? secondGenreData.map(normalizeMovie).filter(Boolean).slice(0, 10)
-          : [];
-
-        if (genreMovies.length > 0) {
-          newSections.push({
-            id: `genre-${secondGenre}`,
-            title: `Explore ${genreLabel}`,
-            subtitle: "Expand your horizons",
-            data: genreMovies,
-            type: "discovery",
-            priority: 8,
-          });
-        }
-      }
-
-      // Sort sections by priority
-      newSections.sort((a, b) => a.priority - b.priority);
-
-      setSections(newSections);
-    } catch (error) {
-      logger.error("Error building sections", error);
-      setHomeLoadError(true);
-    } finally {
-      setSectionsLoading(false);
-    }
-  }, [userProfile, watchlists, isNewUser]);
-
-  const handleRetryHome = useCallback(async () => {
-    setHomeLoadError(false);
-    setWatchlistsLoaded(false);
-    setSectionsLoading(true);
-    lastDataHashRef.current = "";
-    await loadWatchlists();
+  useEffect(() => {
+    loadWatchlists();
   }, [loadWatchlists]);
 
-  // Initial load
-  useEffect(() => {
-    if (!hasLoadedRef.current) {
-      loadWatchlists();
-      hasLoadedRef.current = true;
-    }
-  }, [loadWatchlists]);
-
-  // Only rebuild sections when data hash actually changes AND user data is loaded
-  useEffect(() => {
-    if (
-      favoritesInitialized &&
-      watchlistsLoaded &&
-      dataHash !== lastDataHashRef.current
-    ) {
-      logger.info("📊 Data changed, rebuilding sections...");
-      lastDataHashRef.current = dataHash;
-      buildSections();
-    }
-  }, [dataHash, favoritesInitialized, watchlistsLoaded, buildSections]);
-
-  // Refresh on screen focus - only reload watchlists if coming back from another screen
+  // Refresh watchlists when returning to this screen (skip the initial focus)
   useEffect(() => {
     let focusCount = 0;
-    const unsubscribe = navigation.addListener("focus", () => {
-      focusCount++;
-      // Skip first focus (initial mount), only refresh on subsequent focuses
-      if (focusCount > 1 && hasLoadedRef.current) {
-        loadWatchlists();
-      }
+    return navigation.addListener("focus", () => {
+      focusCount += 1;
+      if (focusCount > 1) loadWatchlists();
     });
-    return unsubscribe;
   }, [navigation, loadWatchlists]);
 
-  // Auto-slide featured carousel every 5 seconds.
-  useEffect(() => {
-    if (featuredItems.length <= 1) return;
+  const ready = favoritesInitialized && watchlistsLoaded;
+  const isNewUser =
+    ready && favorites.length === 0 && Object.keys(watchlists).length === 0;
+  const profile = useUserProfile(watchlists);
 
-    const intervalId = setInterval(() => {
-      const nextIndex = (activeFeaturedIndex + 1) % featuredItems.length;
-      setActiveFeaturedIndex(nextIndex);
-      featuredCarouselRef.current?.scrollToIndex({
-        index: nextIndex,
-        animated: true,
-      });
-    }, 5000);
+  const feed = useHomeFeed({
+    favorites,
+    watchlists,
+    profile,
+    isNewUser,
+    ready,
+  });
 
-    return () => clearInterval(intervalId);
-  }, [featuredItems, activeFeaturedIndex]);
+  const openDetails = useCallback(
+    (item) => {
+      if (item?.imdbID) navigation.navigate("Details", { imdbID: item.imdbID });
+    },
+    [navigation],
+  );
+  const openGenre = useCallback(
+    (genre) => navigation.navigate("Search", { genre }),
+    [navigation],
+  );
+  const openSearch = useCallback(
+    () => navigation.navigate("Search"),
+    [navigation],
+  );
 
-  // Animate app name with a subtle entrance and recurring sheen.
-  useEffect(() => {
-    const entranceAnimation = Animated.sequence([
-      Animated.parallel([
-        Animated.timing(appNameOpacity, {
-          toValue: 1,
-          duration: 550,
-          useNativeDriver: true,
-        }),
-        Animated.spring(appNameTranslateY, {
-          toValue: 0,
-          friction: 8,
-          tension: 65,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(appTaglineOpacity, {
-          toValue: 1,
-          duration: 420,
-          useNativeDriver: true,
-        }),
-        Animated.spring(appTaglineTranslateY, {
-          toValue: 0,
-          friction: 9,
-          tension: 70,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]);
+  const handleRetry = useCallback(() => {
+    setWatchlistError(false);
+    setWatchlistsLoaded(false);
+    loadWatchlists();
+    refreshFavorites?.();
+    feed.retry();
+  }, [loadWatchlists, refreshFavorites, feed]);
 
-    const sheenLoop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(2600),
-        Animated.timing(appNameSheenProgress, {
-          toValue: 1,
-          duration: 1300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(appNameSheenProgress, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
+  const onRefresh = useCallback(async () => {
+    setPullRefreshing(true);
+    await Promise.all([feed.reload(), loadWatchlists(), refreshFavorites?.()]);
+    setPullRefreshing(false);
+  }, [feed, loadWatchlists, refreshFavorites]);
 
-    entranceAnimation.start(() => sheenLoop.start());
+  const renderSection = useCallback(
+    ({ item }) => (
+      <HomeSection
+        section={item}
+        width={width}
+        colors={colors}
+        theme={theme}
+        onOpen={openDetails}
+      />
+    ),
+    [width, colors, theme, openDetails],
+  );
 
-    return () => {
-      sheenLoop.stop();
-    };
-  }, [
-    appNameOpacity,
-    appNameTranslateY,
-    appTaglineOpacity,
-    appTaglineTranslateY,
-    appNameSheenProgress,
-  ]);
-
-  // Render shimmer loading
-  const renderShimmer = () => <HomeScreenSkeleton />;
-
-  const renderFeaturedCard = ({ item }) => {
-    const mediaType = item?.Type || item?.media_type || "movie";
-    const releaseYear =
-      item?.Year ||
-      item?.release_date?.split("-")[0] ||
-      item?.first_air_date?.split("-")[0] ||
-      "Now";
-
-    return (
-      <TouchableOpacity
-        style={[styles.featuredCard, { width: featuredCardWidth }]}
-        activeOpacity={0.92}
-        onPress={() => navigation.navigate("Details", { imdbID: item.imdbID })}
-      >
-        <Image
-          source={{ uri: getFeaturedImageUri(item) }}
-          style={styles.featuredImage}
-          resizeMode="cover"
-          progressiveRenderingEnabled
-        />
-        <LinearGradient
-          colors={["transparent", "rgba(4,7,16,0.82)"]}
-          style={styles.gradientOverlay}
-        >
-          <View style={styles.featuredBadge}>
-            <Ionicons name="flame" size={16} color="#FF6B35" />
-            <Text style={styles.featuredBadgeText}>TRENDING</Text>
-          </View>
-          <Text style={styles.featuredTitle} numberOfLines={2}>
-            {item?.Title || item?.title || item?.name}
-          </Text>
-          <Text style={styles.featuredSubtitle}>
-            {releaseYear} •{" "}
-            {String(mediaType).charAt(0).toUpperCase() +
-              String(mediaType).slice(1)}
-          </Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    );
-  };
-
-  // Featured Banner Carousel
-  const renderFeaturedBanner = () => {
-    if (!featuredItems.length) return null;
-
-    const paginationSlotWidth = 24;
-    const indicatorTranslateX = featuredScrollX.interpolate({
-      inputRange: featuredItems.map((_, index) => index * featuredCardWidth),
-      outputRange: featuredItems.map((_, index) => index * paginationSlotWidth),
-      extrapolate: "clamp",
-    });
-
-    return (
-      <View style={styles.featuredContainer}>
-        <AnimatedFlatList
-          ref={featuredCarouselRef}
-          data={featuredItems}
-          keyExtractor={(item, index) => item.imdbID || `featured-${index}`}
-          renderItem={renderFeaturedCard}
-          horizontal
-          pagingEnabled
-          decelerationRate="fast"
-          snapToInterval={featuredCardWidth}
-          snapToAlignment="start"
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { x: featuredScrollX } } }],
-            { useNativeDriver: true },
-          )}
-          onMomentumScrollEnd={(event) => {
-            const offsetX = event.nativeEvent.contentOffset.x;
-            const nextIndex = Math.round(offsetX / featuredCardWidth);
-            if (nextIndex !== activeFeaturedIndex) {
-              setActiveFeaturedIndex(nextIndex);
-            }
-          }}
-          onScrollToIndexFailed={() => {
-            // Ignore occasional layout race conditions during first render.
-          }}
-          getItemLayout={(_, index) => ({
-            length: featuredCardWidth,
-            offset: featuredCardWidth * index,
-            index,
-          })}
-        />
-
-        <View style={styles.featuredPagination}>
-          <View
-            style={[
-              styles.paginationRail,
-              { width: featuredItems.length * paginationSlotWidth },
-            ]}
-          >
-            {featuredItems.length > 1 && (
-              <Animated.View
-                style={[
-                  styles.paginationActivePill,
-                  {
-                    transform: [{ translateX: indicatorTranslateX }],
-                  },
-                ]}
-              />
-            )}
-
-            {featuredItems.map((_, index) => (
-              <View key={`featured-dot-${index}`} style={styles.paginationSlot}>
-                <View style={styles.paginationDot} />
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  // Render section
-  const renderSection = (section) => {
-    const isRecommendation = section.type === "recommendations";
-
-    return (
-      <View key={section.id} style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {section.title}
-            </Text>
-            {section.subtitle && (
-              <Text style={[styles.sectionSubtitle, { color: colors.text }]}>
-                {section.subtitle}
-              </Text>
-            )}
-          </View>
-        </View>
-        <LinearGradient
-          colors={["#1e88e5", "#1565c0", "transparent"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.sectionUnderline}
-        />
-
-        <FlatList
-          horizontal
-          data={section.data}
-          keyExtractor={(item, index) =>
-            `${section.id}-${item.imdbID || index}`
-          }
-          renderItem={({ item }) => {
-            if (isRecommendation) {
-              return <RecommendationCard item={item} />;
-            }
-
-            return (
-              <MovieCard
-                movie={item}
-                onPress={() =>
-                  navigation.navigate("Details", { imdbID: item.imdbID })
-                }
-                style={styles.horizontalCard}
-              />
-            );
-          }}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          initialNumToRender={3}
-          maxToRenderPerBatch={2}
-          windowSize={5}
-          removeClippedSubviews={true}
-        />
-      </View>
-    );
-  };
-
-  // Welcome message for new users
-  const renderWelcomeMessage = () => {
-    return (
-      <View style={[styles.welcomeContainer, { backgroundColor: colors.card }]}>
-        <Ionicons name="heart-outline" size={48} color={colors.primary} />
-        <Text style={[styles.welcomeTitle, { color: colors.text }]}>
-          Welcome to CineLink!
-        </Text>
-        <Text style={[styles.welcomeText, { color: colors.text }]}>
-          Add movies to your favorites to get personalized recommendations
-        </Text>
-        <TouchableOpacity
-          style={[styles.welcomeButton, { backgroundColor: colors.primary }]}
-          onPress={() => navigation.navigate("Search")}
-        >
-          <Text style={styles.welcomeButtonText}>Start Exploring</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // Determine what to show based on loading state and user data
-  const renderContent = () => {
-    if (homeLoadError) {
-      return (
-        <RetryState
-          title="Unable to load home"
-          message="We could not reach the server. Check your internet and retry."
-          onRetry={handleRetryHome}
-        />
-      );
-    }
-
-    // Still initializing - show shimmer for returning users, nothing for new users yet
-    if (!favoritesInitialized || !watchlistsLoaded) {
-      return <View style={styles.loadingContainer}>{renderShimmer()}</View>;
-    }
-
-    // Data loaded - check if user is new
-    if (isNewUser) {
-      // New user with no data - show welcome message + basic trending content
-      return (
-        <>
-          {renderWelcomeMessage()}
-          {sectionsLoading ? (
-            <View style={styles.loadingContainer}>{renderShimmer()}</View>
-          ) : (
-            <>
-              {featuredItems.length > 0 && renderFeaturedBanner()}
-              {sections.map((section) => renderSection(section))}
-            </>
-          )}
-        </>
-      );
-    }
-
-    // Returning user with data - show shimmer while loading sections, then content
-    if (sectionsLoading) {
-      return <View style={styles.loadingContainer}>{renderShimmer()}</View>;
-    }
-
-    // Show actual content
-    return (
+  const topGenres = profile.topGenres;
+  const listHeader = useMemo(
+    () => (
       <>
-        {featuredItems.length > 0 && renderFeaturedBanner()}
-        {sections.map((section) => renderSection(section))}
+        {isNewUser && <WelcomeCard colors={colors} onExplore={openSearch} />}
+        <FeaturedCarousel
+          items={feed.featured}
+          width={Math.max(width - 40, 280)}
+          onOpen={openDetails}
+        />
+        <View style={styles.chipsWrap}>
+          <GenreChips
+            order={topGenres}
+            onPress={openGenre}
+            colors={colors}
+            theme={theme}
+          />
+        </View>
       </>
+    ),
+    [
+      isNewUser,
+      colors,
+      theme,
+      feed.featured,
+      width,
+      openDetails,
+      openGenre,
+      openSearch,
+      topGenres,
+    ],
+  );
+
+  const tagline = isNewUser
+    ? "Your Movie Heaven"
+    : ready
+      ? `${favorites.length} favorites • ${profile.watchProgress.total} in watchlist`
+      : "Loading...";
+
+  let body;
+  if (watchlistError || feed.status === "error") {
+    body = (
+      <RetryState
+        title="Unable to load home"
+        message="We could not reach the server. Check your internet and retry."
+        onRetry={handleRetry}
+      />
     );
-  };
+  } else if (!ready || feed.status === "loading") {
+    body = <HomeScreenSkeleton />;
+  } else {
+    body = (
+      <FlatList
+        data={feed.sections}
+        keyExtractor={sectionKey}
+        renderItem={renderSection}
+        ListHeaderComponent={listHeader}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
+        initialNumToRender={3}
+        maxToRenderPerBatch={2}
+        windowSize={5}
+        removeClippedSubviews
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      />
+    );
+  }
 
   return (
-    <SafeAreaView
-      style={[styles.safeContainer, { backgroundColor: colors.background }]}
-    >
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <StatusBar
         barStyle={theme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={colors.background}
       />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.appNameContainer}>
-          <Animated.View
-            style={[
-              styles.appNameBadge,
-              {
-                opacity: appNameOpacity,
-                transform: [{ translateY: appNameTranslateY }],
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.appName,
-                { color: theme === "dark" ? "#42a5f5" : "#1976d2" },
-              ]}
-            >
-              CineLink
-            </Text>
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.appNameSheen,
-                {
-                  transform: [
-                    { translateX: appNameSheenTranslate },
-                    { skewX: "-18deg" },
-                  ],
-                },
-              ]}
-            />
-          </Animated.View>
-          <Animated.Text
-            style={[
-              styles.appTagline,
-              {
-                color: colors.text,
-                opacity: appTaglineOpacity,
-                transform: [{ translateY: appTaglineTranslateY }],
-              },
-            ]}
-          >
-            {isNewUser
-              ? "Your Movie Heaven"
-              : favoritesInitialized && watchlistsLoaded
-                ? `${favorites.length} favorites • ${userProfile.watchProgress.total} in watchlist`
-                : "Loading..."}
-          </Animated.Text>
-        </View>
-      </View>
-
-      {/* Main Content */}
-      <FlatList
-        data={[{ key: "content" }]}
-        keyExtractor={(item) => item.key}
-        renderItem={renderContent}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingBottom: tabBarHeight },
-        ]}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={1}
-        windowSize={3}
-      />
+      <HomeHeader tagline={tagline} theme={theme} colors={colors} />
+      {body}
     </SafeAreaView>
   );
 };
 
+export default HomeScreen;
+
 const styles = StyleSheet.create({
-  safeContainer: { flex: 1 },
-
-  // Header
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(128,128,128,0.2)",
-  },
-  appNameContainer: { flexDirection: "column" },
-  appNameBadge: {
-    alignSelf: "flex-start",
-    overflow: "hidden",
-    borderRadius: 10,
-    paddingRight: 8,
-  },
-  appName: {
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: 0.55,
-    textShadowColor: "rgba(30,136,229,0.14)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  appNameSheen: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    width: 36,
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
-  appTagline: { fontSize: 13, opacity: 0.7, marginTop: 2 },
-
-  // Featured Banner
-  featuredContainer: {
+  safe: { flex: 1 },
+  chipsWrap: { marginBottom: 28 },
+  welcome: {
     marginHorizontal: 20,
     marginTop: 20,
-    marginBottom: 25,
-  },
-  featuredCard: {
-    borderRadius: 18,
-    overflow: "hidden",
-    backgroundColor: "#0f1720",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  featuredImage: {
-    width: "100%",
-    aspectRatio: 16 / 9,
-    minHeight: 210,
-    maxHeight: 300,
-  },
-  gradientOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 52,
-    paddingBottom: 18,
-  },
-  featuredBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,107,53,0.22)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-    marginBottom: 12,
-  },
-  featuredBadgeText: {
-    color: "#FF6B35",
-    fontSize: 12,
-    fontWeight: "700",
-    marginLeft: 6,
-    letterSpacing: 0.5,
-  },
-  featuredTitle: {
-    color: "#fff",
-    fontSize: 26,
-    fontWeight: "800",
-    lineHeight: 31,
-    marginBottom: 8,
-  },
-  featuredSubtitle: {
-    color: "rgba(236,241,247,0.92)",
-    fontSize: 14,
-    fontWeight: "500",
-    letterSpacing: 0.2,
-  },
-  featuredPagination: {
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 12,
-  },
-  paginationRail: {
-    height: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  paginationSlot: {
-    width: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(125,142,164,0.45)",
-  },
-  paginationActivePill: {
-    position: "absolute",
-    top: 0,
-    left: 3,
-    width: 18,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "#1e88e5",
-    shadowColor: "#1e88e5",
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-  },
-
-  // Sections
-  sectionContainer: { marginBottom: 32 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  sectionTitleContainer: {
-    flex: 1,
-    gap: 4,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-    lineHeight: 28,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    fontWeight: "500",
-    opacity: 0.65,
-    letterSpacing: 0.2,
-  },
-  sectionUnderline: {
-    height: 3,
-    width: 60,
-    marginLeft: 20,
-    marginBottom: 14,
-    borderRadius: 2,
-  },
-
-  // Lists
-  horizontalList: { paddingLeft: 20 },
-  horizontalCard: { width: 160, marginRight: 14 },
-  listContent: { paddingBottom: 30 },
-  loadingContainer: { flex: 1 },
-
-  // Welcome Message
-  welcomeContainer: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 25,
     padding: 30,
     borderRadius: 16,
     alignItems: "center",
@@ -1022,11 +279,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
   },
-  welcomeButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  welcomeButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });
-
-export default HomeScreen;

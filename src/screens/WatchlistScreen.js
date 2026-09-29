@@ -20,11 +20,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Swipeable } from "react-native-gesture-handler";
 import { getCardImageUri } from "../utils/imageHelper";
 
-import CustomAlert from "../components/CustomAlert";
-import WatchlistCard from "../components/WatchlistCard";
-import EmptyState from "../components/EmptyState";
-import CreateWatchlistModal from "../components/CreateWatchlistModal";
-import RetryState from "../components/RetryState";
+import CustomAlert from "../components/shared/CustomAlert";
+import WatchlistCard from "../components/watchlist/WatchlistCard";
+import EmptyState from "../components/shared/EmptyState";
+import CreateWatchlistModal from "../components/watchlist/CreateWatchlistModal";
+import RetryState from "../components/shared/RetryState";
 import logger from "../services/logger";
 
 import {

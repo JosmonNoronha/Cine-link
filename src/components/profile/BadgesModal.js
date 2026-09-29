@@ -10,7 +10,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { ACHIEVEMENTS } from "../utils/gamification";
+import { ACHIEVEMENTS } from "../../utils/gamification";
 
 const { width } = Dimensions.get("window");
 // 3 columns, 16px outer padding each side, 4px inter-cell margin each side

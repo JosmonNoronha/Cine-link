@@ -15,10 +15,10 @@ import analyticsService from "../services/analytics";
 import logger from "../services/logger";
 
 // Components
-import SearchInput from "../components/SearchInput";
-import SearchSuggestions from "../components/SearchSuggestions";
-import SearchFilters from "../components/SearchFilters";
-import SearchResults from "../components/SearchResults";
+import SearchInput from "../components/search/SearchInput";
+import SearchSuggestions from "../components/search/SearchSuggestions";
+import SearchFilters from "../components/search/SearchFilters";
+import SearchResults from "../components/search/SearchResults";
 
 // Hooks
 import useSearchLogic from "../hooks/useSearchLogic";

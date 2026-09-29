@@ -34,7 +34,7 @@ import DetailsScreen from "../screens/DetailsScreen";
 import { useCustomTheme } from "../contexts/ThemeContext";
 import { FavoritesProvider } from "../contexts/FavoritesContext";
 import { auth } from "../../firebaseConfig";
-import SplashLoader from "../components/SplashLoader";
+import SplashLoader from "../components/shared/SplashLoader";
 import logger from "../services/logger";
 
 const Stack = createNativeStackNavigator();

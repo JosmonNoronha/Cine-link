@@ -10,7 +10,7 @@ import { Image } from "expo-image";
 import { useTheme } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { getCardImageUri } from "../utils/imageHelper";
+import { getCardImageUri } from "../../utils/imageHelper";
 
 const HomeMovieCard = ({ movie, onPress, style }) => {
   const { colors } = useTheme();

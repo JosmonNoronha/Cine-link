@@ -36,12 +36,14 @@ import {
 } from "./api/discovery";
 import {
   extractYouTubeTrailer,
+  getMovieImages,
   getMovieReviews,
   getMovieVideos,
   getMovieWatchProviders,
   getSeasonVideos,
   getTVReviews,
   getTVVideos,
+  getTVImages,
   getTVWatchProviders,
   getWatchProviders,
 } from "./api/media";
@@ -64,6 +66,7 @@ export {
   getSeasonDetails,
   searchMovies,
 };
+export { getCollection } from "./api/collections";
 
 export {
   addToFavorites,
@@ -120,12 +123,14 @@ export {
 
 export {
   extractYouTubeTrailer,
+  getMovieImages,
   getMovieReviews,
   getMovieVideos,
   getMovieWatchProviders,
   getSeasonVideos,
   getTVReviews,
   getTVVideos,
+  getTVImages,
   getTVWatchProviders,
   getWatchProviders,
 };
