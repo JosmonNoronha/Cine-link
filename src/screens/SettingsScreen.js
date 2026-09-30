@@ -442,7 +442,7 @@ const SettingsScreen = ({ navigation }) => {
           styles.container,
           {
             backgroundColor: theme === "dark" ? "#121212" : "#f2f2f7",
-            paddingTop: insets.top + 8,
+            paddingTop: insets.top + 22,
           },
         ]}
         showsVerticalScrollIndicator={false}

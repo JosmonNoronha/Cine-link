@@ -29,7 +29,6 @@ import FavoritesScreen from "./FavoritesScreen";
 import logger from "../services/logger";
 import IconToggleButton from "../components/shared/IconToggleButton";
 
-
 import {
   getWatchlists,
   addWatchlist,
@@ -251,7 +250,7 @@ const WatchlistsScreen = ({ navigation }) => {
     <KeyboardAvoidingView
       style={[
         styles.container,
-        { backgroundColor: colors.background, paddingTop: insets.top + 8 },
+        { backgroundColor: colors.background, paddingTop: insets.top + 22 },
       ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >

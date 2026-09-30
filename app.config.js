@@ -84,7 +84,7 @@ module.exports = () => {
       android: {
         adaptiveIcon: {
           foregroundImage: "./assets/adaptive-icon-foreground.png",
-          backgroundColor: "#05070d",
+          backgroundColor: "#d8af61",
         },
         package: "com.josmon2004.CineLink",
         permissions: ["android.permission.INTERNET"],
