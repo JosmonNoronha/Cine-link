@@ -1,114 +1,104 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withDelay,
-  withRepeat,
   withSequence,
   withSpring,
   withTiming,
   Easing,
-  FadeIn,
   FadeOut,
 } from "react-native-reanimated";
 
-/* ───────────────────────── icon tile ─────────────────────────
- * A quick, punchy pop — spring overshoot past 1, settle, done.
- * No idle loop: the splash isn't on screen long enough to earn one.
+/* ───────────────────────── one popping kernel ─────────────────────────
+ * A tiny cluster of overlapping gold circles — the same construction as
+ * the icon's own baked-in kernels, just three native Views instead of an
+ * image, so each one is practically free to animate.
  */
-const IconTile = ({ size = 116 }) => {
+const Kernel = ({ x, y, delay, scale = 1 }) => {
   const pop = useSharedValue(0);
-  const sweep = useSharedValue(-1);
 
   useEffect(() => {
-    pop.value = withSpring(1, { damping: 9, stiffness: 220, mass: 0.7 });
-    sweep.value = withDelay(
-      150,
-      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+    pop.value = withDelay(
+      delay,
+      withSequence(
+        withSpring(1.15, { damping: 7, stiffness: 260, mass: 0.5 }),
+        withSpring(1, { damping: 9, stiffness: 220 }),
+      ),
     );
-  }, [pop, sweep]);
+  }, [pop, delay]);
 
-  const tileStyle = useAnimatedStyle(() => ({
+  const style = useAnimatedStyle(() => ({
     opacity: Math.min(pop.value * 1.6, 1),
-    transform: [{ scale: pop.value }, { rotate: `${(1 - pop.value) * -6}deg` }],
+    transform: [
+      { translateY: (1 - Math.min(pop.value, 1)) * 22 },
+      { scale: pop.value * scale },
+    ],
   }));
 
-  const sweepStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: sweep.value * size * 1.4 }, { rotate: "20deg" }],
-    opacity: sweep.value > 0.85 ? 0 : 1,
-  }));
-
+  const s = 26 * scale;
   return (
-    <Animated.View style={[styles.iconShadowWrap, tileStyle]}>
-      <View style={[styles.iconTile, { width: size, height: size, borderRadius: size * 0.24 }]}>
-        <Image
-          source={require("../../../assets/logo.png")}
-          style={styles.iconImage}
-          contentFit="contain"
-        />
-        <Animated.View style={[styles.sweep, sweepStyle]} pointerEvents="none" />
-      </View>
+    <Animated.View style={[styles.kernelWrap, { left: x, top: y }, style]}>
+      <View style={[styles.kernelLobe, { width: s, height: s, left: -s * 0.35 }]} />
+      <View style={[styles.kernelLobe, { width: s, height: s, left: s * 0.35 }]} />
+      <View style={[styles.kernelLobe, { width: s * 1.05, height: s * 1.05, top: -s * 0.35 }]} />
     </Animated.View>
   );
 };
 
-/* ───────────────────── loading dots (fast, staggered) ───────────────────── */
-const Dot = ({ delay, color }) => {
-  const t = useSharedValue(0);
+// Positions are tuned to the splash-box.png artwork's rim, in a size-independent
+// (0-1) coordinate space so they scale with BOX_SIZE below.
+const KERNEL_LAYOUT = [
+  { x: 0.05, y: -0.03, delay: 0, scale: 0.65 },
+  { x: 0.18, y: -0.12, delay: 60, scale: 0.85 },
+  { x: 0.32, y: -0.17, delay: 110, scale: 0.95 },
+  { x: 0.45, y: -0.13, delay: 60, scale: 0.85 },
+  { x: 0.58, y: -0.04, delay: 0, scale: 0.65 },
+];
+
+const BOX_SIZE = 110;
+
+/* ───────────────────────── splash loader ─────────────────────────
+ * Per your last note: just the animation, nothing else on screen.
+ */
+const SplashLoader = () => {
+  const pop = useSharedValue(0);
+
   useEffect(() => {
-    t.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 260, easing: Easing.out(Easing.quad) }),
-          withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) }),
-        ),
-        -1,
-        false,
-      ),
-    );
-  }, [t, delay]);
+    pop.value = withSpring(1, { damping: 9, stiffness: 220, mass: 0.7 });
+  }, [pop]);
 
-  const style = useAnimatedStyle(() => ({
-    opacity: 0.35 + t.value * 0.65,
-    transform: [{ scale: 0.7 + t.value * 0.3 }],
+  const boxStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(pop.value * 1.6, 1),
+    transform: [
+      { scale: pop.value },
+      { rotate: `${(1 - pop.value) * -8}deg` },
+    ],
   }));
-
-  return <Animated.View style={[styles.dot, { backgroundColor: color }, style]} />;
-};
-
-/* ───────────────────────── splash loader ───────────────────────── */
-
-const SplashLoader = ({ appName = "CineLink" }) => {
-  const accent = "#74b7ff";
 
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(280)}>
-      <LinearGradient
-        colors={["#0c1220", "#05070d", "#000000"]}
-        style={StyleSheet.absoluteFill}
-      />
+      <View style={{ width: BOX_SIZE, height: BOX_SIZE }}>
+        <Animated.View style={[StyleSheet.absoluteFill, boxStyle]}>
+          <Image
+            source={require("../../../assets/splash-box.png")}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+          />
+        </Animated.View>
 
-      <IconTile />
-
-      <Animated.Text
-        entering={FadeIn.delay(120).duration(280)}
-        style={styles.appName}
-      >
-        {appName}
-      </Animated.Text>
-
-      <Animated.View
-        entering={FadeIn.delay(260).duration(240)}
-        style={styles.dotsRow}
-      >
-        <Dot delay={0} color={accent} />
-        <Dot delay={120} color={accent} />
-        <Dot delay={240} color={accent} />
-      </Animated.View>
+        {KERNEL_LAYOUT.map((k, i) => (
+          <Kernel
+            key={i}
+            x={k.x * BOX_SIZE}
+            y={k.y * BOX_SIZE}
+            delay={220 + k.delay}
+            scale={k.scale}
+          />
+        ))}
+      </View>
     </Animated.View>
   );
 };
@@ -118,56 +108,20 @@ export default SplashLoader;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: "#05070d",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 24,
   },
-
-  iconShadowWrap: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 18,
-    marginBottom: 18,
-  },
-  iconTile: {
-    backgroundColor: "#12151c",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  iconImage: {
-    width: "68%",
-    height: "68%",
-  },
-  sweep: {
+  kernelWrap: {
     position: "absolute",
-    top: -40,
-    bottom: -40,
-    width: 32,
-    backgroundColor: "rgba(255,255,255,0.22)",
+    width: 40,
+    height: 40,
   },
-
-  appName: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#ffffff",
-    letterSpacing: 0.6,
-    textAlign: "center",
-  },
-
-  dotsRow: {
-    flexDirection: "row",
-    gap: 7,
-    marginTop: 22,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  kernelLobe: {
+    position: "absolute",
+    backgroundColor: "#FFC93C",
+    borderColor: "#16202E",
+    borderWidth: 3,
+    borderRadius: 999,
   },
 });

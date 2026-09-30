@@ -56,7 +56,7 @@ module.exports = () => {
       slug: "CineLink",
       version: "2.0.0",
       orientation: "portrait",
-      icon: "./assets/icon.png",
+      icon: "./assets/app-icon.png",
       userInterfaceStyle: "automatic",
       newArchEnabled: true,
       splash: {
@@ -83,8 +83,8 @@ module.exports = () => {
       },
       android: {
         adaptiveIcon: {
-          foregroundImage: "./assets/adaptive-icon.png",
-          backgroundColor: "#ffffff",
+          foregroundImage: "./assets/adaptive-icon-foreground.png",
+          backgroundColor: "#05070d",
         },
         package: "com.josmon2004.CineLink",
         permissions: ["android.permission.INTERNET"],
