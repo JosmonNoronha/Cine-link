@@ -1,4 +1,3 @@
-// components/SearchInput.js
 import React from "react";
 import {
   View,
@@ -26,13 +25,16 @@ const SearchInput = ({
       style={[
         styles.inputContainer,
         {
-          backgroundColor:
-            theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
+          // Solid, not translucent — this sits on top of the floating
+          // header's glass backdrop and should never blend into it,
+          // scrolled or not.
+          backgroundColor: colors.card,
           borderColor: isFocused
             ? theme === "dark"
               ? "rgba(255,255,255,0.2)"
               : "rgba(0,0,0,0.15)"
             : "transparent",
+          shadowColor: theme === "dark" ? "#000" : "#162035",
         },
       ]}
     >
@@ -84,6 +86,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    // Subtle lift so it reads as a distinct solid surface against the
+    // glass panel behind it, rather than flattening into the same plane.
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   },
   searchIcon: {
     marginRight: 8,

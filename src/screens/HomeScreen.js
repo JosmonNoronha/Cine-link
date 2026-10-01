@@ -1,6 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import {
   View,
+  Animated,
   Text,
   FlatList,
   StyleSheet,
@@ -73,6 +80,17 @@ const HomeScreen = ({ navigation }) => {
   const [watchlistsLoaded, setWatchlistsLoaded] = useState(false);
   const [watchlistError, setWatchlistError] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  const handleScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollY],
+  );
 
   const loadWatchlists = useCallback(async () => {
     try {
@@ -199,14 +217,20 @@ const HomeScreen = ({ navigation }) => {
   let body;
   if (watchlistError || feed.status === "error") {
     body = (
-      <RetryState
-        title="Unable to load home"
-        message="We could not reach the server. Check your internet and retry."
-        onRetry={handleRetry}
-      />
+      <View style={{ flex: 1, paddingTop: headerHeight }}>
+        <RetryState
+          title="Unable to load home"
+          message="We could not reach the server. Check your internet and retry."
+          onRetry={handleRetry}
+        />
+      </View>
     );
   } else if (!ready || feed.status === "loading") {
-    body = <HomeScreenSkeleton />;
+    body = (
+      <View style={{ flex: 1, paddingTop: headerHeight }}>
+        <HomeScreenSkeleton />
+      </View>
+    );
   } else {
     body = (
       <FlatList
@@ -215,7 +239,12 @@ const HomeScreen = ({ navigation }) => {
         renderItem={renderSection}
         ListHeaderComponent={listHeader}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 16 }}
+        contentContainerStyle={{
+          paddingTop: headerHeight,
+          paddingBottom: tabBarHeight + 16,
+        }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         initialNumToRender={3}
         maxToRenderPerBatch={2}
         windowSize={5}
@@ -238,7 +267,13 @@ const HomeScreen = ({ navigation }) => {
         barStyle={theme === "dark" ? "light-content" : "dark-content"}
         backgroundColor={colors.background}
       />
-      <HomeHeader tagline={tagline} theme={theme} colors={colors} />
+      <HomeHeader
+        tagline={tagline}
+        theme={theme}
+        colors={colors}
+        scrollY={scrollY}
+        onHeight={setHeaderHeight}
+      />
       {body}
     </SafeAreaView>
   );

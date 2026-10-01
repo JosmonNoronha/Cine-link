@@ -1,4 +1,3 @@
-// components/SearchResults.js
 import React from "react";
 import {
   View,
@@ -32,6 +31,11 @@ const SearchResults = ({
   onClearAllHistory,
   colors,
   theme,
+  // Floating header support — the list scrolls underneath the header, so
+  // its content needs to start below it, and the header needs to know
+  // about scroll position to crossfade into its glass look.
+  headerHeight = 0,
+  onScroll,
 }) => {
   const renderMovieItem = ({ item }) => (
     <MovieCard movie={item} onPress={() => onMoviePress(item.imdbID)} />
@@ -84,9 +88,11 @@ const SearchResults = ({
       data={new Array(6).fill({})}
       keyExtractor={(_, index) => `shimmer-${index}`}
       renderItem={() => <ShimmerMovieCard />}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, { paddingTop: headerHeight }]}
       showsVerticalScrollIndicator={false}
       estimatedItemSize={180}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
     />
   );
 
@@ -119,7 +125,7 @@ const SearchResults = ({
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={[styles.errorContainer, { paddingTop: headerHeight + 20 }]}>
         <Ionicons
           name="alert-circle-outline"
           size={24}
@@ -151,7 +157,7 @@ const SearchResults = ({
       renderItem={renderMovieItem}
       estimatedItemSize={180}
       style={styles.list}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, { paddingTop: headerHeight }]}
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={Platform.OS !== "web"}
       maxToRenderPerBatch={20}
@@ -159,6 +165,8 @@ const SearchResults = ({
       windowSize={15}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
       ListFooterComponent={renderFooter}
       ListEmptyComponent={renderEmptyComponent}
     />

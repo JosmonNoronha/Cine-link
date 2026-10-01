@@ -1,7 +1,8 @@
 // SearchScreen.js
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
+  Animated,
   Text,
   StatusBar,
   Keyboard,
@@ -24,6 +25,7 @@ import SearchResults from "../components/search/SearchResults";
 import useSearchLogic from "../hooks/useSearchLogic";
 import useSuggestions from "../hooks/useSuggestions";
 import useSearchHistory from "../hooks/useSearchHistory";
+import FloatingGlassHeader from "../components/search/FloatingGlassHeader";
 
 const SearchScreen = ({ navigation }) => {
   // Local state
@@ -62,6 +64,9 @@ const SearchScreen = ({ navigation }) => {
   const { searchHistory, saveToHistory, deleteHistoryItem, clearAllHistory } =
     useSearchHistory();
 
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [headerHeight, setHeaderHeight] = useState(0);
+
   // Initialize data on mount
   useEffect(() => {
     let isMounted = true;
@@ -98,6 +103,14 @@ const SearchScreen = ({ navigation }) => {
       analyticsService.trackSearch(searchQuery, results?.length || 0);
     }
   }, [results, searchQuery, isLoading, hasSearched, totalResults]);
+
+  const handleScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: true,
+      }),
+    [scrollY],
+  );
 
   // Handle input focus
   const handleInputFocus = useCallback(() => {
@@ -262,80 +275,87 @@ const SearchScreen = ({ navigation }) => {
       />
 
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.headerContainer}>
-          <Text style={[styles.title, { color: colors.text }]}>Search</Text>
-        </View>
+        <FloatingGlassHeader
+          scrollY={scrollY}
+          onHeight={setHeaderHeight}
+          theme={theme}
+          colors={colors}
+        >
+          {/* Header */}
+          <View style={styles.headerContainer}>
+            <Text style={[styles.title, { color: colors.text }]}>Search</Text>
+          </View>
 
-        {/* Search Input Section */}
-        <View style={styles.searchSection}>
-          <SearchInput
-            query={query}
-            onChangeText={setQuery}
-            onFocus={handleInputFocus}
-            onBlur={handleInputBlur}
-            onSubmit={handleSearch}
-            onClear={clearSearch}
-            isLoading={isLoading}
-            isFocused={isFocused}
-            theme={theme}
-            colors={colors}
-          />
+          {/* Search Input Section — SearchInput itself stays solid, see its own patch */}
+          <View style={styles.searchSection}>
+            <SearchInput
+              query={query}
+              onChangeText={setQuery}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              onSubmit={handleSearch}
+              onClear={clearSearch}
+              isLoading={isLoading}
+              isFocused={isFocused}
+              theme={theme}
+              colors={colors}
+            />
 
-          {/* Current Search Query Display */}
-          {searchQuery && searchQuery !== query && (
-            <View style={styles.currentSearchContainer}>
-              <Text
-                style={[
-                  styles.currentSearchLabel,
-                  { color: theme === "dark" ? "#888" : "#666" },
-                ]}
-              >
-                Showing results for:
-              </Text>
-              <Text style={[styles.currentSearchText, { color: colors.text }]}>
-                “{searchQuery}”
-              </Text>
-              {totalResults > 0 && isTotalExact && (
+            {searchQuery && searchQuery !== query && (
+              <View style={styles.currentSearchContainer}>
                 <Text
                   style={[
-                    styles.resultCount,
+                    styles.currentSearchLabel,
                     { color: theme === "dark" ? "#888" : "#666" },
                   ]}
                 >
-                  ({totalResults} results)
+                  Showing results for:
                 </Text>
-              )}
-            </View>
-          )}
+                <Text
+                  style={[styles.currentSearchText, { color: colors.text }]}
+                >
+                  “{searchQuery}”
+                </Text>
+                {totalResults > 0 && isTotalExact && (
+                  <Text
+                    style={[
+                      styles.resultCount,
+                      { color: theme === "dark" ? "#888" : "#666" },
+                    ]}
+                  >
+                    ({totalResults} results)
+                  </Text>
+                )}
+              </View>
+            )}
 
-          {/* Suggestions */}
-          {showSuggestions && suggestions.length > 0 && (
-            <SearchSuggestions
-              suggestions={suggestions}
-              onSuggestionPress={handleSuggestionPress}
-              onDeleteHistory={handleDeleteHistoryItem}
-              onClearAllHistory={handleClearAllHistory}
-              getSuggestionIcon={getSuggestionIcon}
-              searchHistory={searchHistory}
-              query={query}
+            {showSuggestions && suggestions.length > 0 && (
+              <SearchSuggestions
+                suggestions={suggestions}
+                onSuggestionPress={handleSuggestionPress}
+                onDeleteHistory={handleDeleteHistoryItem}
+                onClearAllHistory={handleClearAllHistory}
+                getSuggestionIcon={getSuggestionIcon}
+                searchHistory={searchHistory}
+                query={query}
+                colors={colors}
+                theme={theme}
+              />
+            )}
+          </View>
+
+          {/* Filter Buttons - Only show when we have searched */}
+          {hasSearched && (
+            <SearchFilters
+              filterType={filterType}
+              onFilterChange={handleFilterChange}
               colors={colors}
               theme={theme}
             />
           )}
-        </View>
+        </FloatingGlassHeader>
 
-        {/* Filter Buttons - Only show when we have searched */}
-        {hasSearched && (
-          <SearchFilters
-            filterType={filterType}
-            onFilterChange={handleFilterChange}
-            colors={colors}
-            theme={theme}
-          />
-        )}
-
-        {/* Results */}
+        {/* Results — now scrolls underneath the floating header above */}
         <SearchResults
           results={results}
           isLoading={isLoading}
@@ -346,7 +366,6 @@ const SearchScreen = ({ navigation }) => {
           onEndReached={handleLoadMoreResults}
           onLoadMorePress={handleLoadMoreResults}
           onMoviePress={handleMoviePress}
-          // Welcome screen props
           searchHistory={searchHistory}
           popularKeywords={trendingKeywords}
           onSuggestionPress={handleSuggestionPress}
@@ -354,6 +373,8 @@ const SearchScreen = ({ navigation }) => {
           onClearAllHistory={handleClearAllHistory}
           colors={colors}
           theme={theme}
+          headerHeight={headerHeight}
+          onScroll={handleScroll}
         />
       </View>
     </SafeAreaView>
