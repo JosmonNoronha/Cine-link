@@ -47,6 +47,7 @@ const SearchScreen = ({ navigation }) => {
     useSearchHistory();
 
   const scrollY = useRef(new Animated.Value(0)).current;
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -180,21 +181,13 @@ const SearchScreen = ({ navigation }) => {
         backgroundColor={colors.background}
       />
 
-      {/*
-        Layout is a plain flex column:
-          1. FloatingGlassHeader  — in normal flow, takes up real height
-          2. SearchResults        — fills the rest of the space
-
-        The header has zIndex/elevation so it renders visually above the list,
-        but because it's in normal flow the list starts naturally below it —
-        no headerHeight measurement, no paddingTop hack needed.
-      */}
       <View style={styles.container}>
 
         <FloatingGlassHeader
           scrollY={scrollY}
           theme={theme}
           colors={colors}
+          onHeight={setHeaderHeight}
         >
           {/* Title row */}
           <View style={styles.titleRow}>
@@ -257,7 +250,7 @@ const SearchScreen = ({ navigation }) => {
           )}
         </FloatingGlassHeader>
 
-        {/* Results fill remaining space and scroll under the header above */}
+        {/* Results scroll behind the glass header; their initial content is offset below it. */}
         <SearchResults
           results={results}
           isLoading={isLoading}
@@ -275,6 +268,7 @@ const SearchScreen = ({ navigation }) => {
           onClearAllHistory={handleClearAllHistory}
           colors={colors}
           theme={theme}
+          headerHeight={headerHeight}
           onScroll={handleScroll}
         />
       </View>

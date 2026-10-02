@@ -5,18 +5,13 @@ import { BlurView } from "expo-blur";
 const FADE_RANGE = 50;
 
 /**
- * A header that sits in normal document flow (takes up real space so the
- * list beneath it starts below it naturally) while visually floating above
- * the scrolling content via zIndex/elevation.
+ * A header that overlays the scrolling content so the BlurView can sample and
+ * blur the content behind it.
  *
  * At rest the header looks identical to the page background (solid cover
  * at full opacity). As the list scrolls up the solid cover fades out,
  * revealing the BlurView behind it — giving the frosted-glass effect.
  *
- * Key change from the previous version: `position` is NOT "absolute".
- * Absolute positioning removes the element from flow, so the list starts
- * at y=0 and gets covered. Normal flow + zIndex solves this without any
- * headerHeight measurement or paddingTop hacks.
  */
 const FloatingGlassHeader = ({
   scrollY,
@@ -25,6 +20,7 @@ const FloatingGlassHeader = ({
   children,
   fadeRange = FADE_RANGE,
   contentStyle,
+  onHeight,
 }) => {
   const coverOpacity = scrollY.interpolate({
     inputRange: [0, fadeRange],
@@ -48,6 +44,7 @@ const FloatingGlassHeader = ({
           backgroundColor: "transparent",
         },
       ]}
+      onLayout={(event) => onHeight?.(event.nativeEvent.layout.height)}
     >
       {/* Blur backdrop — always rendered, never animated (avoids flicker) */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -103,7 +100,10 @@ export default React.memo(FloatingGlassHeader);
 
 const styles = StyleSheet.create({
   header: {
-    // Normal flow — takes up real space, list starts below this naturally
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 20,
     elevation: 20, // Android: renders above the list
     overflow: "hidden",

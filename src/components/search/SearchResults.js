@@ -30,10 +30,12 @@ const SearchResults = ({
   onClearAllHistory,
   colors,
   theme,
-  // headerHeight and onHeight props removed — layout is now handled by
-  // normal document flow in SearchScreen, so no padding offset is needed.
+  headerHeight = 0,
   onScroll,
 }) => {
+  const listContentStyle = styles.listContent;
+  const listHeader = <View style={{ height: headerHeight }} />;
+
   const renderMovieItem = ({ item }) => (
     <MovieCard movie={item} onPress={() => onMoviePress(item.imdbID)} />
   );
@@ -119,7 +121,8 @@ const SearchResults = ({
         data={new Array(6).fill({})}
         keyExtractor={(_, i) => `shimmer-${i}`}
         renderItem={() => <ShimmerMovieCard />}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={listContentStyle}
+        ListHeaderComponent={listHeader}
         showsVerticalScrollIndicator={false}
         estimatedItemSize={180}
         onScroll={onScroll}
@@ -138,7 +141,8 @@ const SearchResults = ({
       renderItem={renderMovieItem}
       estimatedItemSize={180}
       style={styles.list}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={listContentStyle}
+      ListHeaderComponent={listHeader}
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={Platform.OS !== "web"}
       maxToRenderPerBatch={20}
