@@ -23,7 +23,6 @@ const SearchResults = ({
   onEndReached,
   onLoadMorePress,
   onMoviePress,
-  // Welcome screen props
   searchHistory,
   popularKeywords,
   onSuggestionPress,
@@ -31,10 +30,8 @@ const SearchResults = ({
   onClearAllHistory,
   colors,
   theme,
-  // Floating header support — the list scrolls underneath the header, so
-  // its content needs to start below it, and the header needs to know
-  // about scroll position to crossfade into its glass look.
-  headerHeight = 0,
+  // headerHeight and onHeight props removed — layout is now handled by
+  // normal document flow in SearchScreen, so no padding offset is needed.
   onScroll,
 }) => {
   const renderMovieItem = ({ item }) => (
@@ -49,12 +46,7 @@ const SearchResults = ({
             size="small"
             color={theme === "dark" ? "#1e88e5" : "#1976d2"}
           />
-          <Text
-            style={[
-              styles.loadingText,
-              { color: theme === "dark" ? "#888" : "#666" },
-            ]}
-          >
+          <Text style={[styles.loadingText, { color: theme === "dark" ? "#888" : "#666" }]}>
             Loading more results...
           </Text>
         </View>
@@ -68,35 +60,19 @@ const SearchResults = ({
         style={[
           styles.loadMoreButton,
           {
-            backgroundColor:
-              theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+            backgroundColor: theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
             borderColor: theme === "dark" ? "#333" : "#ddd",
           },
         ]}
         onPress={onLoadMorePress || onEndReached}
         activeOpacity={0.8}
       >
-        <Text style={[styles.loadMoreText, { color: colors.text }]}>
-          Load more
-        </Text>
+        <Text style={[styles.loadMoreText, { color: colors.text }]}>Load more</Text>
       </TouchableOpacity>
     );
   };
 
-  const renderShimmer = () => (
-    <FlashList
-      data={new Array(6).fill({})}
-      keyExtractor={(_, index) => `shimmer-${index}`}
-      renderItem={() => <ShimmerMovieCard />}
-      contentContainerStyle={[styles.listContent, { paddingTop: headerHeight }]}
-      showsVerticalScrollIndicator={false}
-      estimatedItemSize={180}
-      onScroll={onScroll}
-      scrollEventThrottle={16}
-    />
-  );
-
-  const renderEmptyComponent = () => (
+  const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Ionicons
         name={hasSearched ? "search-outline" : "bulb-outline"}
@@ -108,7 +84,6 @@ const SearchResults = ({
           ? "No results found. Try different keywords or check spelling."
           : "Start typing to see suggestions, then select one or hit search"}
       </Text>
-
       {!hasSearched && (
         <SearchWelcome
           searchHistory={searchHistory}
@@ -125,18 +100,13 @@ const SearchResults = ({
 
   if (error) {
     return (
-      <View style={[styles.errorContainer, { paddingTop: headerHeight + 20 }]}>
+      <View style={styles.errorContainer}>
         <Ionicons
           name="alert-circle-outline"
           size={24}
           color={theme === "dark" ? "#ff6b6b" : "#d32f2f"}
         />
-        <Text
-          style={[
-            styles.errorText,
-            { color: theme === "dark" ? "#ff6b6b" : "#d32f2f" },
-          ]}
-        >
+        <Text style={[styles.errorText, { color: theme === "dark" ? "#ff6b6b" : "#d32f2f" }]}>
           {error}
         </Text>
       </View>
@@ -144,7 +114,18 @@ const SearchResults = ({
   }
 
   if (isLoading) {
-    return renderShimmer();
+    return (
+      <FlashList
+        data={new Array(6).fill({})}
+        keyExtractor={(_, i) => `shimmer-${i}`}
+        renderItem={() => <ShimmerMovieCard />}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        estimatedItemSize={180}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+      />
+    );
   }
 
   return (
@@ -157,7 +138,7 @@ const SearchResults = ({
       renderItem={renderMovieItem}
       estimatedItemSize={180}
       style={styles.list}
-      contentContainerStyle={[styles.listContent, { paddingTop: headerHeight }]}
+      contentContainerStyle={styles.listContent}
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={Platform.OS !== "web"}
       maxToRenderPerBatch={20}
@@ -168,12 +149,14 @@ const SearchResults = ({
       onScroll={onScroll}
       scrollEventThrottle={16}
       ListFooterComponent={renderFooter}
-      ListEmptyComponent={renderEmptyComponent}
+      ListEmptyComponent={renderEmpty}
     />
   );
 };
 
 const styles = StyleSheet.create({
+  list: { flex: 1 },
+  listContent: { paddingBottom: 20 },
   loadingFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -181,9 +164,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 8,
   },
-  loadingText: {
-    fontSize: 12,
-  },
+  loadingText: { fontSize: 12 },
   loadMoreButton: {
     alignSelf: "center",
     marginTop: 8,
@@ -193,39 +174,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  loadMoreText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
+  loadMoreText: { fontSize: 13, fontWeight: "600" },
   errorContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
   },
-  errorText: {
-    fontSize: 14,
-    textAlign: "center",
-    marginLeft: 8,
-    flex: 1,
-  },
+  errorText: { fontSize: 14, textAlign: "center", marginLeft: 8, flex: 1 },
   emptyContainer: {
     alignItems: "center",
     paddingTop: 60,
     paddingHorizontal: 20,
   },
-  emptyText: {
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 16,
-    opacity: 0.7,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
+  emptyText: { fontSize: 16, textAlign: "center", marginTop: 16, opacity: 0.7 },
 });
 
 export default SearchResults;

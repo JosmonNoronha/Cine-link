@@ -9,7 +9,6 @@ import {
   View,
   Animated,
   Text,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
@@ -233,7 +232,7 @@ const HomeScreen = ({ navigation }) => {
     );
   } else {
     body = (
-      <FlatList
+      <Animated.FlatList
         data={feed.sections}
         keyExtractor={sectionKey}
         renderItem={renderSection}

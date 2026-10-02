@@ -5,17 +5,21 @@ import { BlurView } from "expo-blur";
 const FADE_RANGE = 50;
 
 /**
- * A floating header panel that crossfades from "solid, blends with the
- * page" to a blurred glass bar as the list beneath it scrolls.
+ * A header that sits in normal document flow (takes up real space so the
+ * list beneath it starts below it naturally) while visually floating above
+ * the scrolling content via zIndex/elevation.
  *
- * The blur layer is always mounted at constant opacity — only the plain
- * solid cover on top of it animates. (Animating BlurView's own opacity
- * causes some platforms to flash a flat fallback tint before the real
- * blur catches up, which reads as flickering between two looks.)
+ * At rest the header looks identical to the page background (solid cover
+ * at full opacity). As the list scrolls up the solid cover fades out,
+ * revealing the BlurView behind it — giving the frosted-glass effect.
+ *
+ * Key change from the previous version: `position` is NOT "absolute".
+ * Absolute positioning removes the element from flow, so the list starts
+ * at y=0 and gets covered. Normal flow + zIndex solves this without any
+ * headerHeight measurement or paddingTop hacks.
  */
 const FloatingGlassHeader = ({
   scrollY,
-  onHeight,
   theme,
   colors,
   children,
@@ -27,6 +31,7 @@ const FloatingGlassHeader = ({
     outputRange: [1, 0],
     extrapolate: "clamp",
   });
+
   const dividerOpacity = scrollY.interpolate({
     inputRange: [0, fadeRange],
     outputRange: [0, 1],
@@ -35,10 +40,16 @@ const FloatingGlassHeader = ({
 
   return (
     <View
-      style={styles.header}
-      onLayout={(e) => onHeight?.(e.nativeEvent.layout.height)}
+      style={[
+        styles.header,
+        {
+          // Shadow so it visually "lifts" above the list on scroll
+          shadowColor: theme === "dark" ? "#000" : "#1a1a2e",
+          backgroundColor: "transparent",
+        },
+      ]}
     >
-      {/* Blur backdrop: always rendered, never animated */}
+      {/* Blur backdrop — always rendered, never animated (avoids flicker) */}
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <BlurView
           intensity={theme === "dark" ? 42 : 62}
@@ -48,28 +59,41 @@ const FloatingGlassHeader = ({
         <View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: theme === "dark" ? "rgba(10,12,18,0.30)" : "rgba(255,255,255,0.40)" },
+            {
+              backgroundColor:
+                theme === "dark"
+                  ? "rgba(10,12,18,0.30)"
+                  : "rgba(255,255,255,0.40)",
+            },
           ]}
         />
       </View>
 
-      {/* Solid cover: what you see at rest, fades away to reveal the blur */}
+      {/* Solid cover — fades out as the user scrolls, revealing the blur */}
       <Animated.View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFill, { backgroundColor: colors.background, opacity: coverOpacity }]}
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: colors.background, opacity: coverOpacity },
+        ]}
       />
 
+      {/* Bottom border — fades in when scrolled to visually separate header */}
       <Animated.View
         pointerEvents="none"
         style={[
           styles.divider,
           {
             opacity: dividerOpacity,
-            backgroundColor: theme === "dark" ? "rgba(255,255,255,0.14)" : "rgba(24,33,48,0.14)",
+            backgroundColor:
+              theme === "dark"
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(24,33,48,0.14)",
           },
         ]}
       />
 
+      {/* Actual content */}
       <View style={[styles.content, contentStyle]}>{children}</View>
     </View>
   );
@@ -79,12 +103,14 @@ export default React.memo(FloatingGlassHeader);
 
 const styles = StyleSheet.create({
   header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    // Normal flow — takes up real space, list starts below this naturally
     zIndex: 20,
+    elevation: 20, // Android: renders above the list
     overflow: "hidden",
+    // Shadow for the "lifted" feel once blur kicks in
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
   },
   divider: {
     position: "absolute",
