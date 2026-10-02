@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
+import { View, Text, Animated, StyleSheet, Platform } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 
@@ -73,6 +73,9 @@ const HomeHeader = ({ tagline, theme, colors, scrollY, onHeight }) => {
         <BlurView
           intensity={theme === "dark" ? 42 : 62}
           tint={theme === "dark" ? "dark" : "light"}
+          experimentalBlurMethod={
+            Platform.OS === "android" ? "dimezisBlurView" : undefined
+          }
           style={StyleSheet.absoluteFill}
         />
         <View

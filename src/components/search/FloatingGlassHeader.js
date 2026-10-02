@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Animated, StyleSheet } from "react-native";
+import { View, Animated, StyleSheet, Platform } from "react-native";
 import { BlurView } from "expo-blur";
 
 const FADE_RANGE = 50;
@@ -51,6 +51,9 @@ const FloatingGlassHeader = ({
         <BlurView
           intensity={theme === "dark" ? 42 : 62}
           tint={theme === "dark" ? "dark" : "light"}
+          experimentalBlurMethod={
+            Platform.OS === "android" ? "dimezisBlurView" : undefined
+          }
           style={StyleSheet.absoluteFill}
         />
         <View
