@@ -469,7 +469,7 @@ const FavoritesScreen = ({
         />
       )}
 
-      <View style={styles.container}>
+      <View style={[styles.container, embedded && styles.embeddedContainer]}>
         {/* Clean page header */}
         {!embedded && (
           <LibraryPageHeader
@@ -703,7 +703,7 @@ const FavoritesScreen = ({
             </Modal>
 
             {/* Results count */}
-            <Text
+            {/* <Text
               style={[
                 styles.resultsCount,
                 { color: colors.text, opacity: 0.6 },
@@ -711,7 +711,7 @@ const FavoritesScreen = ({
             >
               {processedFavorites.length}{" "}
               {processedFavorites.length === 1 ? "item" : "items"}
-            </Text>
+            </Text> */}
 
             {/* List/Grid */}
             <FlatList
@@ -743,6 +743,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 28,
+  },
+  embeddedContainer: {
+    paddingTop: 4,
   },
   headerRow: {
     flexDirection: "row",
