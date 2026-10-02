@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { Swipeable } from "react-native-gesture-handler";
 import { getCardImageUri } from "../utils/imageHelper";
 
@@ -44,7 +45,6 @@ import {
 } from "../utils/gamification";
 
 import GlassSegmentedControl from "../components/shared/GlassSegmentedControl";
-import LibraryPageHeader from "../components/shared/LibraryPageHeader";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { useCustomTheme } from "../contexts/ThemeContext";
 
@@ -245,6 +245,11 @@ const WatchlistsScreen = ({ navigation }) => {
   };
 
   const watchlistKeys = Object.keys(watchlists);
+  const isFavoritesTab = activeTab === "favorites";
+  const libraryTitle = isFavoritesTab ? "Favorites" : "Watchlists";
+  // const librarySubtitle = isFavoritesTab
+  //   ? `${favorites.length} ${favorites.length === 1 ? "movie" : "movies"} saved`
+  //   : `${watchlistKeys.length} ${watchlistKeys.length === 1 ? "list" : "lists"} to explore`;
 
   return (
     <KeyboardAvoidingView
@@ -254,36 +259,65 @@ const WatchlistsScreen = ({ navigation }) => {
       ]}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <GlassSegmentedControl
-        options={[
-          { key: "watchlists", label: "Watchlists", icon: "bookmark-outline" },
-          { key: "favorites", label: "Favorites", icon: "heart-outline" },
-        ]}
-        value={activeTab}
-        onChange={setActiveTab}
-        theme={theme}
-      />
-      <View style={{ height: 14 }} />
-
-      <LibraryPageHeader
-        title={activeTab === "watchlists" ? "My Watchlists" : "My Favorites"}
-        colors={colors}
-        right={
-          activeTab === "favorites" && favorites.length > 0 ? (
+      <View style={styles.libraryHeader}>
+        <BlurView
+          intensity={theme === "dark" ? 32 : 48}
+          tint={theme === "dark" ? "dark" : "light"}
+          experimentalBlurMethod={
+            Platform.OS === "android" ? "dimezisBlurView" : undefined
+          }
+          style={StyleSheet.absoluteFill}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor:
+                theme === "dark"
+                  ? "rgba(12,16,24,0.72)"
+                  : "rgba(255,255,255,0.76)",
+            },
+          ]}
+        />
+        <View style={styles.libraryHeaderTop}>
+          <View style={styles.libraryHeading}>
+            <View style={styles.libraryTitleRow}>
+              <Ionicons
+                name={isFavoritesTab ? "heart" : "bookmark"}
+                size={18}
+                color={colors.primary}
+              />
+              <Text style={[styles.libraryTitle, { color: colors.text }]}>
+                {libraryTitle}
+              </Text>
+            </View>
+            {/* <Text style={[styles.librarySubtitle, { color: colors.text }]}>
+              {librarySubtitle}
+            </Text> */}
+          </View>
+          {isFavoritesTab && favorites.length > 0 ? (
             <IconToggleButton
-              icon={
-                libraryViewType === "list" ? "grid-outline" : "list-outline"
-              }
+              icon={libraryViewType === "list" ? "grid-outline" : "list-outline"}
               onPress={() =>
                 setLibraryViewType(libraryViewType === "list" ? "grid" : "list")
               }
               theme={theme}
             />
-          ) : null
-        }
-      />
+          ) : null}
+        </View>
+        <GlassSegmentedControl
+          options={[
+            { key: "watchlists", label: "Watchlists", icon: "bookmark-outline" },
+            { key: "favorites", label: "Favorites", icon: "heart-outline" },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+          theme={theme}
+        />
+      </View>
 
-      {activeTab === "favorites" ? (
+      {isFavoritesTab ? (
         <View style={styles.embeddedFavorites}>
           <FavoritesScreen
             navigation={navigation}
@@ -1141,6 +1175,45 @@ const styles = StyleSheet.create({
   embeddedFavorites: {
     flex: 1,
     marginHorizontal: -16,
+  },
+  libraryHeader: {
+    overflow: "hidden",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(128, 156, 196, 0.22)",
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  libraryHeaderTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    paddingHorizontal: 2,
+  },
+  libraryHeading: {
+    flex: 1,
+  },
+  libraryTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  libraryTitle: {
+    fontSize: 26,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+  },
+  librarySubtitle: {
+    fontSize: 13,
+    opacity: 0.58,
+    marginTop: 3,
+    marginLeft: 26,
   },
   header: {
     fontSize: 26,
