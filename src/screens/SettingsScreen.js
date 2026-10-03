@@ -338,8 +338,8 @@ const SettingsScreen = ({ navigation }) => {
             Version {Constants.expoConfig.version || "1.0.0"}
           </Text>
           <Text style={[styles.appDescription, { color: colors.text }]}>
-            Your ultimate movie companion app, designed to help you discover,
-            organize, and enjoy your favorite films.
+            Your ultimate cinema companion app, designed to help you discover,
+            organize, and enjoy your favorite films and shows.
           </Text>
 
           <Text style={[styles.apiCredit, { color: colors.text }]}>

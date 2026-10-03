@@ -52,10 +52,10 @@ const Kernel = ({ x, y, delay, scale = 1 }) => {
 // (0-1) coordinate space so they scale with BOX_SIZE below.
 const KERNEL_LAYOUT = [
   { x: 0.05, y: -0.03, delay: 0, scale: 0.65 },
-  { x: 0.18, y: -0.13, delay: 60, scale: 0.85 },
-  { x: 0.32, y: -0.23, delay: 110, scale: 0.95 },
-  { x: 0.45, y: -0.14, delay: 60, scale: 0.85 },
-  { x: 0.58, y: -0.04, delay: 0, scale: 0.65 },
+  { x: 0.18, y: -0.11, delay: 60, scale: 0.85 },
+  { x: 0.32, y: -0.14, delay: 110, scale: 0.95 },
+  { x: 0.45, y: -0.12, delay: 60, scale: 0.85 },
+  { x: 0.58, y: -0.05, delay: 0, scale: 0.65 },
 ];
 
 const BOX_SIZE = 110;
