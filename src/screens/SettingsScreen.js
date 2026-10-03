@@ -339,7 +339,7 @@ const SettingsScreen = ({ navigation }) => {
           </Text>
           <Text style={[styles.appDescription, { color: colors.text }]}>
             Your ultimate cinema companion app, designed to help you discover,
-            organize, and enjoy your favorite films and shows. auto ota test
+            organize, and enjoy your favorite films and shows. auto ota test 2
           </Text>
 
           <Text style={[styles.apiCredit, { color: colors.text }]}>
