@@ -1,0 +1,56 @@
+name: EAS OTA Update
+
+# Runs on every push, but the actual update only fires when the triggering
+# commit's message contains the [ota] flag — e.g.:
+#   git commit -m "Fix watchlist sync bug [ota]"
+# Everyday commits without the flag push to GitHub normally and do nothing here.
+on:
+  push:
+    branches:
+      - main # fires on pushes to any branch; narrow this if you want, e.g. [main, preview]
+
+jobs:
+  ota-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Case-insensitive check for [ota] in the last commit's message.
+      # Done as its own step (rather than a top-level `if:`) because GitHub
+      # Actions' expression `contains()` is case-sensitive, and this way the
+      # job still shows up in the Actions tab (steps skipped, not the whole
+      # run silently vanishing), making it easy to confirm nothing fired.
+      - name: Check for [ota] flag
+        id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if echo "$COMMIT_MSG" | grep -iq '\[ota\]'; then
+            echo "trigger=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "trigger=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.trigger == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.check.outputs.trigger == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0 # match whatever Node version your Expo SDK expects
+          cache: npm # or 'yarn' if this project uses yarn
+
+      - name: Install dependencies
+        if: steps.check.outputs.trigger == 'true'
+        run: npm ci # swap for `yarn install --frozen-lockfile` if using yarn
+
+      - name: Publish OTA update
+        if: steps.check.outputs.trigger == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          # Strips the [ota] flag itself out of the EAS update message so it
+          # doesn't show up in your `eas update:list` history.
+          MESSAGE=$(echo "${{ github.event.head_commit.message }}" | sed -E 's/\[ota\]//gi' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+          npx eas-cli update --branch preview --message "$MESSAGE" --non-interactive
