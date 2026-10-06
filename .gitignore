@@ -8,7 +8,6 @@ node_modules/
 .env.production
 .env.*.local
 *.env
-.env.example
 
 # Expo
 .expo/
@@ -19,8 +18,7 @@ web-build/
 # Native builds
 ios/Pods/
 ios/build/
-android/app/build/
-android/.gradle/
+android/
 
 # Logs
 npm-debug.log*
