@@ -243,7 +243,7 @@ const HomeScreen = ({ navigation }) => {
           paddingBottom: tabBarHeight + 16,
         }}
         onScroll={handleScroll}
-        scrollEventThrottle={16}
+        scrollEventThrottle={32}
         initialNumToRender={3}
         maxToRenderPerBatch={2}
         windowSize={5}

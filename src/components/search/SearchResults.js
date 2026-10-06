@@ -151,7 +151,7 @@ const SearchResults = ({
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
       onScroll={onScroll}
-      scrollEventThrottle={16}
+      scrollEventThrottle={32}
       ListFooterComponent={renderFooter}
       ListEmptyComponent={renderEmpty}
     />

@@ -27,6 +27,7 @@ import analyticsService, {
 import logger from "./src/services/logger";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
+import { configureReanimatedLogger } from "react-native-reanimated";
 
 // Error Boundary Component
 class ErrorBoundary extends Component {
@@ -167,7 +168,7 @@ const AppContent = () => {
 function App() {
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={ styles.root }>
         <SafeAreaProvider>
           <AnalyticsProvider>
             <ThemeProvider>
@@ -181,6 +182,7 @@ function App() {
 }
 
 const styles = StyleSheet.create({
+  root: {flex: 1},
   errorContainer: {
     flexGrow: 1,
     justifyContent: "center",
