@@ -31,14 +31,10 @@ const EXPLICIT_BASE_URL =
 
 const NORMALIZED_EXPLICIT_BASE_URL = normalizeDevBaseUrl(EXPLICIT_BASE_URL);
 
-const isLocalhost =
-  EXPLICIT_BASE_URL &&
-  (EXPLICIT_BASE_URL.includes("localhost") ||
-    EXPLICIT_BASE_URL.includes("127.0.0.1") ||
-    EXPLICIT_BASE_URL.includes("10.0.2.2"));
-
 export const API_BASE_URL =
-  isLocalhost && __DEV__ ? NORMALIZED_EXPLICIT_BASE_URL : PRODUCTION_BASE_URL;
+  __DEV__ && NORMALIZED_EXPLICIT_BASE_URL
+    ? NORMALIZED_EXPLICIT_BASE_URL
+    : PRODUCTION_BASE_URL;
 
 logger.info("🔧 API Configuration:");
 logger.info("  - Base URL:", API_BASE_URL);

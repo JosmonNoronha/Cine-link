@@ -65,6 +65,20 @@ export const getTVImages = async (tmdbId) => {
   }
 };
 
+export const getCredits = async (mediaType, tmdbId) => {
+  try {
+    const endpoint =
+      mediaType === "tv"
+        ? `/tv/${tmdbId}/credits`
+        : `/movies/${tmdbId}/credits`;
+    const response = await apiClient.get(endpoint);
+    return response || { cast: [] };
+  } catch (error) {
+    logger.error("❌ Error fetching cast credits:", error);
+    throw error;
+  }
+};
+
 export const extractYouTubeTrailer = (videosData) => {
   logger.info("🎬 Extracting trailer from:", videosData);
 

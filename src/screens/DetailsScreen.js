@@ -30,6 +30,7 @@ import {
   getSeasonDetails,
   getMovieVideos,
   getMovieImages,
+  getCredits,
   getTVVideos,
   getTVImages,
   getSeasonVideos,
@@ -67,6 +68,7 @@ import logger from "../services/logger";
 import useReviews from "../hooks/useReviews";
 import useCollection from "../hooks/useCollection";
 import TimelineSection from "../components/details/TimelineSection";
+import { buildTmdbImageUrl } from "../utils/imageHelper";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY =
@@ -328,21 +330,46 @@ const initials = (name) =>
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 
-const CastCard = React.memo(({ name, colors }) => (
-  <View style={castCardStyles.card}>
-    <View
-      style={[castCardStyles.avatar, { backgroundColor: castColor(name) }]}
-    >
-      <Text style={castCardStyles.initials}>{initials(name)}</Text>
+const CastCard = React.memo(({ name, character, profilePath, profileUrl, colors }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageUri =
+    profileUrl ||
+    (profilePath ? buildTmdbImageUrl(profilePath, "card") : null);
+  const showImage = Boolean(imageUri) && !imageFailed;
+
+  return (
+    <View style={castCardStyles.card}>
+      <View
+        style={[castCardStyles.avatar, { backgroundColor: castColor(name) }]}
+      >
+        {showImage ? (
+          <Image
+            source={{ uri: imageUri }}
+            style={castCardStyles.avatarImage}
+            resizeMode="cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <Text style={castCardStyles.initials}>{initials(name)}</Text>
+        )}
+      </View>
+      <Text
+        style={[castCardStyles.name, { color: colors.text }]}
+        numberOfLines={2}
+      >
+        {name}
+      </Text>
+      {character ? (
+        <Text
+          style={[castCardStyles.character, { color: colors.text }]}
+          numberOfLines={1}
+        >
+          {character}
+        </Text>
+      ) : null}
     </View>
-    <Text
-      style={[castCardStyles.name, { color: colors.text }]}
-      numberOfLines={2}
-    >
-      {name}
-    </Text>
-  </View>
-));
+  );
+});
 CastCard.displayName = "CastCard";
 
 const castCardStyles = StyleSheet.create({
@@ -358,7 +385,9 @@ const castCardStyles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 6,
+    overflow: "hidden",
   },
+  avatarImage: { width: "100%", height: "100%" },
   initials: { color: "#fff", fontSize: 18, fontWeight: "800" },
   name: {
     fontSize: 11,
@@ -366,6 +395,12 @@ const castCardStyles = StyleSheet.create({
     textAlign: "center",
     opacity: 0.85,
     lineHeight: 15,
+  },
+  character: {
+    fontSize: 10,
+    textAlign: "center",
+    opacity: 0.5,
+    lineHeight: 13,
   },
 });
 
@@ -1122,6 +1157,7 @@ const DetailsScreen = ({ route, navigation }) => {
   const [images, setImages] = useState({ backdrops: [], posters: [] });
   const [loadingImages, setLoadingImages] = useState(false);
   const [imagesError, setImagesError] = useState(null);
+  const [cast, setCast] = useState([]);
   const [toast, setToast] = useState({
     visible: false,
     message: "",
@@ -1186,6 +1222,17 @@ const DetailsScreen = ({ route, navigation }) => {
 
       // Images
       if (tmdbInfoSnapshot?.id && tmdbInfoSnapshot?.type) {
+        tasks.push(
+          getCredits(tmdbInfoSnapshot.type, tmdbInfoSnapshot.id)
+            .then((data) => {
+              setCast(Array.isArray(data?.cast) ? data.cast : []);
+            })
+            .catch((err) => {
+              logger.error("Failed to load cast credits", err);
+              setCast([]);
+            }),
+        );
+
         tasks.push(
           (tmdbInfoSnapshot.type === "tv"
             ? getTVImages(tmdbInfoSnapshot.id)
@@ -1892,7 +1939,7 @@ const DetailsScreen = ({ route, navigation }) => {
         )}
 
         {/* Cast card */}
-        {movie.Actors && movie.Actors !== "N/A" && (
+        {cast.length > 0 && (
           <View style={[streamStyles.card, { backgroundColor: colors.card }]}>
             <Text style={[streamStyles.cardHeading, { color: colors.text }]}>
               Cast
@@ -1902,10 +1949,13 @@ const DetailsScreen = ({ route, navigation }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={streamStyles.castRow}
             >
-              {movie.Actors.split(",").map((actor, index) => (
+              {cast.map((person, index) => (
                 <CastCard
-                  key={index}
-                  name={actor.trim()}
+                  key={person.id || `${person.name}-${index}`}
+                  name={person.name}
+                  character={person.character}
+                  profilePath={person.profilePath}
+                  profileUrl={person.profileUrl}
                   colors={colors}
                 />
               ))}

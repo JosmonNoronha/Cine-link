@@ -36,6 +36,7 @@ import {
 } from "./api/discovery";
 import {
   extractYouTubeTrailer,
+  getCredits,
   getMovieImages,
   getMovieReviews,
   getMovieVideos,
@@ -123,6 +124,7 @@ export {
 
 export {
   extractYouTubeTrailer,
+  getCredits,
   getMovieImages,
   getMovieReviews,
   getMovieVideos,
