@@ -1119,7 +1119,7 @@ const WatchlistModal = React.memo(
               activeOpacity={0.7}
             >
               <Text style={[styles.modalCancelText, { color: colors.primary }]}>
-                Cancel
+                Close
               </Text>
             </TouchableOpacity>
           </View>
@@ -1435,27 +1435,6 @@ const DetailsScreen = ({ route, navigation }) => {
     if (toast.visible) return;
     try {
       await checkInAnyWatchlist();
-      if (inWatchlist && movieInWatchlists.length === 1) {
-        const name = movieInWatchlists[0];
-        setInWatchlist(false);
-        setMovieInWatchlists([]);
-        await removeFromWatchlist(name, effectiveImdbID);
-        setWatchlists((prev) => {
-          const next = { ...(prev || {}) };
-          next[name] = (Array.isArray(next[name]) ? next[name] : []).filter(
-            (m) => m.imdbID !== effectiveImdbID,
-          );
-          setTimeout(() => syncWatchlistState(next), 0);
-          return next;
-        });
-        showToast(`Removed from '${name}'`, "info");
-        analyticsService.trackWatchlistAction(
-          "remove",
-          effectiveImdbID,
-          movie?.Title || "Unknown",
-        );
-        return;
-      }
       setShowWatchlistModal(true);
     } catch (error) {
       logger.error("Error opening watchlist", error);
@@ -1465,12 +1444,7 @@ const DetailsScreen = ({ route, navigation }) => {
   }, [
     toast.visible,
     checkInAnyWatchlist,
-    inWatchlist,
-    movieInWatchlists,
-    effectiveImdbID,
-    syncWatchlistState,
     showToast,
-    movie?.Title,
   ]);
 
   const handleSelectWatchlist = useCallback(

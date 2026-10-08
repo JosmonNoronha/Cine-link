@@ -52,12 +52,8 @@ class ErrorBoundary extends Component {
     logger.info("  expoConfig available:", !!Constants?.expoConfig);
     logger.info("  extra available:", !!extra);
     logger.info(
-      "  Firebase API Key:",
-      extra.FIREBASE_API_KEY ? "✅ Set" : "❌ Missing",
-    );
-    logger.info(
-      "  OMDB API Key:",
-      extra.OMDB_API_KEY ? "✅ Set" : "❌ Missing",
+      "  API URL configured:",
+      extra.API_BASE_URL || extra.PRODUCTION_API_URL ? "✅ Set" : "❌ Missing",
     );
 
     this.setState({ errorInfo });
@@ -82,9 +78,7 @@ class ErrorBoundary extends Component {
     if (this.state.hasError) {
       const extra = Constants?.expoConfig?.extra || {};
       const envStatus = {
-        firebase: extra.FIREBASE_API_KEY ? "✅" : "❌",
-        omdb: extra.OMDB_API_KEY ? "✅" : "❌",
-        api: extra.PRODUCTION_API_URL ? "✅" : "❌",
+        api: extra.API_BASE_URL || extra.PRODUCTION_API_URL ? "✅" : "❌",
       };
 
       return (
@@ -97,10 +91,8 @@ class ErrorBoundary extends Component {
           <View style={styles.debugContainer}>
             <Text style={styles.debugTitle}>Environment Status:</Text>
             <Text style={styles.debugText}>
-              Firebase Config: {envStatus.firebase}
+              API URL: {envStatus.api}
             </Text>
-            <Text style={styles.debugText}>OMDB API Key: {envStatus.omdb}</Text>
-            <Text style={styles.debugText}>API URL: {envStatus.api}</Text>
           </View>
 
           <TouchableOpacity

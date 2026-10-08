@@ -1,54 +1,21 @@
 module.exports = () => {
-  // Load environment variables from EAS
-  const FIREBASE_API_KEY =
-    process.env.FIREBASE_API_KEY || process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
-  const FIREBASE_AUTH_DOMAIN =
-    process.env.FIREBASE_AUTH_DOMAIN ||
-    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN;
-  const FIREBASE_PROJECT_ID =
-    process.env.FIREBASE_PROJECT_ID ||
-    process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID;
-  const FIREBASE_STORAGE_BUCKET =
-    process.env.FIREBASE_STORAGE_BUCKET ||
-    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  const FIREBASE_MESSAGING_SENDER_ID =
-    process.env.FIREBASE_MESSAGING_SENDER_ID ||
-    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
-  const FIREBASE_APP_ID =
-    process.env.FIREBASE_APP_ID || process.env.EXPO_PUBLIC_FIREBASE_APP_ID;
-  const FIREBASE_MEASUREMENT_ID =
-    process.env.FIREBASE_MEASUREMENT_ID ||
-    process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID;
-
-  // API Keys (these should also be available with EXPO_PUBLIC_ prefix for runtime access)
-  const OMDB_API_KEY =
-    process.env.EXPO_PUBLIC_OMDB_API_KEY || process.env.OMDB_API_KEY;
+  // Runtime values that are consumed through expo-constants.
   const YOUTUBE_API_KEY =
     process.env.EXPO_PUBLIC_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
   const PRODUCTION_API_URL =
     process.env.EXPO_PUBLIC_PRODUCTION_API_URL ||
     process.env.PRODUCTION_API_URL;
+  const API_BASE_URL =
+    process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL;
 
   // Debug logging for build-time (only shows in build logs)
   console.log("🔧 Build-time environment check:");
   console.log(
-    "  Firebase API Key:",
-    FIREBASE_API_KEY ? "✅ Set" : "❌ Missing",
-  );
-  console.log(
-    "  Firebase Project ID:",
-    FIREBASE_PROJECT_ID ? "✅ Set" : "❌ Missing",
-  );
-  console.log("  Firebase App ID:", FIREBASE_APP_ID ? "✅ Set" : "❌ Missing");
-  console.log(
-    "  Firebase Sender ID:",
-    FIREBASE_MESSAGING_SENDER_ID ? "✅ Set" : "❌ Missing",
-  );
-  console.log("  OMDB API Key:", OMDB_API_KEY ? "✅ Set" : "❌ Missing");
-  console.log(
     "  Production API URL:",
     PRODUCTION_API_URL ? "✅ Set" : "❌ Missing",
   );
+  console.log("  Development API URL:", API_BASE_URL ? "✅ Set" : "❌ Missing");
+  console.log("  YouTube API Key:", YOUTUBE_API_KEY ? "✅ Set" : "❌ Missing");
 
   return {
     expo: {
@@ -98,23 +65,8 @@ module.exports = () => {
         eas: {
           projectId: "7892f2fc-684a-4de4-a501-6214b9fafb05",
         },
-        // Environment variables securely loaded from EAS
-        FIREBASE_API_KEY,
-        FIREBASE_AUTH_DOMAIN,
-        FIREBASE_PROJECT_ID,
-        FIREBASE_STORAGE_BUCKET,
-        FIREBASE_MESSAGING_SENDER_ID,
-        FIREBASE_APP_ID,
-        FIREBASE_MEASUREMENT_ID,
-        EXPO_PUBLIC_FIREBASE_API_KEY: FIREBASE_API_KEY,
-        EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: FIREBASE_AUTH_DOMAIN,
-        EXPO_PUBLIC_FIREBASE_PROJECT_ID: FIREBASE_PROJECT_ID,
-        EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: FIREBASE_STORAGE_BUCKET,
-        EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: FIREBASE_MESSAGING_SENDER_ID,
-        EXPO_PUBLIC_FIREBASE_APP_ID: FIREBASE_APP_ID,
-        EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID: FIREBASE_MEASUREMENT_ID,
-        OMDB_API_KEY,
         YOUTUBE_API_KEY,
+        API_BASE_URL,
         PRODUCTION_API_URL,
       },
       plugins: [

@@ -24,7 +24,7 @@ const normalizeDevBaseUrl = (url) => {
 const PRODUCTION_BASE_URL =
   process.env.EXPO_PUBLIC_PRODUCTION_API_URL ||
   Constants?.expoConfig?.extra?.PRODUCTION_API_URL ||
-  "https://cinelink-backend-n.onrender.com";
+  "/api";
 const EXPLICIT_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   Constants?.expoConfig?.extra?.API_BASE_URL;
@@ -40,8 +40,8 @@ logger.info("🔧 API Configuration:");
 logger.info("  - Base URL:", API_BASE_URL);
 logger.info("  - Platform:", Platform.OS);
 logger.info("  - Dev Mode:", __DEV__);
-logger.info("  - Production URL:", PRODUCTION_BASE_URL);
-logger.info("  - Explicit URL:", NORMALIZED_EXPLICIT_BASE_URL);
+logger.info("  - Production URL configured:", Boolean(PRODUCTION_BASE_URL));
+logger.info("  - Explicit URL configured:", Boolean(NORMALIZED_EXPLICIT_BASE_URL));
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
