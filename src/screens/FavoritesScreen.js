@@ -746,6 +746,7 @@ const styles = StyleSheet.create({
   },
   embeddedContainer: {
     paddingTop: 4,
+    paddingHorizontal: 0,
   },
   headerRow: {
     flexDirection: "row",
@@ -1103,10 +1104,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+    alignSelf: "stretch",
   },
   // List View Styles
   card: {
     flexDirection: "row",
+    width: "100%",
     borderRadius: 12,
     padding: 10,
     marginBottom: 12,

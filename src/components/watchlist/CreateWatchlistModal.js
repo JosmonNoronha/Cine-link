@@ -125,7 +125,7 @@ const CreateWatchlistModal = ({ visible, onClose, onSubmit, isLoading }) => {
               onPress={() =>
                 onSubmit({ name: name.trim(), visibility, description: description.trim(), tags: parseTags(tags) })
               }
-              style={styles.create}
+              style={[styles.create, { opacity: canSubmit ? 1 : 0.6 }]}
               disabled={!canSubmit}
               loadingText="Creating..."
             >
@@ -156,6 +156,12 @@ const styles = StyleSheet.create({
   buttons: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 10 },
   cancel: { paddingHorizontal: 18, paddingVertical: 12 },
   cancelText: { fontSize: 15, fontWeight: "600" },
-  create: { paddingHorizontal: 26, paddingVertical: 12, borderRadius: 12, backgroundColor: "#667eea" },
+  create: {
+    minWidth: 112,
+    minHeight: 48,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#667eea",
+  },
   createText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });

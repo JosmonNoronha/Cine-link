@@ -32,34 +32,36 @@ const LibraryListCard = ({ entry, colors, onPress, onAction, onLongPress }) => {
   const cover = list?.coverPoster || null;
 
   return (
-    <Pressable
-      onPress={() => onPress(entry)}
-      onLongPress={() => onLongPress?.(entry)}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.card,
         {
           backgroundColor: colors.card,
           borderColor: kind === "private" ? colors.border : `${meta.color}55`,
-          opacity: pressed ? 0.92 : 1,
         },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`${entry.name}, ${meta.label} list, ${count} titles`}
     >
-      <View style={styles.cover}>
-        {cover ? (
-          <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={entry.key} />
-        ) : (
-          <LinearGradient
-            colors={[`hsl(${hue}, 55%, 42%)`, `hsl(${(hue + 40) % 360}, 60%, 28%)`]}
-            style={styles.coverFallback}
-          >
-            <Ionicons name="film-outline" size={26} color="rgba(255,255,255,0.75)" />
-          </LinearGradient>
-        )}
-      </View>
+      <Pressable
+        onPress={() => onPress(entry)}
+        onLongPress={() => onLongPress?.(entry)}
+        style={({ pressed }) => ({ opacity: pressed ? 0.92 : 1, flex: 1, flexDirection: "row" })}
+      >
+        <View style={styles.cover}>
+          {cover ? (
+            <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" recyclingKey={entry.key} />
+          ) : (
+            <LinearGradient
+              colors={[`hsl(${hue}, 55%, 42%)`, `hsl(${(hue + 40) % 360}, 60%, 28%)`]}
+              style={styles.coverFallback}
+            >
+              <Ionicons name="film-outline" size={26} color="rgba(255,255,255,0.75)" />
+            </LinearGradient>
+          )}
+        </View>
 
-      <View style={styles.body}>
+        <View style={styles.body}>
         <View style={styles.badgeRow}>
           <View style={[styles.badge, { backgroundColor: `${meta.color}22` }]}>
             <Ionicons name={meta.icon} size={11} color={meta.color} />
@@ -104,14 +106,11 @@ const LibraryListCard = ({ entry, colors, onPress, onAction, onLongPress }) => {
             <Text style={[styles.pct, { color: colors.text }]}>{pct}%</Text>
           </View>
         ) : null}
-      </View>
+        </View>
+      </Pressable>
 
       <Pressable
-        onPress={(event) => {
-          event.stopPropagation();
-          onAction(entry);
-        }}
-        onPressIn={(event) => event.stopPropagation()}
+        onPress={() => onAction(entry)}
         hitSlop={10}
         style={styles.action}
         accessibilityLabel={kind === "saved" ? "Remove from library" : "Delete list"}
@@ -123,7 +122,7 @@ const LibraryListCard = ({ entry, colors, onPress, onAction, onLongPress }) => {
           style={styles.actionIcon}
         />
       </Pressable>
-    </Pressable>
+    </View>
   );
 };
 

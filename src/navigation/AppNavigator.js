@@ -371,7 +371,7 @@ const RootNavigator = () => {
   useEffect(() => {
     const initializeAuth = async () => {
       await checkAppVersion();
-      const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+      const unsubscribe = auth.onIdTokenChanged((firebaseUser) => {
         logger.info(
           "Auth state changed:",
           firebaseUser ? "logged in" : "no user",

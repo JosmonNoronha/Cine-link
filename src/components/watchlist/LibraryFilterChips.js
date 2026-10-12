@@ -22,11 +22,11 @@ const LibraryFilterChips = ({ options, value, onChange }) => {
               styles.chip,
               {
                 borderColor: active ? colors.primary : colors.border,
-                backgroundColor: active ? `${colors.primary}22` : "transparent",
+                backgroundColor: active ? colors.primary : "transparent",
               },
             ]}
           >
-            <Text style={[styles.text, { color: active ? colors.primary : colors.text }]}>
+          <Text style={[styles.text, { color: active ? "#fff" : colors.text }]}>
               {o.label}
               {typeof o.count === "number" ? `  ${o.count}` : ""}
             </Text>

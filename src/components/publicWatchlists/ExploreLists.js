@@ -71,11 +71,11 @@ const ExploreLists = ({ navigation }) => {
                 styles.chip,
                 {
                   borderColor: active ? colors.primary : colors.border,
-                  backgroundColor: active ? `${colors.primary}22` : "transparent",
+                  backgroundColor: active ? colors.primary : "transparent",
                 },
               ]}
             >
-              <Text style={[styles.chipText, { color: active ? colors.primary : colors.text }]}>{s.label}</Text>
+              <Text style={[styles.chipText, { color: active ? "#fff" : colors.text }]}>{s.label}</Text>
             </Pressable>
           );
         })}

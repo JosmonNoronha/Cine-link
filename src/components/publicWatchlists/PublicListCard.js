@@ -95,12 +95,16 @@ const PublicListCard = ({ list, colors, inLibrary = Boolean(list.viewerIsFollowi
           {canSave ? (
             <Pressable
               hitSlop={8}
-              onPress={() => onToggleSave(list, !inLibrary)}
+              onPress={(event) => {
+                event.stopPropagation();
+                onToggleSave(list, !inLibrary);
+              }}
+              onPressIn={(event) => event.stopPropagation()}
               style={[
                 styles.save,
                 {
                   borderColor: inLibrary ? colors.primary : colors.border,
-                  backgroundColor: inLibrary ? `${colors.primary}22` : "transparent",
+                  backgroundColor: inLibrary ? colors.primary : "transparent",
                 },
               ]}
               accessibilityRole="button"
@@ -109,9 +113,9 @@ const PublicListCard = ({ list, colors, inLibrary = Boolean(list.viewerIsFollowi
               <Ionicons
                 name={inLibrary ? "checkmark" : "add"}
                 size={14}
-                color={inLibrary ? colors.primary : colors.text}
+                color={inLibrary ? "#fff" : colors.text}
               />
-              <Text style={[styles.saveText, { color: inLibrary ? colors.primary : colors.text }]}>
+              <Text style={[styles.saveText, { color: inLibrary ? "#fff" : colors.text }]}>
                 {inLibrary ? "In library" : "Library"}
               </Text>
             </Pressable>

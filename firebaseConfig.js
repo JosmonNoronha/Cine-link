@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  onIdTokenChanged,
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
@@ -46,6 +47,7 @@ try {
 const createMockAuth = (reason) => ({
   currentUser: null,
   onAuthStateChanged: (cb) => { setTimeout(() => cb(null), 0); return () => {}; },
+  onIdTokenChanged: (cb) => { setTimeout(() => cb(null), 0); return () => {}; },
   signOut: async () => {},
   signInWithEmailAndPassword: async () => { throw new Error(reason); },
   createUserWithEmailAndPassword: async () => { throw new Error(reason); },
@@ -54,6 +56,7 @@ const createMockAuth = (reason) => ({
 export const auth = firebaseAuth ? {
   get currentUser() { return firebaseAuth.currentUser; },
   onAuthStateChanged: (cb) => onAuthStateChanged(firebaseAuth, cb),
+  onIdTokenChanged: (cb) => onIdTokenChanged(firebaseAuth, cb),
   signOut: () => signOut(firebaseAuth),
   signInWithEmailAndPassword: (email, password) =>
     signInWithEmailAndPassword(firebaseAuth, email, password),
