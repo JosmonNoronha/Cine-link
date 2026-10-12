@@ -84,7 +84,7 @@ const SearchResults = ({
       <Text style={[styles.emptyText, { color: colors.text }]}>
         {hasSearched
           ? "No results found. Try different keywords or check spelling."
-          : "Find a Movies and Shows or search an Actor to list their works."}
+          : "Find Movies and Shows or search an Actor to list their works."}
       </Text>
       {!hasSearched && (
         <SearchWelcome

@@ -36,6 +36,7 @@ import { FavoritesProvider } from "../contexts/FavoritesContext";
 import { auth } from "../../firebaseConfig";
 import SplashLoader from "../components/shared/SplashLoader";
 import logger from "../services/logger";
+import PublicWatchlistScreen from "../screens/PublicWatchlistScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -68,7 +69,7 @@ const SP_GENTLE = { damping: 24, stiffness: 200, mass: 0.8 };
 
 // ─── Deferred screen imports ───────────────────────────────────────────────────
 const getWatchlistsScreen = () =>
-  require("../screens/WatchlistScreen").WatchlistsScreen;
+  require("../screens/WatchlistsScreen").default;
 const getWatchlistContentScreen = () =>
   require("../screens/WatchlistScreen").WatchlistContentScreen;
 const getSettingsScreen = () => require("../screens/SettingsScreen").default;
@@ -112,6 +113,7 @@ const WatchlistStack = () => (
       name="WatchlistContent"
       getComponent={getWatchlistContentScreen}
     />
+    <Stack.Screen name="PublicWatchlist" component={PublicWatchlistScreen} options={detailOpts} />
     <Stack.Screen
       name="Details"
       component={DetailsScreen}

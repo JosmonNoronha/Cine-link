@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import analyticsService from "../services/analytics";
 import logger from "../services/logger";
 
-const SHOW_AUTH_DEBUG_PANEL = true;
+const SHOW_AUTH_DEBUG_PANEL = __DEV__;
 
 const AuthScreen = () => {
   const insets = useSafeAreaInsets();
@@ -37,6 +37,8 @@ const AuthScreen = () => {
   // Email verification modal state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationPassword, setVerificationPassword] = useState("");
+  const [verificationMessage, setVerificationMessage] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const getFriendlyError = (error) => {
@@ -60,9 +62,12 @@ const AuthScreen = () => {
       return "Password must contain at least 6 characters.";
     }
     if (error.code === "auth/too-many-requests") {
-      return "Too many failed attempts. Please try again later.";
+      return "Too many attempts. Please wait a while and try again.";
     }
-    return error.message;
+    if (error.code === "auth/network-request-failed") {
+      return "Network error. Check your connection and try again.";
+    }
+    return "Authentication failed. Please try again.";
   };
 
   const getDebugError = (error) => {
@@ -94,7 +99,7 @@ const AuthScreen = () => {
       // Sign in temporarily to resend verification
       const userCredential = await auth.signInWithEmailAndPassword(
         verificationEmail,
-        password,
+        verificationPassword,
       );
       const user = userCredential.user;
 
@@ -113,16 +118,22 @@ const AuthScreen = () => {
       await auth.signOut();
 
       startCooldown();
+      setVerificationMessage(
+        "A new verification email was sent. Check your inbox and spam folder.",
+      );
       Alert.alert(
         "Verification Email Sent",
-        "Please check your inbox for the verification email.",
+        "Please check your inbox and spam folder for the verification email.",
       );
     } catch (error) {
       logger.error("Resend verification error", error);
       if (SHOW_AUTH_DEBUG_PANEL) {
         setDebugError(getDebugError(error));
       }
-      Alert.alert("Error", getFriendlyError(error));
+      setVerificationMessage(
+        "We couldn't send the verification email. Please try again later or check your Firebase email settings.",
+      );
+      Alert.alert("Unable to Send Email", getFriendlyError(error));
     } finally {
       setIsLoading(false);
     }
@@ -143,9 +154,26 @@ const AuthScreen = () => {
       if (user.emailVerified) {
         return true; // Email is verified, login successful
       } else {
-        // Email not verified, sign out and show modal
-        await auth.signOut();
         setVerificationEmail(userEmail);
+        setVerificationPassword(userPassword);
+        setVerificationMessage("");
+        try {
+          await sendEmailVerification(user);
+          setVerificationMessage(
+            "A verification email was sent. Check your inbox and spam folder.",
+          );
+        } catch (emailError) {
+          logger.error("Login verification email error", emailError);
+          setVerificationMessage(
+            "We couldn't send the verification email. Please try again later or check your Firebase email settings.",
+          );
+          if (SHOW_AUTH_DEBUG_PANEL) {
+            setDebugError(getDebugError(emailError));
+          }
+        } finally {
+          // Email verification is checked before allowing access to the app.
+          await auth.signOut();
+        }
         setShowVerificationModal(true);
         return false;
       }
@@ -207,8 +235,17 @@ const AuthScreen = () => {
           logger.info("Sending verification email...");
           await sendEmailVerification(user);
           logger.info("✅ Verification email sent");
+          setVerificationMessage(
+            "A verification email was sent. Check your inbox and spam folder.",
+          );
         } catch (emailError) {
           logger.error("❌ Verification email failed", emailError);
+          setVerificationMessage(
+            "We couldn't send the verification email. Please try again later or check your Firebase email settings.",
+          );
+          if (SHOW_AUTH_DEBUG_PANEL) {
+            setDebugError(getDebugError(emailError));
+          }
         }
 
         // Sign out immediately after account creation
@@ -221,6 +258,7 @@ const AuthScreen = () => {
         // Track signup
         analyticsService.trackAction("user_signup", { method: "email" });
         setVerificationEmail(email);
+        setVerificationPassword(password);
         setShowVerificationModal(true);
         setErrorMessage("");
       }
@@ -238,6 +276,8 @@ const AuthScreen = () => {
   const closeVerificationModal = () => {
     setShowVerificationModal(false);
     setVerificationEmail("");
+    setVerificationPassword("");
+    setVerificationMessage("");
     setResendCooldown(0);
     // Reset form to login mode and clear fields
     setIsLogin(true);
@@ -374,13 +414,12 @@ const AuthScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Email Verification Required</Text>
-            <Text style={styles.modalText}>
-              We've sent a verification email to:
-            </Text>
+            <Text style={styles.modalText}>{verificationMessage}</Text>
+            <Text style={styles.modalText}>Verification email address:</Text>
             <Text style={styles.modalEmail}>{verificationEmail}</Text>
             <Text style={styles.modalText}>
-              Please check your inbox and click the verification link before
-              signing in.
+              Click the verification link before signing in. If it does not
+              arrive, check your spam folder and use Resend Email.
             </Text>
 
             <View style={styles.modalButtons}>

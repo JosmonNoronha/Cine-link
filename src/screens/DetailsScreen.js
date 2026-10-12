@@ -38,14 +38,9 @@ import {
   getWatchProviders,
   getUserSubscriptions,
 } from "../services/api";
-import {
-  getWatchlists,
-  addToWatchlist,
-  removeFromWatchlist,
-  isInWatchlist,
-  markEpisodeWatched,
-  getWatchedEpisodes,
-} from "../utils/storage";
+import { markEpisodeWatched, getWatchedEpisodes } from "../utils/storage";
+import useAddToList from "../hooks/useAddToList";
+import AddToListSheet from "../components/details/AddToListSheet";
 import { formatWatchProviders } from "../config/streamingProviders";
 import YoutubePlayer from "react-native-youtube-iframe";
 import { Ionicons } from "@expo/vector-icons";
@@ -199,11 +194,7 @@ const HeroSection = React.memo(({ movie, colors }) => (
           contentFit="cover"
         />
         <LinearGradient
-          colors={[
-            "transparent",
-            colors.background + "66",
-            colors.background,
-          ]}
+          colors={["transparent", colors.background + "66", colors.background]}
           locations={[0, 0.58, 1]}
           style={styles.posterGradient}
           pointerEvents="none"
@@ -281,9 +272,7 @@ const MetaChip = React.memo(({ icon, text, colors, theme }) => {
         chipStyles.chip,
         {
           backgroundColor:
-            theme === "dark"
-              ? "rgba(255,255,255,0.10)"
-              : "rgba(0,0,0,0.06)",
+            theme === "dark" ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
         },
       ]}
     >
@@ -318,9 +307,7 @@ const CAST_COLORS = [
   "#14b8a6",
 ];
 const castColor = (name) => {
-  const n = (name || "")
-    .split("")
-    .reduce((a, c) => a + c.charCodeAt(0), 0);
+  const n = (name || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
   return CAST_COLORS[n % CAST_COLORS.length];
 };
 const initials = (name) =>
@@ -330,46 +317,48 @@ const initials = (name) =>
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 
-const CastCard = React.memo(({ name, character, profilePath, profileUrl, colors }) => {
-  const [imageFailed, setImageFailed] = useState(false);
-  const imageUri =
-    profileUrl ||
-    (profilePath ? buildTmdbImageUrl(profilePath, "card") : null);
-  const showImage = Boolean(imageUri) && !imageFailed;
+const CastCard = React.memo(
+  ({ name, character, profilePath, profileUrl, colors }) => {
+    const [imageFailed, setImageFailed] = useState(false);
+    const imageUri =
+      profileUrl ||
+      (profilePath ? buildTmdbImageUrl(profilePath, "card") : null);
+    const showImage = Boolean(imageUri) && !imageFailed;
 
-  return (
-    <View style={castCardStyles.card}>
-      <View
-        style={[castCardStyles.avatar, { backgroundColor: castColor(name) }]}
-      >
-        {showImage ? (
-          <Image
-            source={{ uri: imageUri }}
-            style={castCardStyles.avatarImage}
-            resizeMode="cover"
-            onError={() => setImageFailed(true)}
-          />
-        ) : (
-          <Text style={castCardStyles.initials}>{initials(name)}</Text>
-        )}
-      </View>
-      <Text
-        style={[castCardStyles.name, { color: colors.text }]}
-        numberOfLines={2}
-      >
-        {name}
-      </Text>
-      {character ? (
-        <Text
-          style={[castCardStyles.character, { color: colors.text }]}
-          numberOfLines={1}
+    return (
+      <View style={castCardStyles.card}>
+        <View
+          style={[castCardStyles.avatar, { backgroundColor: castColor(name) }]}
         >
-          {character}
+          {showImage ? (
+            <Image
+              source={{ uri: imageUri }}
+              style={castCardStyles.avatarImage}
+              resizeMode="cover"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <Text style={castCardStyles.initials}>{initials(name)}</Text>
+          )}
+        </View>
+        <Text
+          style={[castCardStyles.name, { color: colors.text }]}
+          numberOfLines={2}
+        >
+          {name}
         </Text>
-      ) : null}
-    </View>
-  );
-});
+        {character ? (
+          <Text
+            style={[castCardStyles.character, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {character}
+          </Text>
+        ) : null}
+      </View>
+    );
+  },
+);
 CastCard.displayName = "CastCard";
 
 const castCardStyles = StyleSheet.create({
@@ -413,9 +402,7 @@ const InfoRow = React.memo(({ icon, label, value, colors, theme }) => {
         infoStyles.row,
         {
           borderBottomColor:
-            theme === "dark"
-              ? "rgba(255,255,255,0.06)"
-              : "rgba(0,0,0,0.06)",
+            theme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
         },
       ]}
     >
@@ -1009,127 +996,6 @@ const TrailerSection = React.memo(
 );
 TrailerSection.displayName = "TrailerSection";
 
-// ─── WatchlistModal ───────────────────────────────────────────────────────────
-
-const WatchlistModal = React.memo(
-  ({
-    visible,
-    watchlists,
-    movieInWatchlists,
-    onSelectWatchlist,
-    onClose,
-    colors,
-    theme,
-    processingWatchlist,
-  }) => {
-    const watchlistNames = useMemo(() => Object.keys(watchlists), [watchlists]);
-
-    const renderWatchlistItem = useCallback(
-      ({ item: name }) => {
-        const isInThisWatchlist = movieInWatchlists.includes(name);
-        const isProcessing = processingWatchlist === name;
-        return (
-          <TouchableOpacity
-            style={[
-              styles.modalItem,
-              {
-                borderBottomColor: colors.border,
-                backgroundColor: isInThisWatchlist
-                  ? theme === "dark"
-                    ? "rgba(126,87,194,0.2)"
-                    : "rgba(126,87,194,0.1)"
-                  : "transparent",
-                opacity: isProcessing ? 0.6 : 1,
-              },
-            ]}
-            onPress={() => onSelectWatchlist(name)}
-            activeOpacity={0.7}
-            disabled={isProcessing}
-          >
-            <View style={styles.modalItemContent}>
-              <Text style={[styles.modalItemText, { color: colors.text }]}>
-                {name}
-              </Text>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                {isProcessing && (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                )}
-                {isInThisWatchlist && !isProcessing && (
-                  <View style={styles.inWatchlistBadge}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color={colors.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.inWatchlistText,
-                        { color: colors.primary },
-                      ]}
-                    >
-                      Added
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
-      },
-      [
-        movieInWatchlists,
-        onSelectWatchlist,
-        colors,
-        theme,
-        processingWatchlist,
-      ],
-    );
-
-    if (!visible) return null;
-
-    return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="slide"
-        onRequestClose={onClose}
-        supportedOrientations={["portrait", "landscape"]}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Select Watchlist
-            </Text>
-            <FlatList
-              data={watchlistNames}
-              keyExtractor={(name) => name}
-              showsVerticalScrollIndicator={false}
-              renderItem={renderWatchlistItem}
-              ListEmptyComponent={
-                <Text style={[styles.modalEmptyText, { color: colors.text }]}>
-                  No watchlists. Create one in the Watchlists tab.
-                </Text>
-              }
-            />
-            <TouchableOpacity
-              style={styles.modalCancelButton}
-              onPress={onClose}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.modalCancelText, { color: colors.primary }]}>
-                Close
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  },
-);
-WatchlistModal.displayName = "WatchlistModal";
-
 // ─── DetailsScreen ────────────────────────────────────────────────────────────
 
 const DetailsScreen = ({ route, navigation }) => {
@@ -1146,11 +1012,6 @@ const DetailsScreen = ({ route, navigation }) => {
   const [expandedSeasons, setExpandedSeasons] = useState({});
   const [loadingEpisodes, setLoadingEpisodes] = useState({});
   const [watchedEpisodes, setWatchedEpisodes] = useState({});
-  const [watchlists, setWatchlists] = useState({});
-  const [showWatchlistModal, setShowWatchlistModal] = useState(false);
-  const [inWatchlist, setInWatchlist] = useState(false);
-  const [movieInWatchlists, setMovieInWatchlists] = useState([]);
-  const [processingWatchlist, setProcessingWatchlist] = useState(null);
   const [watchProviders, setWatchProviders] = useState(null);
   const [loadingWatchProviders, setLoadingWatchProviders] = useState(false);
   const [userSubscriptions, setUserSubscriptions] = useState([]);
@@ -1358,9 +1219,6 @@ const DetailsScreen = ({ route, navigation }) => {
 
         fetchSecondaryData(data, resolvedTmdb, data?.imdbID || imdbID);
 
-        // Watchlist check
-        checkInAnyWatchlist();
-
         // Watched episodes for series
         if (data.Type === "series") {
           try {
@@ -1407,121 +1265,29 @@ const DetailsScreen = ({ route, navigation }) => {
     }
   }, [loadingEpisodes, loadingOpacity]);
 
-  // ── Watchlist helpers ──────────────────────────────────────────────────────
+  // ── Add to list (private + public) ─────────────────────────────────────────
 
-  const syncWatchlistState = useCallback(
-    (lists) => {
-      setWatchlists(lists);
-      const inLists = Object.keys(lists || {}).filter((name) => {
-        const movies = Array.isArray(lists[name]) ? lists[name] : [];
-        return movies.some((m) => candidateIds.includes(m.imdbID));
-      });
-      setMovieInWatchlists(inLists);
-      setInWatchlist(inLists.length > 0);
-    },
-    [candidateIds],
-  );
+  const {
+    inAnyList: inWatchlist,
+    sheetProps: listSheetProps,
+    open: openListSheet,
+  } = useAddToList({
+    effectiveImdbID,
+    candidateIds,
+    movie,
+    notify: showToast,
+    track: (action) =>
+      analyticsService.trackWatchlistAction(
+        action,
+        effectiveImdbID,
+        movie?.Title || "Unknown",
+      ),
+  });
 
-  const checkInAnyWatchlist = useCallback(async () => {
-    try {
-      const lists = await getWatchlists();
-      syncWatchlistState(lists);
-    } catch (error) {
-      logger.error("Error checking watchlist status", error);
-    }
-  }, [syncWatchlistState]);
-
-  const handleWatchlistButton = useCallback(async () => {
+  const handleWatchlistButton = useCallback(() => {
     if (toast.visible) return;
-    try {
-      await checkInAnyWatchlist();
-      setShowWatchlistModal(true);
-    } catch (error) {
-      logger.error("Error opening watchlist", error);
-      showToast("Failed to load watchlists", "error");
-      checkInAnyWatchlist();
-    }
-  }, [
-    toast.visible,
-    checkInAnyWatchlist,
-    showToast,
-  ]);
-
-  const handleSelectWatchlist = useCallback(
-    async (name) => {
-      if (processingWatchlist === name) return;
-      try {
-        setProcessingWatchlist(name);
-        const alreadyIn = await isInWatchlist(name, effectiveImdbID);
-        setMovieInWatchlists((prev) =>
-          alreadyIn ? prev.filter((wl) => wl !== name) : [...prev, name],
-        );
-        setInWatchlist((prev) =>
-          alreadyIn ? movieInWatchlists.length > 1 : true,
-        );
-
-        if (alreadyIn) {
-          await removeFromWatchlist(name, effectiveImdbID);
-          showToast(`Removed from '${name}'`, "info");
-          analyticsService.trackWatchlistAction(
-            "remove",
-            effectiveImdbID,
-            movie?.Title || "Unknown",
-          );
-        } else {
-          const toStore = movie
-            ? { ...movie, imdbID: effectiveImdbID }
-            : { imdbID: effectiveImdbID };
-          await addToWatchlist(name, toStore);
-          showToast(`Added to '${name}'!`, "success");
-          analyticsService.trackWatchlistAction(
-            "add",
-            effectiveImdbID,
-            movie?.Title || "Unknown",
-          );
-        }
-
-        setWatchlists((prev) => {
-          const next = { ...(prev || {}) };
-          const list = Array.isArray(next[name]) ? next[name] : [];
-          if (alreadyIn) {
-            next[name] = list.filter((m) => m.imdbID !== effectiveImdbID);
-          } else {
-            const toStore = movie
-              ? { ...movie, imdbID: effectiveImdbID, watched: false }
-              : { imdbID: effectiveImdbID, watched: false };
-            next[name] = [
-              ...list.filter((m) => m.imdbID !== effectiveImdbID),
-              toStore,
-            ];
-          }
-          setTimeout(() => syncWatchlistState(next), 0);
-          return next;
-        });
-        checkInAnyWatchlist();
-      } catch (error) {
-        logger.error("Error handling watchlist", error);
-        showToast("Failed to update watchlist", "error");
-        checkInAnyWatchlist();
-      } finally {
-        setProcessingWatchlist(null);
-      }
-    },
-    [
-      effectiveImdbID,
-      movie,
-      showToast,
-      checkInAnyWatchlist,
-      syncWatchlistState,
-      processingWatchlist,
-      movieInWatchlists,
-    ],
-  );
-
-  const handleModalClose = useCallback(() => {
-    setShowWatchlistModal(false);
-    setTimeout(checkInAnyWatchlist, 200);
-  }, [checkInAnyWatchlist]);
+    openListSheet();
+  }, [toast.visible, openListSheet]);
 
   // ── Favorite ───────────────────────────────────────────────────────────────
 
@@ -1808,10 +1574,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView
-      style={[
-        styles.container,
-        { backgroundColor: colors.background },
-      ]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       edges={["left", "right"]}
     >
       <Toast
@@ -1828,7 +1591,7 @@ const DetailsScreen = ({ route, navigation }) => {
           styles.scrollContent,
           { paddingBottom: tabBarHeight },
         ]}
-        scrollEnabled={!showWatchlistModal}
+        scrollEnabled={!listSheetProps.visible}
         removeClippedSubviews
         keyboardShouldPersistTaps="handled"
       >
@@ -2090,16 +1853,7 @@ const DetailsScreen = ({ route, navigation }) => {
         />
       </ScrollView>
 
-      <WatchlistModal
-        visible={showWatchlistModal}
-        watchlists={watchlists}
-        movieInWatchlists={movieInWatchlists}
-        onSelectWatchlist={handleSelectWatchlist}
-        onClose={handleModalClose}
-        colors={colors}
-        theme={theme}
-        processingWatchlist={processingWatchlist}
-      />
+      <AddToListSheet {...listSheetProps} colors={colors} />
     </SafeAreaView>
   );
 };
