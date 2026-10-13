@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 const ProgressRing = ({
   percent = 0,
   size = 30,
-  stroke = 2.5,
+  stroke = 4,
   color = "#8792a5",
   trackColor = "rgba(135,146,165,0.16)",
   doneColor = "#8792a5",
@@ -50,7 +50,7 @@ const ProgressRing = ({
         {done ? (
           <Ionicons name="checkmark" size={size * 0.42} color={doneColor} />
         ) : (
-          <Text style={[styles.text, { color: textColor, fontSize: size * 0.255 }]}>{pct}%</Text>
+          <Text style={[styles.text, { color: textColor, fontSize: size * 0.255 }]}>{pct}</Text>
         )}
       </View>
     </View>

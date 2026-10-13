@@ -22,7 +22,7 @@ import useLibrary from "../hooks/useLibrary";
 import FavoritesScreen from "./FavoritesScreen";
 import ExploreLists from "../components/publicWatchlists/ExploreLists";
 import LibraryListCard from "../components/watchlist/LibraryListCard";
-import LibraryFilterChips from "../components/watchlist/LibraryFilterChips";
+import LibraryFilterButton from "../components/watchlist/LibraryFilterButton";
 import CreateWatchlistModal from "../components/watchlist/CreateWatchlistModal";
 import GlassSegmentedControl from "../components/shared/GlassSegmentedControl";
 import IconToggleButton from "../components/shared/IconToggleButton";
@@ -298,7 +298,12 @@ const WatchlistsScreen = ({ navigation }) => {
 
     return (
       <>
-        <LibraryFilterChips options={filterOptions} value={filter} onChange={setFilter} />
+        <LibraryFilterButton
+          options={filterOptions}
+          value={filter}
+          onChange={setFilter}
+          resultCount={visibleEntries.length}
+        />
         {library.partial ? (
           <Text style={[styles.partial, { color: colors.text }]}>Some lists couldn't be loaded. Pull back to retry.</Text>
         ) : null}

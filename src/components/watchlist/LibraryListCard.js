@@ -104,7 +104,7 @@ const LibraryListCard = ({ entry, colors, onPress, onAction, onLongPress }) => {
 
         {showRing ? (
           <View style={styles.ringWrap}>
-            <ProgressRing percent={pct} textColor={colors.text} size={30} stroke={2.5} />
+            <ProgressRing percent={pct} textColor={colors.text} size={30} />
           </View>
         ) : null}
       </Pressable>

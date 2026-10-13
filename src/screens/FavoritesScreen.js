@@ -18,8 +18,6 @@ import {
   Platform,
   Alert,
   Dimensions,
-  Modal,
-  Animated,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -32,6 +30,19 @@ import RetryState from "../components/shared/RetryState";
 import { getBackendStatus } from "../services/api";
 import IconToggleButton from "../components/shared/IconToggleButton";
 import LibraryPageHeader from "../components/shared/LibraryPageHeader";
+import GlassMenu from "../components/shared/GlassMenu";
+
+const SORT_OPTIONS = [
+  { value: "recent", label: "Recent", icon: "time-outline" },
+  { value: "title", label: "A-Z", icon: "text-outline" },
+  { value: "year", label: "Year", icon: "calendar-outline" },
+  { value: "rating", label: "Rating", icon: "star-outline" },
+];
+const FILTER_OPTIONS = [
+  { value: "all", label: "All", icon: "layers-outline" },
+  { value: "movie", label: "Movies", icon: "film-outline" },
+  { value: "series", label: "Series", icon: "tv-outline" },
+];
 
 const { width } = Dimensions.get("window");
 const FAVORITES_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
@@ -50,9 +61,8 @@ const FavoritesScreen = ({
 
   const [sortBy, setSortBy] = useState("recent"); // 'recent', 'title', 'year', 'rating'
   const [filterType, setFilterType] = useState("all"); // 'all', 'movie', 'series'
-  const [showSortMenu, setShowSortMenu] = useState(false);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [sortAnchor, setSortAnchor] = useState(null);
+  const [filterAnchor, setFilterAnchor] = useState(null);
   const [favoritesLoadError, setFavoritesLoadError] = useState(false);
   const [favoritesLoadMessage, setFavoritesLoadMessage] = useState(
     "Unable to load favorites. Please check your internet connection.",
@@ -258,58 +268,11 @@ const FavoritesScreen = ({
     }
   };
 
-  // Sort dropdown menu
-  const showSortDropdown = () => {
-    const options = ["Recent", "A-Z", "Year", "Rating", "Cancel"];
-    const cancelButtonIndex = 4;
-
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex,
-          title: "Sort By",
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 0) setSortBy("recent");
-          else if (buttonIndex === 1) setSortBy("title");
-          else if (buttonIndex === 2) setSortBy("year");
-          else if (buttonIndex === 3) setSortBy("rating");
-        },
-      );
-    } else {
-      sortButtonRef.current?.measureInWindow((x, y, width, height) => {
-        setMenuPosition({ top: y + height + 4, left: x, width });
-        setShowSortMenu(true);
-      });
-    }
-  };
-
-  // Filter dropdown menu
-  const showFilterDropdown = () => {
-    const options = ["All", "Movies", "Series", "Cancel"];
-    const cancelButtonIndex = 3;
-
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex,
-          title: "Show",
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 0) setFilterType("all");
-          else if (buttonIndex === 1) setFilterType("movie");
-          else if (buttonIndex === 2) setFilterType("series");
-        },
-      );
-    } else {
-      filterButtonRef.current?.measureInWindow((x, y, width, height) => {
-        setMenuPosition({ top: y + height + 4, left: x, width });
-        setShowFilterMenu(true);
-      });
-    }
-  };
+  // Frosted dropdowns (same on iOS and Android)
+  const showSortDropdown = () =>
+    sortButtonRef.current?.measureInWindow((x, y, w, h) => setSortAnchor({ x, y, w, h }));
+  const showFilterDropdown = () =>
+    filterButtonRef.current?.measureInWindow((x, y, w, h) => setFilterAnchor({ x, y, w, h }));
 
   // Get display labels
   const getSortLabel = () => {
@@ -523,6 +486,7 @@ const FavoritesScreen = ({
             <View style={styles.dropdownContainer}>
               <TouchableOpacity
                 ref={sortButtonRef}
+                collapsable={false}
                 activeOpacity={0.7}
                 onPress={showSortDropdown}
                 style={[styles.dropdown, { backgroundColor: colors.card }]}
@@ -545,6 +509,7 @@ const FavoritesScreen = ({
 
               <TouchableOpacity
                 ref={filterButtonRef}
+                collapsable={false}
                 activeOpacity={0.7}
                 onPress={showFilterDropdown}
                 style={[styles.dropdown, { backgroundColor: colors.card }]}
@@ -566,141 +531,26 @@ const FavoritesScreen = ({
               </TouchableOpacity>
             </View>
 
-            {/* Sort Menu Modal */}
-            <Modal
-              transparent
-              visible={showSortMenu}
-              animationType="fade"
-              onRequestClose={() => setShowSortMenu(false)}
-            >
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowSortMenu(false)}
-              >
-                <View
-                  style={[
-                    styles.modalContent,
-                    {
-                      backgroundColor: colors.card,
-                      position: "absolute",
-                      top: menuPosition.top,
-                      left: menuPosition.left,
-                      width: menuPosition.width,
-                    },
-                  ]}
-                  onStartShouldSetResponder={() => true}
-                >
-                  {[
-                    { value: "recent", label: "Recent" },
-                    { value: "title", label: "A-Z" },
-                    { value: "year", label: "Year" },
-                    { value: "rating", label: "Rating" },
-                  ].map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() => {
-                        setSortBy(option.value);
-                        setShowSortMenu(false);
-                      }}
-                      style={[
-                        styles.modalOption,
-                        sortBy === option.value && {
-                          backgroundColor: colors.primary + "20",
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.modalOptionText,
-                          {
-                            color: colors.text,
-                            fontWeight: sortBy === option.value ? "600" : "400",
-                          },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      {sortBy === option.value && (
-                        <Ionicons
-                          name="checkmark"
-                          size={20}
-                          color={colors.primary}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </TouchableOpacity>
-            </Modal>
-
-            {/* Filter Menu Modal */}
-            <Modal
-              transparent
-              visible={showFilterMenu}
-              animationType="fade"
-              onRequestClose={() => setShowFilterMenu(false)}
-            >
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowFilterMenu(false)}
-              >
-                <View
-                  style={[
-                    styles.modalContent,
-                    {
-                      backgroundColor: colors.card,
-                      position: "absolute",
-                      top: menuPosition.top,
-                      left: menuPosition.left,
-                      width: menuPosition.width,
-                    },
-                  ]}
-                  onStartShouldSetResponder={() => true}
-                >
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "movie", label: "Movies" },
-                    { value: "series", label: "Series" },
-                  ].map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
-                      onPress={() => {
-                        setFilterType(option.value);
-                        setShowFilterMenu(false);
-                      }}
-                      style={[
-                        styles.modalOption,
-                        filterType === option.value && {
-                          backgroundColor: colors.primary + "20",
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.modalOptionText,
-                          {
-                            color: colors.text,
-                            fontWeight:
-                              filterType === option.value ? "600" : "400",
-                          },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      {filterType === option.value && (
-                        <Ionicons
-                          name="checkmark"
-                          size={20}
-                          color={colors.primary}
-                        />
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </TouchableOpacity>
-            </Modal>
+            <GlassMenu
+              anchor={sortAnchor}
+              options={SORT_OPTIONS}
+              selected={sortBy}
+              onSelect={(v) => {
+                setSortBy(v);
+                setSortAnchor(null);
+              }}
+              onClose={() => setSortAnchor(null)}
+            />
+            <GlassMenu
+              anchor={filterAnchor}
+              options={FILTER_OPTIONS}
+              selected={filterType}
+              onSelect={(v) => {
+                setFilterType(v);
+                setFilterAnchor(null);
+              }}
+              onClose={() => setFilterAnchor(null)}
+            />
 
             {/* Results count */}
             {/* <Text
@@ -1066,37 +916,6 @@ const styles = StyleSheet.create({
   dropdownValue: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-  },
-  modalContent: {
-    borderRadius: 8,
-    padding: 4,
-    elevation: 5,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
-  modalTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    opacity: 0.6,
-  },
-  modalOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 6,
-    marginHorizontal: 2,
-  },
-  modalOptionText: {
-    fontSize: 14,
   },
   resultsCount: {
     fontSize: 12,
