@@ -396,11 +396,18 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
         existingKeys={existingKeys}
         onClose={() => setAddVisible(false)}
         onAdded={(item) => {
+          const nextItemCount = (list?.itemCount || 0) + 1;
+          const nextCoverPoster = list?.coverPoster || item.poster;
           setItems((prev) => (prev.some((i) => i.id === item.id) ? prev : [item, ...prev]));
-          setList((l) => {
-            const next = { ...l, itemCount: (l.itemCount || 0) + 1, coverPoster: l.coverPoster || item.poster };
-            publicListEvents.emit({ type: "patch", id, patch: { itemCount: next.itemCount, coverPoster: next.coverPoster } });
-            return next;
+          setList((current) => ({
+            ...current,
+            itemCount: nextItemCount,
+            coverPoster: nextCoverPoster,
+          }));
+          publicListEvents.emit({
+            type: "patch",
+            id,
+            patch: { itemCount: nextItemCount, coverPoster: nextCoverPoster },
           });
         }}
       />
