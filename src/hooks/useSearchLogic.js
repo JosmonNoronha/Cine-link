@@ -96,21 +96,7 @@ const useSearchLogic = () => {
   }, []);
 
   // Check API limits
-  const canMakeApiCall = useCallback(() => {
-    const now = Date.now();
-    if (now > apiLimitRef.current.resetTime) {
-      apiLimitRef.current = {
-        calls: 0,
-        resetTime: now + API_RATE_LIMIT.RESET_INTERVAL_MS,
-      };
-      setApiCallCount(0);
-      AsyncStorage.setItem(
-        CACHE_CONFIG.API_LIMIT_KEY,
-        JSON.stringify(apiLimitRef.current),
-      );
-    }
-    return apiLimitRef.current.calls < API_RATE_LIMIT.MAX_CALLS_PER_DAY;
-  }, []);
+  const canMakeApiCall = useCallback(() => true, []);
 
   // Increment API call
   const incrementApiCall = useCallback(async () => {
@@ -289,11 +275,7 @@ const useSearchLogic = () => {
         let totalCount = 0;
 
         // Try local search first
-        const localSearchResult = performLocalSearch(
-          cleanQuery,
-          filterType,
-          page,
-        );
+        const localSearchResult = { results: [], hasMore: false, total: 0 };
 
         if (localSearchResult.results.length > 0) {
           allResults = localSearchResult.results;
@@ -398,10 +380,25 @@ const useSearchLogic = () => {
               currentSearchRef.current.nextCursor = apiNextCursor;
             } else {
               if (append) {
-                setResults((prev) => [...prev, ...processedResults]);
+                setResults((prev) => {
+                  const seen = new Set(prev.map((i) => i.imdbID));
+
+                  return [
+                    ...prev,
+                    ...processedResults.filter((i) => {
+                      if (!i.imdbID || seen.has(i.imdbID)) {
+                        return false;
+                      }
+
+                      seen.add(i.imdbID);
+                      return true;
+                    }),
+                  ];
+                });
               } else {
                 setResults(processedResults);
               }
+
               setHasMorePages(apiHasMore);
               setTotalResults(apiTotalResults);
               setTotalPages(apiTotalPages);
