@@ -1,4 +1,9 @@
 // hooks/useAutocomplete.js
+//
+// Two-tier autocomplete:
+//   Tier 1 (instant):   history + trending keyword matches
+//   Tier 2 (debounced): rich title suggestions from GET /search/typeahead
+//                       (cached server-side, never tracked as a search)
 import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
@@ -8,10 +13,10 @@ import logger from "../services/logger";
 
 const TRENDING_CACHE_KEY    = "autocomplete_trending_v1";
 const TRENDING_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const DEBOUNCE_MS           = 350;
+const DEBOUNCE_MS           = 250;
 const MAX_HISTORY_ITEMS     = 3;
 const MAX_TRENDING_ITEMS    = 4;
-const MAX_TITLE_RESULTS     = 5;
+const MAX_TITLE_RESULTS     = 6;
 const MIN_QUERY_FOR_TITLES  = 2;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,16 +51,17 @@ function buildInstantItems(query, history, trending) {
   return items;
 }
 
-function mapResultToItem(result) {
-  const kind = result.Type === "person" ? "person" : "title";
+// Shape returned by GET /search/typeahead:
+//   { imdbID, title, year, type: "movie" | "series", poster }
+function mapSuggestion(s) {
   return {
-    kind,
-    id: `s:${result.imdbID || result.id || result.Title}`,
-    text: result.Title || result.Name || "",
-    year: result.Year || "",
-    type: result.Type || "",
-    poster: result.Poster && result.Poster !== "N/A" ? result.Poster : null,
-    imdbID: result.imdbID || null,
+    kind: "title",
+    id: `s:${s.imdbID}`,
+    text: s.title || "",
+    year: s.year || "",
+    type: s.type || "",
+    poster: s.poster || null,
+    imdbID: s.imdbID || null,
   };
 }
 
@@ -69,8 +75,7 @@ const useAutocomplete = ({ history = [], enabled = true } = {}) => {
   const historyRef   = useRef(history);
   const trendingRef  = useRef(trending);
   const timerRef     = useRef(null);
-  // axios CancelToken source — cancel previous request before firing a new one
-  const cancelRef    = useRef(null);
+  const cancelRef    = useRef(null);   // axios CancelToken source
   const lastQueryRef = useRef("");
 
   useEffect(() => { historyRef.current  = history;  }, [history]);
@@ -86,7 +91,7 @@ const useAutocomplete = ({ history = [], enabled = true } = {}) => {
           AsyncStorage.getItem(TRENDING_CACHE_KEY),
           AsyncStorage.getItem(`${TRENDING_CACHE_KEY}:time`),
         ]);
-        if (raw && timeStr && Date.now() - parseInt(timeStr) < TRENDING_CACHE_TTL_MS) {
+        if (raw && timeStr && Date.now() - parseInt(timeStr, 10) < TRENDING_CACHE_TTL_MS) {
           if (!cancelled) setTrending(JSON.parse(raw));
           return;
         }
@@ -124,7 +129,7 @@ const useAutocomplete = ({ history = [], enabled = true } = {}) => {
     const q = (query || "").trim();
     lastQueryRef.current = q;
 
-    // Cancel pending debounce + any in-flight axios request
+    // Cancel pending debounce + any in-flight request
     if (timerRef.current) clearTimeout(timerRef.current);
     if (cancelRef.current) {
       cancelRef.current.cancel("superseded");
@@ -133,46 +138,38 @@ const useAutocomplete = ({ history = [], enabled = true } = {}) => {
     setTitleLoading(false);
 
     // Tier 1: instant
-    const instantItems = buildInstantItems(q, historyRef.current, trendingRef.current);
-    setItems(instantItems);
+    setItems(buildInstantItems(q, historyRef.current, trendingRef.current));
 
     if (q.length < MIN_QUERY_FOR_TITLES) return;
 
     setTitleLoading(true);
 
     timerRef.current = setTimeout(async () => {
-      // Create a fresh CancelToken for this request
       const source = axios.CancelToken.source();
       cancelRef.current = source;
 
       try {
-        // apiClient interceptor unwraps { success:true, data:... }
-        // so response here is already { Search, totalResults, meta, ... }
-        const response = await apiClient.post(
-          "/search",
-          { query: q, type: "all", page: 1 },
-          { cancelToken: source.token },
-        );
+        // apiClient's interceptor unwraps { success, data } → { suggestions }
+        const response = await apiClient.get("/search/typeahead", {
+          params: { q, limit: MAX_TITLE_RESULTS },
+          cancelToken: source.token,
+        });
 
-        if (lastQueryRef.current !== q) return; // stale
+        if (lastQueryRef.current !== q) return; // stale response
 
-        const results = response?.Search ?? [];
-        const titleItems = results
-          .slice(0, MAX_TITLE_RESULTS)
-          .map(mapResultToItem)
+        const titleItems = (response?.suggestions ?? [])
+          .map(mapSuggestion)
           .filter((item) => item.text);
 
         setItems((prev) => {
-          const existingTexts = new Set(prev.map((i) => i.text.toLowerCase()));
-          const fresh = titleItems.filter(
-            (i) => !existingTexts.has(i.text.toLowerCase()),
-          );
-          return [...prev, ...fresh];
+          // Keep instant items; add titles, deduped by id only. A history
+          // entry "Heat" and the rich "Heat (1995)" row can both appear.
+          const have = new Set(prev.map((i) => i.id));
+          return [...prev, ...titleItems.filter((i) => !have.has(i.id))];
         });
       } catch (err) {
-        // axios.isCancel covers both CancelToken and AbortController cancels
         if (axios.isCancel(err)) return;
-        logger.warn("useAutocomplete: title fetch failed", err);
+        logger.warn("useAutocomplete: typeahead failed", err);
       } finally {
         if (lastQueryRef.current === q) setTitleLoading(false);
       }
