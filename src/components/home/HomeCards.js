@@ -48,28 +48,45 @@ RatingChip.displayName = "RatingChip";
 
 /* ───────── poster (classic, kept small and quiet) ───────── */
 
-export const PosterCard = React.memo(({ item, onPress, colors, width = 124 }) => {
-  const handle = useCallback(() => onPress(item), [onPress, item]);
-  const year = getYear(item);
-  const rating = getRating(item);
-  return (
-    <Pressable onPress={handle} style={({ pressed: p }) => [{ width }, pressed(p)]}>
-      <Poster uri={posterUri(item)} style={{ width, height: width * 1.5, borderRadius: 14 }} />
-      <Text style={[styles.posterTitle, { color: colors.text }]} numberOfLines={1}>
-        {getTitle(item)}
-      </Text>
-      <View style={styles.metaRow}>
-        {!!year && <Text style={[styles.metaText, { color: colors.text }]}>{year}</Text>}
-        {rating && (
-          <View style={styles.inlineRating}>
-            <Ionicons name="star" size={11} color="#FFC107" />
-            <Text style={[styles.metaText, { color: colors.text }]}>{rating.toFixed(1)}</Text>
-          </View>
-        )}
-      </View>
-    </Pressable>
-  );
-});
+export const PosterCard = React.memo(
+  ({ item, onPress, colors, width = 124 }) => {
+    const handle = useCallback(() => onPress(item), [onPress, item]);
+    const year = getYear(item);
+    const rating = getRating(item);
+    return (
+      <Pressable
+        onPress={handle}
+        style={({ pressed: p }) => [{ width }, pressed(p)]}
+      >
+        <Poster
+          uri={posterUri(item)}
+          style={{ width, height: width * 1.5, borderRadius: 14 }}
+        />
+        <Text
+          style={[styles.posterTitle, { color: colors.text }]}
+          numberOfLines={1}
+        >
+          {getTitle(item)}
+        </Text>
+        <View style={styles.metaRow}>
+          {!!year && (
+            <Text style={[styles.metaText, { color: colors.text }]}>
+              {year}
+            </Text>
+          )}
+          {rating && (
+            <View style={styles.inlineRating}>
+              <Ionicons name="star" size={11} color="#FFC107" />
+              <Text style={[styles.metaText, { color: colors.text }]}>
+                {rating.toFixed(1)}
+              </Text>
+            </View>
+          )}
+        </View>
+      </Pressable>
+    );
+  },
+);
 PosterCard.displayName = "PosterCard";
 
 /* ───────── ranked (Top 10) ───────── */
@@ -77,9 +94,20 @@ PosterCard.displayName = "PosterCard";
 export const RankedCard = React.memo(({ item, rank, onPress, colors }) => {
   const handle = useCallback(() => onPress(item), [onPress, item]);
   return (
-    <Pressable onPress={handle} style={({ pressed: p }) => [styles.ranked, pressed(p)]}>
+    <Pressable
+      onPress={handle}
+      style={({ pressed: p }) => [styles.ranked, pressed(p)]}
+    >
       <Text
-        style={[styles.rankNumber, { color: colors.primary, width: rank >= 10 ? 104 : 64 }]}
+        style={[
+          styles.rankNumber,
+          {
+            color: colors.primary,
+            width: rank >= 10 ? 124 : 64,
+            flexShrink: 0,
+          },
+        ]}
+        numberOfLines={1}
         allowFontScaling={false}
       >
         {rank}
@@ -98,7 +126,11 @@ export const WideCard = React.memo(({ item, onPress, width }) => {
   return (
     <Pressable
       onPress={handle}
-      style={({ pressed: p }) => [styles.wide, { width, height: Math.round((width * 9) / 16) }, pressed(p)]}
+      style={({ pressed: p }) => [
+        styles.wide,
+        { width, height: Math.round((width * 9) / 16) },
+        pressed(p),
+      ]}
     >
       <Poster uri={backdropUri(item)} style={StyleSheet.absoluteFill} />
       <LinearGradient
@@ -123,36 +155,42 @@ WideCard.displayName = "WideCard";
 
 /* ───────── continue watching ───────── */
 
-export const ContinueCard = React.memo(({ item, onPress, colors, theme, width }) => {
-  const handle = useCallback(() => onPress(item), [onPress, item]);
-  const year = getYear(item);
-  return (
-    <Pressable
-      onPress={handle}
-      style={({ pressed: p }) => [
-        styles.continue,
-        {
-          width,
-          backgroundColor: colors.card,
-          borderColor: theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
-        },
-        pressed(p),
-      ]}
-    >
-      <Poster uri={posterUri(item, "w185")} style={styles.continuePoster} />
-      <View style={styles.continueText}>
-        <Text style={[styles.continueTitle, { color: colors.text }]} numberOfLines={2}>
-          {getTitle(item)}
-        </Text>
-        <Text style={[styles.metaText, { color: colors.text }]}>
-          {getKind(item)}
-          {year ? `  ${year}` : ""}
-        </Text>
-      </View>
-      <Ionicons name="play-circle" size={34} color={colors.primary} />
-    </Pressable>
-  );
-});
+export const ContinueCard = React.memo(
+  ({ item, onPress, colors, theme, width }) => {
+    const handle = useCallback(() => onPress(item), [onPress, item]);
+    const year = getYear(item);
+    return (
+      <Pressable
+        onPress={handle}
+        style={({ pressed: p }) => [
+          styles.continue,
+          {
+            width,
+            backgroundColor: colors.card,
+            borderColor:
+              theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
+          },
+          pressed(p),
+        ]}
+      >
+        <Poster uri={posterUri(item, "w185")} style={styles.continuePoster} />
+        <View style={styles.continueText}>
+          <Text
+            style={[styles.continueTitle, { color: colors.text }]}
+            numberOfLines={2}
+          >
+            {getTitle(item)}
+          </Text>
+          <Text style={[styles.metaText, { color: colors.text }]}>
+            {getKind(item)}
+            {year ? `  ${year}` : ""}
+          </Text>
+        </View>
+        <Ionicons name="play-circle" size={34} color={colors.primary} />
+      </Pressable>
+    );
+  },
+);
 ContinueCard.displayName = "ContinueCard";
 
 /* ───────── stacked list page (3 rows per page) ───────── */
@@ -171,7 +209,10 @@ const StackedRow = React.memo(({ item, onPress, colors, last }) => {
     >
       <Poster uri={posterUri(item, "w185")} style={styles.rowPoster} />
       <View style={styles.rowText}>
-        <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={2}>
+        <Text
+          style={[styles.rowTitle, { color: colors.text }]}
+          numberOfLines={2}
+        >
           {getTitle(item)}
         </Text>
         <Text style={[styles.metaText, { color: colors.text }]}>
@@ -209,9 +250,17 @@ export const SpotlightCard = React.memo(({ item, onPress, colors, width }) => {
   const genres = getGenres(item);
   const year = getYear(item);
   return (
-    <Pressable onPress={handle} style={({ pressed: p }) => [styles.spot, { width }, pressed(p)]}>
+    <Pressable
+      onPress={handle}
+      style={({ pressed: p }) => [styles.spot, { width }, pressed(p)]}
+    >
       {uri && (
-        <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={30} />
+        <Image
+          source={{ uri }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          blurRadius={30}
+        />
       )}
       <View style={[StyleSheet.absoluteFill, styles.spotShade]} />
       <View style={styles.spotInner}>
@@ -234,7 +283,9 @@ export const SpotlightCard = React.memo(({ item, onPress, colors, width }) => {
               {overview}
             </Text>
           )}
-          <View style={[styles.spotButton, { backgroundColor: colors.primary }]}>
+          <View
+            style={[styles.spotButton, { backgroundColor: colors.primary }]}
+          >
             <Text style={styles.spotButtonText}>View details</Text>
           </View>
         </View>
@@ -275,13 +326,18 @@ export const GenreChips = React.memo(({ order, onPress, colors, theme }) => {
           style={({ pressed: p }) => [
             styles.genreChip,
             {
-              backgroundColor: theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+              backgroundColor:
+                theme === "dark"
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.05)",
             },
             pressed(p),
           ]}
         >
           <Ionicons name={g.icon} size={16} color={colors.primary} />
-          <Text style={[styles.genreChipText, { color: colors.text }]}>{g.label}</Text>
+          <Text style={[styles.genreChipText, { color: colors.text }]}>
+            {g.label}
+          </Text>
         </Pressable>
       ))}
     </ScrollView>
@@ -292,7 +348,11 @@ GenreChips.displayName = "GenreChips";
 /* ───────── styles ───────── */
 
 const styles = StyleSheet.create({
-  noImage: { backgroundColor: "#1c1f26", alignItems: "center", justifyContent: "center" },
+  noImage: {
+    backgroundColor: "#1c1f26",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   chip: {
     flexDirection: "row",
@@ -305,7 +365,12 @@ const styles = StyleSheet.create({
   },
   chipText: { color: "#FFC107", fontSize: 11, fontWeight: "700" },
 
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 2,
+  },
   metaText: { fontSize: 12, opacity: 0.6 },
   inlineRating: { flexDirection: "row", alignItems: "center", gap: 3 },
 
@@ -319,6 +384,7 @@ const styles = StyleSheet.create({
     letterSpacing: -8,
     textAlign: "right",
     includeFontPadding: false,
+    flexShrink: 0,
   },
   rankedPoster: { width: 112, height: 168, borderRadius: 14, marginLeft: -16 },
 
@@ -340,8 +406,16 @@ const styles = StyleSheet.create({
   continueText: { flex: 1, gap: 4 },
   continueTitle: { fontSize: 15, fontWeight: "700", lineHeight: 19 },
 
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
-  rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(128,128,128,0.3)" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+  },
+  rowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(128,128,128,0.3)",
+  },
   rowPoster: { width: 52, height: 78, borderRadius: 10 },
   rowText: { flex: 1, gap: 3 },
   rowTitle: { fontSize: 15, fontWeight: "600", lineHeight: 19 },
@@ -351,12 +425,32 @@ const styles = StyleSheet.create({
   spotInner: { flexDirection: "row", gap: 16, padding: 16 },
   spotPoster: { width: 112, height: 168, borderRadius: 14 },
   spotText: { flex: 1, justifyContent: "center", gap: 6 },
-  spotGenres: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "500" },
-  spotTitle: { color: "#fff", fontSize: 22, fontWeight: "800", lineHeight: 26, letterSpacing: -0.3 },
+  spotGenres: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  spotTitle: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    lineHeight: 26,
+    letterSpacing: -0.3,
+  },
   spotMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
   spotYear: { color: "rgba(255,255,255,0.75)", fontSize: 13 },
-  spotOverview: { color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 18 },
-  spotButton: { alignSelf: "flex-start", marginTop: 4, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 18 },
+  spotOverview: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  spotButton: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+  },
   spotButtonText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
   chips: { paddingHorizontal: 20, gap: 10, paddingVertical: 4 },

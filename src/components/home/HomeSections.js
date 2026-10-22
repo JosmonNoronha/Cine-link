@@ -85,10 +85,32 @@ PosterRail.displayName = "PosterRail";
 
 const RankedRail = React.memo(({ data, onOpen, colors }) => {
   const render = useCallback(
-    ({ item, index }) => <RankedCard item={item} rank={index + 1} onPress={onOpen} colors={colors} />,
+    ({ item, index }) => (
+      <RankedCard
+        item={item}
+        rank={index + 1}
+        onPress={onOpen}
+        colors={colors}
+      />
+    ),
     [onOpen, colors],
   );
-  return <Rail data={data} renderItem={render} />;
+
+  return (
+    <FlatList
+      horizontal
+      data={data}
+      renderItem={render}
+      keyExtractor={keyOf}
+      ItemSeparatorComponent={Gap}
+      contentContainerStyle={styles.railContent}
+      showsHorizontalScrollIndicator={false}
+      initialNumToRender={5}
+      maxToRenderPerBatch={5}
+      windowSize={7}
+      removeClippedSubviews={false}
+    />
+  );
 });
 RankedRail.displayName = "RankedRail";
 
