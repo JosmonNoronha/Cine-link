@@ -26,6 +26,7 @@ import { useFavorites } from "../contexts/FavoritesContext";
 import { getWatchlists } from "../utils/storage";
 import { getGamificationState, getLevelInfo } from "../utils/gamification";
 import BadgesModal from "../components/profile/BadgesModal";
+import DeleteAccountModal from "../components/profile/DeleteAccountModal";
 import ProfileSection from "../components/profile/ProfileSection";
 import logger from "../services/logger";
 
@@ -41,6 +42,7 @@ const SettingsScreen = ({ navigation }) => {
   const [backendStatus, setBackendStatus] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [badgesModalVisible, setBadgesModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [profileInsights, setProfileInsights] = useState({
     level: 1,
     levelIcon: "🆕",
@@ -657,7 +659,56 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* About */}
         <AboutSection />
+
+        {/* Account (deletion is required by the App Store) */}
+        {user ? (
+          <SectionCard title="Account">
+            <TouchableOpacity
+              style={[
+                styles.manageSubscriptionsButton,
+                { borderColor: "rgba(239,68,68,0.45)" },
+              ]}
+              onPress={() => setDeleteModalVisible(true)}
+              activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel="Delete account"
+            >
+              <View style={styles.buttonContent}>
+                <View style={styles.buttonLeft}>
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color="#ef4444"
+                    style={{ marginRight: 12 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.buttonTitle, { color: "#ef4444" }]}>
+                      Delete account
+                    </Text>
+                    <Text style={[styles.buttonSubtitle, { color: colors.text }]}>
+                      Permanently remove your account and data
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.text}
+                  style={{ opacity: 0.3 }}
+                />
+              </View>
+            </TouchableOpacity>
+          </SectionCard>
+        ) : null}
       </ScrollView>
+
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        email={user?.email}
+        theme={theme}
+        colors={colors}
+      />
 
       <BadgesModal
         visible={badgesModalVisible}
