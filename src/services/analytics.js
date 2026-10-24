@@ -1,12 +1,30 @@
 import * as Device from "expo-device";
 import * as Application from "expo-application";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import axios from "axios";
 import logger from "./logger";
 
 // Sentry placeholder - add @sentry/react-native back + its Expo plugin when you have a DSN
 let Sentry = null;
 let SENTRY_INITIALIZED = false;
+
+const FLUSH_INTERVAL_MS = 30000; // send what has been collected at least every 30 seconds
+const FLUSH_AT = 20; // ...or as soon as this many events are waiting
+const MAX_QUEUE = 200; // never let the queue grow without limit while offline
+const MAX_DETAIL = 64;
+
+/**
+ * What is sent to the server: the kind of event plus one short label (which screen, which
+ * action). Nothing personal leaves the phone through analytics: no user id, search text,
+ * titles, or error stacks.
+ */
+const toWireEvent = (event) => {
+  const d = event.data || {};
+  const raw = d.action || d.screen_name || d.metric || d.content_type;
+  const detail =
+    typeof raw === "string" && /^[A-Za-z0-9_.:-]+$/.test(raw) ? raw.slice(0, MAX_DETAIL) : undefined;
+  return { type: event.type, detail, timestamp: event.timestamp };
+};
 
 /**
  * Analytics Service for tracking user behavior and app performance
@@ -18,6 +36,8 @@ class AnalyticsService {
     this.sessionId = null;
     this.eventQueue = [];
     this.apiBaseUrl = null;
+    this.flushTimer = null;
+    this.appStateSub = null;
   }
 
   /**
@@ -32,6 +52,13 @@ class AnalyticsService {
 
     // Set device context
     this.setDeviceContext();
+
+    // Without these, events only left the phone after 20 had piled up, and anything still
+    // waiting was lost when the app was closed.
+    this.flushTimer = setInterval(() => this.flushEvents(), FLUSH_INTERVAL_MS);
+    this.appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "background" || state === "inactive") this.flushEvents();
+    });
 
     logger.info("📊 Analytics service initialized");
   }
@@ -236,11 +263,14 @@ class AnalyticsService {
       platform: Platform.OS,
     };
 
-    // Add to queue
+    // Add to queue (oldest events are dropped if the phone has been offline for long)
     this.eventQueue.push(event);
+    if (this.eventQueue.length > MAX_QUEUE) {
+      this.eventQueue.splice(0, this.eventQueue.length - MAX_QUEUE);
+    }
 
     // Flush if queue is large
-    if (this.eventQueue.length >= 20) {
+    if (this.eventQueue.length >= FLUSH_AT) {
       this.flushEvents();
     }
 
@@ -261,9 +291,11 @@ class AnalyticsService {
     try {
       // Fire and forget - don't wait for response
       axios
-        .post(`${this.apiBaseUrl}/analytics/events`, {
-          events: eventsToSend,
-        })
+        .post(
+          `${this.apiBaseUrl}/analytics/events`,
+          { events: eventsToSend.map(toWireEvent) },
+          { timeout: 10000 },
+        )
         .catch((err) => {
           // Silently fail - analytics shouldn't break the app
           logger.warn("Failed to send analytics events:", err.message);
