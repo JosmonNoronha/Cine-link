@@ -27,6 +27,7 @@ import { getWatchlists } from "../utils/storage";
 import { getGamificationState, getLevelInfo } from "../utils/gamification";
 import BadgesModal from "../components/profile/BadgesModal";
 import DeleteAccountModal from "../components/profile/DeleteAccountModal";
+import BlockedUsersModal from "../components/profile/BlockedUsersModal";
 import ProfileSection from "../components/profile/ProfileSection";
 import logger from "../services/logger";
 
@@ -43,6 +44,7 @@ const SettingsScreen = ({ navigation }) => {
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [badgesModalVisible, setBadgesModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [blockedModalVisible, setBlockedModalVisible] = useState(false);
   const [profileInsights, setProfileInsights] = useState({
     level: 1,
     levelIcon: "🆕",
@@ -666,6 +668,46 @@ const SettingsScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.manageSubscriptionsButton,
+                {
+                  borderColor:
+                    theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+                  marginBottom: 12,
+                },
+              ]}
+              onPress={() => setBlockedModalVisible(true)}
+              activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel="Blocked users"
+            >
+              <View style={styles.buttonContent}>
+                <View style={styles.buttonLeft}>
+                  <Ionicons
+                    name="ban-outline"
+                    size={20}
+                    color={colors.text}
+                    style={{ opacity: 0.6, marginRight: 12 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.buttonTitle, { color: colors.text }]}>
+                      Blocked users
+                    </Text>
+                    <Text style={[styles.buttonSubtitle, { color: colors.text }]}>
+                      See and unblock people you've blocked
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={colors.text}
+                  style={{ opacity: 0.3 }}
+                />
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.manageSubscriptionsButton,
                 { borderColor: "rgba(239,68,68,0.45)" },
               ]}
               onPress={() => setDeleteModalVisible(true)}
@@ -701,6 +743,12 @@ const SettingsScreen = ({ navigation }) => {
           </SectionCard>
         ) : null}
       </ScrollView>
+
+      <BlockedUsersModal
+        visible={blockedModalVisible}
+        onClose={() => setBlockedModalVisible(false)}
+        theme={theme}
+      />
 
       <DeleteAccountModal
         visible={deleteModalVisible}

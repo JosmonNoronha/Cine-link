@@ -8,6 +8,9 @@ import publicListEvents from "../utils/publicListEvents";
 import logger from "../services/logger";
 
 const PAGE = 20;
+// Lists by blocked users are removed on the server, so a page can come back short or empty
+// even though more exist. Keep asking (a few times) instead of looking stuck.
+const MAX_EMPTY_HOPS = 5;
 
 /**
  * Paginated discovery feed (Explore tab).
@@ -25,6 +28,23 @@ export default function usePublicLists({ sort = "popular", tag = null } = {}) {
   const reqRef = useRef(0);
   const moreBusyRef = useRef(false);
 
+  const fetchUsable = useCallback(
+    async (startCursor) => {
+      let cursor = startCursor || undefined;
+      let collected = [];
+      let data = null;
+      for (let hop = 0; hop < MAX_EMPTY_HOPS; hop += 1) {
+        data = await discoverPublicLists({ sort, tag, limit: PAGE, cursor });
+        const got = Array.isArray(data?.lists) ? data.lists : [];
+        collected = collected.concat(got);
+        cursor = data?.nextCursor || null;
+        if (got.length > 0 || !data?.hasMore || !cursor) break;
+      }
+      return { lists: collected, nextCursor: cursor, hasMore: Boolean(data?.hasMore && cursor) };
+    },
+    [sort, tag],
+  );
+
   const reload = useCallback(
     async ({ pull = false } = {}) => {
       const req = ++reqRef.current;
@@ -33,11 +53,11 @@ export default function usePublicLists({ sort = "popular", tag = null } = {}) {
       if (pull) setRefreshing(true);
       else setStatus("loading");
       try {
-        const data = await discoverPublicLists({ sort, tag, limit: PAGE });
+        const data = await fetchUsable(null);
         if (req !== reqRef.current) return;
-        setLists(Array.isArray(data?.lists) ? data.lists : []);
-        cursorRef.current = data?.nextCursor || null;
-        setHasMore(Boolean(data?.hasMore));
+        setLists(data.lists);
+        cursorRef.current = data.nextCursor;
+        setHasMore(data.hasMore);
         setStatus("ready");
       } catch (error) {
         if (req !== reqRef.current) return;
@@ -47,7 +67,7 @@ export default function usePublicLists({ sort = "popular", tag = null } = {}) {
         if (req === reqRef.current) setRefreshing(false);
       }
     },
-    [sort, tag],
+    [fetchUsable],
   );
 
   useEffect(() => {
@@ -66,14 +86,14 @@ export default function usePublicLists({ sort = "popular", tag = null } = {}) {
     moreBusyRef.current = true;
     setLoadingMore(true);
     try {
-      const data = await discoverPublicLists({ sort, tag, limit: PAGE, cursor: cursorRef.current });
+      const data = await fetchUsable(cursorRef.current);
       if (req !== reqRef.current) return;
       setLists((prev) => {
         const seen = new Set(prev.map((l) => l.id));
-        return [...prev, ...(data?.lists || []).filter((l) => !seen.has(l.id))];
+        return [...prev, ...data.lists.filter((l) => !seen.has(l.id))];
       });
-      cursorRef.current = data?.nextCursor || null;
-      setHasMore(Boolean(data?.hasMore));
+      cursorRef.current = data.nextCursor;
+      setHasMore(data.hasMore);
     } catch (error) {
       logger.warn("Failed to load more public lists", error?.message);
     } finally {
@@ -82,7 +102,7 @@ export default function usePublicLists({ sort = "popular", tag = null } = {}) {
         setLoadingMore(false);
       }
     }
-  }, [hasMore, sort, tag]);
+  }, [hasMore, fetchUsable]);
 
   const patchList = useCallback((id, patch) => {
     setLists((prev) =>
@@ -96,8 +116,12 @@ export default function usePublicLists({ sort = "popular", tag = null } = {}) {
       publicListEvents.subscribe((e) => {
         if (e.type === "patch") patchList(e.id, e.patch);
         else if (e.type === "removed") setLists((prev) => prev.filter((l) => l.id !== e.id));
+        // The viewer blocked someone: drop everything by them right away.
+        else if (e.type === "blocked") setLists((prev) => prev.filter((l) => l.ownerId !== e.ownerId));
+        // Unblocked: their lists may come back, so fetch the feed again.
+        else if (e.type === "unblocked") reload();
       }),
-    [patchList],
+    [patchList, reload],
   );
 
   const optimistic = useCallback(

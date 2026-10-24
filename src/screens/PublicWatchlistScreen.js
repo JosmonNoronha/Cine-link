@@ -24,6 +24,7 @@ import {
   removePublicListItem,
   deletePublicList,
   reportPublicList,
+  blockUser,
 } from "../services/api/publicWatchlists";
 import publicListEvents from "../utils/publicListEvents";
 import logger from "../services/logger";
@@ -198,6 +199,39 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
       .then(() => Alert.alert("Thanks", "We'll review this list."))
       .catch(() => Alert.alert("Couldn't send report", "Please try again."));
 
+  const confirmBlock = () => {
+    if (!list?.ownerId) return;
+    const who = list.ownerName || "this user";
+    Alert.alert(
+      `Block ${who}?`,
+      "You won't see their public lists anymore. You can unblock them any time in Settings > Blocked users.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await blockUser(list.ownerId, list.ownerName || "");
+              publicListEvents.emit({ type: "blocked", ownerId: list.ownerId });
+              publicListEvents.emit({ type: "removed", id });
+              publicListEvents.emit({ type: "library" });
+              navigation.goBack();
+            } catch {
+              Alert.alert("Couldn't block", "Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const openReportMenu = () =>
+    Alert.alert("Report this list", "Why are you reporting it?", [
+      ...REPORT_REASONS.map(([reason, label]) => ({ text: label, onPress: () => sendReport(reason) })),
+      { text: "Cancel", style: "cancel" },
+    ]);
+
   const openMenu = () => {
     if (isOwner) {
       Alert.alert(list?.name || "List", undefined, [
@@ -206,8 +240,9 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
         { text: "Cancel", style: "cancel" },
       ]);
     } else {
-      Alert.alert("Report this list", "Why are you reporting it?", [
-        ...REPORT_REASONS.map(([reason, label]) => ({ text: label, onPress: () => sendReport(reason) })),
+      Alert.alert(list?.name || "List", undefined, [
+        { text: "Report this list", onPress: openReportMenu },
+        { text: `Block ${list?.ownerName || "this user"}`, style: "destructive", onPress: confirmBlock },
         { text: "Cancel", style: "cancel" },
       ]);
     }

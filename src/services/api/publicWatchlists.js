@@ -43,3 +43,11 @@ export const reportPublicList = (id, { reason, note = "" }) =>
 // key: "movie:123" | "tv:456"  →  { listIds: string[] }
 export const getPublicMembership = (key) =>
   apiClient.get(`${BASE}/membership`, { params: { key } });
+// ── Blocking (App Store guideline 1.2) ──────────────────────────────────────
+export const blockUser = (userId, name = "") =>
+  apiClient.post(`${BASE}/blocked-users`, { userId, name });
+
+export const unblockUser = (userId) => apiClient.delete(`${BASE}/blocked-users/${enc(userId)}`);
+
+// → { users: [{ userId, name, blockedAt }] }
+export const getBlockedUsers = () => apiClient.get(`${BASE}/blocked-users`);
