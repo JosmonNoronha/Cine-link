@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
   Dimensions,
   Modal,
-  FlatList,
   Platform,
   Linking,
 } from "react-native";
@@ -47,17 +46,15 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
   withTiming,
-  withSequence,
-  withRepeat,
   withSpring,
   useAnimatedStyle,
-  cancelAnimation,
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import WatchProvidersSection from "../components/details/WatchProvidersSection";
 import ReviewsSection from "../components/details/ReviewsSection";
 import ImageGallery from "../components/details/ImageGallery";
+import EpisodesSection from "../components/details/EpisodesSection";
 import { StatusBar } from "expo-status-bar";
 import logger from "../services/logger";
 import useReviews from "../hooks/useReviews";
@@ -69,12 +66,6 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const YOUTUBE_API_KEY =
   process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ||
   Constants?.expoConfig?.extra?.YOUTUBE_API_KEY;
-
-// Fixed height for every episode row — required for getItemLayout to work
-// without measuring. Change this if you change episodeItem padding/font.
-const EPISODE_ITEM_HEIGHT = 88;
-// How many episodes to render in the first batch inside a season FlatList
-const EPISODE_INITIAL_BATCH = 20;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -508,395 +499,6 @@ const ActionButtons = React.memo(
 );
 ActionButtons.displayName = "ActionButtons";
 
-// ─── EpisodeItem ──────────────────────────────────────────────────────────────
-// Fixed height = EPISODE_ITEM_HEIGHT. If you change padding/font here,
-// update that constant too so getItemLayout stays accurate.
-
-const EpisodeItem = React.memo(
-  ({ episode, season, isWatched, onToggleWatch, colors, theme }) => (
-    <TouchableOpacity
-      style={[
-        styles.episodeItem,
-        {
-          backgroundColor: isWatched
-            ? theme === "dark"
-              ? "rgba(76,175,80,0.15)"
-              : "rgba(76,175,80,0.1)"
-            : "transparent",
-          borderLeftWidth: isWatched ? 3 : 0,
-          borderLeftColor: "#4caf50",
-        },
-      ]}
-      onPress={() => onToggleWatch(season, episode.episodeNumber)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.episodeContent}>
-        <View style={styles.episodeHeader}>
-          <View style={styles.episodeNumberBadge}>
-            <Text style={[styles.episodeNumber, { color: colors.primary }]}>
-              {episode.episodeNumber}
-            </Text>
-          </View>
-          <Text
-            style={[
-              styles.episodeTitle,
-              {
-                color: colors.text,
-                textDecorationLine: isWatched ? "line-through" : "none",
-                opacity: isWatched ? 0.7 : 1,
-              },
-            ]}
-            numberOfLines={2}
-          >
-            {episode.title}
-          </Text>
-        </View>
-
-        <View style={styles.episodeMetadata}>
-          {episode.runtime && episode.runtime !== "N/A" && (
-            <View style={styles.episodeInfo}>
-              <Ionicons
-                name="time-outline"
-                size={14}
-                color={colors.text}
-                opacity={0.6}
-              />
-              <Text style={[styles.episodeRuntime, { color: colors.text }]}>
-                {episode.runtime}
-              </Text>
-            </View>
-          )}
-          {episode.rating && episode.rating !== "N/A" && (
-            <View style={styles.episodeInfo}>
-              <Ionicons name="star" size={14} color="#ffd700" />
-              <Text style={[styles.episodeRating, { color: colors.text }]}>
-                {episode.rating}
-              </Text>
-            </View>
-          )}
-          <View style={styles.watchButton}>
-            <Ionicons
-              name={isWatched ? "checkmark-circle" : "checkmark-circle-outline"}
-              size={24}
-              color={isWatched ? "#4caf50" : colors.text}
-              opacity={isWatched ? 1 : 0.4}
-            />
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  ),
-  (prev, next) =>
-    // Custom comparator — only re-render if watch state, episode data, or theme changes
-    prev.isWatched === next.isWatched &&
-    prev.episode.episodeNumber === next.episode.episodeNumber &&
-    prev.episode.title === next.episode.title &&
-    prev.theme === next.theme,
-);
-EpisodeItem.displayName = "EpisodeItem";
-
-// ─── Season ───────────────────────────────────────────────────────────────────
-
-const Season = React.memo(
-  ({
-    season,
-    isExpanded,
-    isLoading,
-    onToggle,
-    colors,
-    theme,
-    imdbID,
-    watchedEpisodes,
-    onToggleWatch,
-    trailerVideoId,
-    isTrailerLoading,
-    isTrailerPlaying,
-    onTrailerPress,
-  }) => {
-    const isLoaded = season.episodes && season.episodes.length > 0;
-
-    // Memoized so filtering 4000 episodes doesn't run on every parent re-render
-    const { watchedCount, totalEpisodes, progress } = useMemo(() => {
-      const total = season.episodeCount || season.episodes?.length || 0;
-      if (!isLoaded)
-        return { watchedCount: 0, totalEpisodes: total, progress: 0 };
-      const count = season.episodes.filter(
-        (ep) => watchedEpisodes[`s${season.seasonNumber}e${ep.episodeNumber}`],
-      ).length;
-      return {
-        watchedCount: count,
-        totalEpisodes: total,
-        progress: total > 0 ? (count / total) * 100 : 0,
-      };
-    }, [
-      isLoaded,
-      season.episodes,
-      season.episodeCount,
-      season.seasonNumber,
-      watchedEpisodes,
-    ]);
-
-    // Stable renderItem — useCallback so FlatList doesn't re-render all rows
-    // when only one episode's watch state changes (only that row re-renders
-    // because of EpisodeItem's custom comparator above).
-    const renderEpisode = useCallback(
-      ({ item: episode }) => (
-        <EpisodeItem
-          key={`${season.seasonNumber}-${episode.episodeNumber}`}
-          episode={episode}
-          imdbID={imdbID}
-          season={season.seasonNumber}
-          isWatched={
-            !!watchedEpisodes[
-              `s${season.seasonNumber}e${episode.episodeNumber}`
-            ]
-          }
-          onToggleWatch={onToggleWatch}
-          colors={colors}
-          theme={theme}
-        />
-      ),
-      [
-        season.seasonNumber,
-        watchedEpisodes,
-        onToggleWatch,
-        colors,
-        theme,
-        imdbID,
-      ],
-    );
-
-    // Fixed-height layout so FlatList never has to measure any item
-    const getItemLayout = useCallback(
-      (_, index) => ({
-        length: EPISODE_ITEM_HEIGHT,
-        offset: EPISODE_ITEM_HEIGHT * index,
-        index,
-      }),
-      [],
-    );
-
-    const episodeKeyExtractor = useCallback(
-      (ep, idx) => `${season.seasonNumber}-${ep.episodeNumber ?? idx}`,
-      [season.seasonNumber],
-    );
-
-    const isDark = theme === "dark";
-
-    return (
-      <View style={styles.seasonContainer}>
-        {/* Season header row */}
-        <TouchableOpacity
-          style={[
-            styles.seasonHeader,
-            {
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.05)"
-                : "rgba(0,0,0,0.03)",
-            },
-          ]}
-          onPress={onToggle}
-          activeOpacity={0.7}
-        >
-          <View style={styles.seasonHeaderContent}>
-            <View style={styles.seasonTitleRow}>
-              <Text style={[styles.seasonTitle, { color: colors.text }]}>
-                Season {season.seasonNumber}
-              </Text>
-              {watchedCount > 0 && isLoaded && (
-                <View
-                  style={[
-                    styles.progressBadge,
-                    { backgroundColor: colors.primary },
-                  ]}
-                >
-                  <Text style={styles.progressBadgeText}>
-                    {watchedCount}/{totalEpisodes}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {isLoaded ? (
-              <Text
-                style={[
-                  styles.seasonInfo,
-                  { color: colors.text, opacity: 0.7 },
-                ]}
-              >
-                {totalEpisodes} Episodes
-                {season.airYear && season.airYear !== "N/A"
-                  ? ` • ${season.airYear}`
-                  : ""}
-              </Text>
-            ) : (
-              <Text
-                style={[
-                  styles.seasonInfo,
-                  { color: colors.text, opacity: 0.5 },
-                ]}
-              >
-                Tap to load episodes
-              </Text>
-            )}
-
-            {progress > 0 && isLoaded && (
-              <View
-                style={[
-                  styles.progressBarContainer,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.1)"
-                      : "rgba(0,0,0,0.1)",
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${progress}%`,
-                      backgroundColor:
-                        progress === 100 ? "#4caf50" : colors.primary,
-                    },
-                  ]}
-                />
-              </View>
-            )}
-          </View>
-          <Ionicons
-            name={isExpanded ? "chevron-down" : "chevron-forward"}
-            size={24}
-            color={colors.text}
-          />
-        </TouchableOpacity>
-
-        {/* Expanded content */}
-        {isExpanded && (
-          <View style={styles.episodesContainer}>
-            {/* Season trailer */}
-            {onTrailerPress && (
-              <View
-                style={[
-                  styles.seasonTrailerSection,
-                  {
-                    backgroundColor: isDark
-                      ? "rgba(255,255,255,0.03)"
-                      : "rgba(0,0,0,0.02)",
-                  },
-                ]}
-              >
-                {isTrailerPlaying && trailerVideoId ? (
-                  Platform.OS === "web" ? (
-                    <View style={styles.seasonVideoWrapper}>
-                      <TouchableOpacity
-                        style={[
-                          styles.webTrailerButton,
-                          { backgroundColor: colors.primary },
-                        ]}
-                        onPress={() =>
-                          Linking.openURL(
-                            `https://www.youtube.com/watch?v=${trailerVideoId}`,
-                          )
-                        }
-                        activeOpacity={0.8}
-                      >
-                        <Ionicons name="logo-youtube" size={28} color="#fff" />
-                        <Text
-                          style={[
-                            styles.webTrailerButtonText,
-                            { color: "#fff" },
-                          ]}
-                        >
-                          Watch Season Trailer on YouTube
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View style={styles.seasonVideoWrapper}>
-                      <YoutubePlayer
-                        height={180}
-                        width={screenWidth - 80}
-                        play={isTrailerPlaying}
-                        videoId={trailerVideoId}
-                      />
-                    </View>
-                  )
-                ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.seasonTrailerButton,
-                      { borderColor: colors.primary },
-                    ]}
-                    onPress={onTrailerPress}
-                    activeOpacity={0.7}
-                    disabled={isTrailerLoading}
-                  >
-                    {isTrailerLoading ? (
-                      <ActivityIndicator size="small" color={colors.primary} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="play-circle-outline"
-                          size={24}
-                          color={colors.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.seasonTrailerText,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          {trailerVideoId
-                            ? "Watch Season Trailer"
-                            : "Load Season Trailer"}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* Episode list */}
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.text }]}>
-                  Loading Episodes…
-                </Text>
-              </View>
-            ) : isLoaded ? (
-              <FlatList
-                data={season.episodes}
-                renderItem={renderEpisode}
-                keyExtractor={episodeKeyExtractor}
-                getItemLayout={getItemLayout}
-                // Critical: this FlatList is nested inside a ScrollView.
-                // scrollEnabled=false hands scroll control back to the parent.
-                scrollEnabled={false}
-                // Render only enough to fill the screen on first paint.
-                initialNumToRender={EPISODE_INITIAL_BATCH}
-                // Keep a small window — beyond this, rows are unmounted to free memory.
-                windowSize={5}
-                maxToRenderPerBatch={30}
-                updateCellsBatchingPeriod={50}
-                removeClippedSubviews={Platform.OS === "android"}
-                // No separator needed — episodeItem already has marginVertical
-              />
-            ) : (
-              <Text style={[styles.noEpisodesText, { color: colors.text }]}>
-                No episodes available
-              </Text>
-            )}
-          </View>
-        )}
-      </View>
-    );
-  },
-);
-Season.displayName = "Season";
-
 // ─── TrailerSection ───────────────────────────────────────────────────────────
 
 const TrailerSection = React.memo(
@@ -1009,7 +611,8 @@ const DetailsScreen = ({ route, navigation }) => {
   const [loadingSeasonTrailers, setLoadingSeasonTrailers] = useState({});
   const [playingSeasonTrailer, setPlayingSeasonTrailer] = useState(null);
   const [seriesDetails, setSeriesDetails] = useState(null);
-  const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [selectedSeason, setSelectedSeason] = useState(1);
+  const [failedSeasons, setFailedSeasons] = useState({});
   const [loadingEpisodes, setLoadingEpisodes] = useState({});
   const [watchedEpisodes, setWatchedEpisodes] = useState({});
   const [watchProviders, setWatchProviders] = useState(null);
@@ -1145,6 +748,12 @@ const DetailsScreen = ({ route, navigation }) => {
 
   // ── Season cache (ref — not state, doesn't trigger renders) ───────────────
 
+  const userPickedSeasonRef = useRef(false);
+  const inflightSeasonsRef = useRef(new Set());
+  const watchedRef = useRef({});
+  watchedRef.current = watchedEpisodes;
+  const scrollRef = useRef(null);
+  const episodesYRef = useRef(0);
   const seasonCacheRef = useRef(new Map());
 
   const fetchSeasonDetails = useCallback(async (id, seasonNumber) => {
@@ -1165,6 +774,7 @@ const DetailsScreen = ({ route, navigation }) => {
       episodeNumber: ep.Episode,
       runtime: ep.Runtime || "N/A",
       rating: ep.imdbRating || "N/A",
+      released: ep.Released && ep.Released !== "N/A" ? ep.Released : null,
     }));
 
     const processed = {
@@ -1178,6 +788,71 @@ const DetailsScreen = ({ route, navigation }) => {
       timestamp: Date.now(),
     });
     return processed;
+  }, []);
+
+  const loadSeason = useCallback(
+    async (seasonNumber) => {
+      if (inflightSeasonsRef.current.has(seasonNumber)) return;
+      inflightSeasonsRef.current.add(seasonNumber);
+      setLoadingEpisodes((p) => ({ ...p, [seasonNumber]: true }));
+      setFailedSeasons((p) => {
+        if (!p[seasonNumber]) return p;
+        const next = { ...p };
+        delete next[seasonNumber];
+        return next;
+      });
+      try {
+        const data = await fetchSeasonDetails(imdbID, seasonNumber);
+        const season = data || {
+          seasonNumber,
+          episodeCount: 0,
+          airYear: "N/A",
+          episodes: [],
+        };
+        setSeriesDetails((prev) =>
+          prev
+            ? {
+                ...prev,
+                seasons: [
+                  ...prev.seasons.filter((s) => s.seasonNumber !== seasonNumber),
+                  season,
+                ].sort((a, b) => a.seasonNumber - b.seasonNumber),
+              }
+            : prev,
+        );
+      } catch (err) {
+        logger.error(`Error loading season ${seasonNumber}`, err);
+        setFailedSeasons((p) => ({ ...p, [seasonNumber]: true }));
+      } finally {
+        inflightSeasonsRef.current.delete(seasonNumber);
+        setLoadingEpisodes((p) => {
+          const next = { ...p };
+          delete next[seasonNumber];
+          return next;
+        });
+      }
+    },
+    [imdbID, fetchSeasonDetails],
+  );
+
+  useEffect(() => {
+    if (!seriesDetails?.initialized) return;
+    const loaded = seriesDetails.seasons.some(
+      (s) => s.seasonNumber === selectedSeason,
+    );
+    if (!loaded && !failedSeasons[selectedSeason]) loadSeason(selectedSeason);
+  }, [selectedSeason, seriesDetails, failedSeasons, loadSeason]);
+
+  const handleSelectSeason = useCallback((n) => {
+    userPickedSeasonRef.current = true;
+    setSelectedSeason(n);
+  }, []);
+
+  const scrollToEpisodes = useCallback(() => {
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, episodesYRef.current - 8),
+      animated: true,
+    });
   }, []);
 
   // ── Initial data fetch ─────────────────────────────────────────────────────
@@ -1205,25 +880,33 @@ const DetailsScreen = ({ route, navigation }) => {
           });
         }
 
-        // Kick off secondary data in parallel — don't await, let them trickle in
-        const resolvedTmdb = (() => {
-          const ids = [imdbID, data?.imdbID].filter(Boolean);
-          const tmdbId = ids.find(
-            (id) => typeof id === "string" && id.startsWith("tmdb:"),
-          );
-          const eff = tmdbId || data?.imdbID || imdbID;
-          if (!eff?.startsWith("tmdb:")) return null;
+        const ids = [imdbID, data?.imdbID].filter(Boolean);
+        const eff =
+          ids.find((id) => typeof id === "string" && id.startsWith("tmdb:")) ||
+          data?.imdbID ||
+          imdbID;
+
+        let resolvedTmdb = null;
+        if (eff.startsWith("tmdb:")) {
           const parts = eff.split(":");
-          return parts.length === 3 ? { id: parts[2], type: parts[1] } : null;
-        })();
+          if (parts.length === 3) resolvedTmdb = { id: parts[2], type: parts[1] };
+        }
 
-        fetchSecondaryData(data, resolvedTmdb, data?.imdbID || imdbID);
+        fetchSecondaryData(data, resolvedTmdb, eff);
 
-        // Watched episodes for series
         if (data.Type === "series") {
           try {
-            const watched = await getWatchedEpisodes(data.imdbID || imdbID);
-            if (!cancelled) setWatchedEpisodes(watched);
+            const watched = await getWatchedEpisodes(eff);
+            if (cancelled) return;
+            setWatchedEpisodes(watched);
+            const total = parseInt(data.totalSeasons, 10) || 1;
+            const lastSeason = Object.values(watched || {}).reduce(
+              (m, w) => Math.max(m, Number(w?.season) || 0),
+              0,
+            );
+            if (lastSeason > 0 && !userPickedSeasonRef.current) {
+              setSelectedSeason(Math.min(lastSeason, total));
+            }
           } catch (e) {
             logger.error("Failed to load watched episodes", e);
           }
@@ -1245,25 +928,6 @@ const DetailsScreen = ({ route, navigation }) => {
   }, [imdbID]);
 
   // ── Loading animation — only runs when episodes are loading ───────────────
-
-  const loadingOpacity = useSharedValue(1);
-
-  useEffect(() => {
-    const anyLoading = Object.values(loadingEpisodes).some(Boolean);
-    if (anyLoading) {
-      loadingOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.4, { duration: 800 }),
-          withTiming(1, { duration: 800 }),
-        ),
-        -1,
-        true,
-      );
-    } else {
-      cancelAnimation(loadingOpacity);
-      loadingOpacity.value = withTiming(1);
-    }
-  }, [loadingEpisodes, loadingOpacity]);
 
   // ── Add to list (private + public) ─────────────────────────────────────────
 
@@ -1436,22 +1100,20 @@ const DetailsScreen = ({ route, navigation }) => {
   const toggleEpisodeWatched = useCallback(
     async (season, episodeNumber) => {
       const key = `s${season}e${episodeNumber}`;
-      const wasWatched = !!watchedEpisodes[key];
-
-      setWatchedEpisodes((prev) => {
-        const next = { ...prev };
-        if (wasWatched) {
-          delete next[key];
-        } else {
-          next[key] = {
-            watchedAt: new Date().toISOString(),
-            season,
-            episode: episodeNumber,
-          };
-        }
-        return next;
-      });
-
+      const prevMap = watchedRef.current;
+      const wasWatched = !!prevMap[key];
+      const nextMap = { ...prevMap };
+      if (wasWatched) {
+        delete nextMap[key];
+      } else {
+        nextMap[key] = {
+          watchedAt: new Date().toISOString(),
+          season,
+          episode: episodeNumber,
+        };
+      }
+      watchedRef.current = nextMap;
+      setWatchedEpisodes(nextMap);
       try {
         await markEpisodeWatched(
           effectiveImdbID,
@@ -1459,89 +1121,17 @@ const DetailsScreen = ({ route, navigation }) => {
           episodeNumber,
           !wasWatched,
         );
-        showToast(
-          wasWatched ? "Marked as unwatched" : "Marked as watched",
-          "success",
-        );
       } catch (error) {
         logger.error("Failed to update watch status", error);
-        // Revert
-        setWatchedEpisodes((prev) => {
-          const next = { ...prev };
-          if (wasWatched) {
-            next[key] = {
-              watchedAt: new Date().toISOString(),
-              season,
-              episode: episodeNumber,
-            };
-          } else {
-            delete next[key];
-          }
-          return next;
-        });
+        const reverted = { ...watchedRef.current };
+        if (wasWatched) reverted[key] = prevMap[key];
+        else delete reverted[key];
+        watchedRef.current = reverted;
+        setWatchedEpisodes(reverted);
         showToast("Failed to update watch status", "error");
       }
     },
-    [effectiveImdbID, watchedEpisodes, showToast],
-  );
-
-  // ── Season expand / collapse ───────────────────────────────────────────────
-  // Removed expandedSeasons + seriesDetails from deps — both are read via
-  // functional updater / local lookup so the callback stays stable.
-
-  const toggleSeason = useCallback(
-    async (seasonNumber) => {
-      let willExpand = false;
-      setExpandedSeasons((prev) => {
-        willExpand = !prev[seasonNumber];
-        return { ...prev, [seasonNumber]: !prev[seasonNumber] };
-      });
-
-      // Give React one tick to update expandedSeasons before checking
-      await Promise.resolve();
-
-      if (!willExpand) return; // collapsing — nothing to fetch
-
-      setSeriesDetails((prev) => {
-        if (prev?.seasons?.find((s) => s.seasonNumber === seasonNumber))
-          return prev; // already loaded
-        return prev; // return unchanged; fetch below will update it
-      });
-
-      // Check if already loaded without capturing stale closure
-      setSeriesDetails((prev) => {
-        if (prev?.seasons?.find((s) => s.seasonNumber === seasonNumber)) {
-          return prev; // already there, no fetch needed
-        }
-
-        // Kick off async fetch outside of setState
-        setLoadingEpisodes((le) => ({ ...le, [seasonNumber]: true }));
-        fetchSeasonDetails(imdbID, seasonNumber)
-          .then((seasonData) => {
-            if (!seasonData) return;
-            setSeriesDetails((sd) => ({
-              ...sd,
-              seasons: [...(sd?.seasons || []), seasonData].sort(
-                (a, b) => a.seasonNumber - b.seasonNumber,
-              ),
-            }));
-          })
-          .catch((err) => {
-            logger.error(`Error loading season ${seasonNumber}`, err);
-            showToast("Failed to load season details", "error");
-          })
-          .finally(() => {
-            setLoadingEpisodes((le) => {
-              const next = { ...le };
-              delete next[seasonNumber];
-              return next;
-            });
-          });
-
-        return prev;
-      });
-    },
-    [imdbID, fetchSeasonDetails, showToast],
+    [effectiveImdbID, showToast],
   );
 
   // ── Collection ─────────────────────────────────────────────────────────────
@@ -1585,6 +1175,7 @@ const DetailsScreen = ({ route, navigation }) => {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -1765,49 +1356,31 @@ const DetailsScreen = ({ route, navigation }) => {
         />
 
         {movie?.Type === "series" && seriesDetails?.initialized && (
-          <View
-            style={[styles.seriesSection, { backgroundColor: colors.card }]}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Episodes
-            </Text>
-            {Array.from(
-              { length: seriesDetails.totalSeasons },
-              (_, i) => i + 1,
-            ).map((seasonNum) => {
-              const loadedSeason = seriesDetails.seasons.find(
-                (s) => s.seasonNumber === seasonNum,
-              );
-              return (
-                <Season
-                  key={seasonNum}
-                  season={
-                    loadedSeason || {
-                      seasonNumber: seasonNum,
-                      episodeCount: 0,
-                      episodes: [],
-                    }
-                  }
-                  isExpanded={expandedSeasons[seasonNum]}
-                  isLoading={loadingEpisodes[seasonNum]}
-                  onToggle={() => toggleSeason(seasonNum)}
-                  imdbID={imdbID}
-                  watchedEpisodes={watchedEpisodes}
-                  onToggleWatch={toggleEpisodeWatched}
-                  colors={colors}
-                  theme={theme}
-                  trailerVideoId={seasonTrailers[seasonNum]}
-                  isTrailerLoading={loadingSeasonTrailers[seasonNum]}
-                  isTrailerPlaying={playingSeasonTrailer === seasonNum}
-                  onTrailerPress={
-                    tmdbInfo?.type === "tv"
-                      ? () => handleSeasonTrailerPress(seasonNum)
-                      : null
-                  }
-                />
-              );
-            })}
-          </View>
+          <EpisodesSection
+            onLayout={(e) => {
+              episodesYRef.current = e.nativeEvent.layout.y;
+            }}
+            onPageChange={scrollToEpisodes}
+            colors={colors}
+            theme={theme}
+            totalSeasons={seriesDetails.totalSeasons}
+            seasons={seriesDetails.seasons}
+            selectedSeason={selectedSeason}
+            onSelectSeason={handleSelectSeason}
+            isLoading={!!loadingEpisodes[selectedSeason]}
+            hasFailed={!!failedSeasons[selectedSeason]}
+            onRetry={() => loadSeason(selectedSeason)}
+            watchedEpisodes={watchedEpisodes}
+            onToggleWatch={toggleEpisodeWatched}
+            trailerVideoId={seasonTrailers[selectedSeason]}
+            isTrailerLoading={!!loadingSeasonTrailers[selectedSeason]}
+            isTrailerPlaying={playingSeasonTrailer === selectedSeason}
+            onTrailerPress={
+              tmdbInfo?.type === "tv"
+                ? () => handleSeasonTrailerPress(selectedSeason)
+                : null
+            }
+          />
         )}
 
         <ImageGallery
@@ -2048,103 +1621,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(126,87,194,0.4)",
   },
   actionButtonText: { fontSize: 16, fontWeight: "600" },
-  seriesSection: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    padding: 28,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  seasonContainer: { marginBottom: 16, borderRadius: 12, overflow: "hidden" },
-  seasonHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 20,
-    borderRadius: 12,
-  },
-  seasonHeaderContent: { flex: 1 },
-  seasonTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 4,
-  },
-  seasonTitle: { fontSize: 17, fontWeight: "bold" },
-  seasonInfo: { fontSize: 13, marginTop: 2 },
-  progressBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
-  progressBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
-  progressBarContainer: {
-    height: 4,
-    borderRadius: 2,
-    marginTop: 12,
-    overflow: "hidden",
-  },
-  progressBarFill: { height: "100%", borderRadius: 2 },
-  episodesContainer: { paddingHorizontal: 12, paddingVertical: 8 },
-  seasonTrailerSection: {
-    marginBottom: 12,
-    marginHorizontal: 4,
-    padding: 12,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  seasonTrailerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-  },
-  seasonTrailerText: { fontSize: 14, fontWeight: "600" },
-  seasonVideoWrapper: {
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#000",
-  },
-  episodeItem: {
-    marginVertical: 4,
-    marginHorizontal: 4,
-    padding: 14,
-    borderRadius: 12,
-    height: EPISODE_ITEM_HEIGHT,
-    justifyContent: "center",
-  },
-  episodeContent: { flex: 1 },
-  episodeHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 6,
-  },
-  episodeNumberBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(126,87,194,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  episodeNumber: { fontSize: 14, fontWeight: "bold" },
-  episodeTitle: { flex: 1, fontSize: 15, fontWeight: "600", lineHeight: 20 },
-  episodeMetadata: { flexDirection: "row", alignItems: "center", gap: 16 },
-  episodeInfo: { flexDirection: "row", alignItems: "center", gap: 4 },
-  episodeRuntime: { fontSize: 13, opacity: 0.7, fontWeight: "500" },
-  episodeRating: { fontSize: 13, opacity: 0.8, fontWeight: "600" },
-  watchButton: { marginLeft: "auto" },
-  noEpisodesText: {
-    textAlign: "center",
-    fontSize: 14,
-    opacity: 0.5,
-    paddingVertical: 24,
-  },
   trailerSection: {
     marginHorizontal: 20,
     marginTop: 20,
