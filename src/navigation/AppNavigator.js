@@ -37,6 +37,8 @@ import { auth } from "../../firebaseConfig";
 import SplashLoader from "../components/shared/SplashLoader";
 import logger from "../services/logger";
 import PublicWatchlistScreen from "../screens/PublicWatchlistScreen";
+import FreeShowsScreen from "../screens/FreeShowsScreen";
+import FreeShowScreen from "../screens/FreeShowScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -50,6 +52,7 @@ const CURRENT_APP_VERSION = "1.0.0";
 const TAB_CONFIG = [
   { name: "Home", icon: "home-outline", iconFocused: "home" },
   { name: "Search", icon: "search-outline", iconFocused: "search-sharp" },
+  { name: "Free", icon: "play-circle-outline", iconFocused: "play-circle" },
   { name: "Watchlist", icon: "bookmark-outline", iconFocused: "bookmark" },
   { name: "Settings", icon: "settings-outline", iconFocused: "settings" },
 ];
@@ -104,6 +107,12 @@ const SearchStack = () => (
       component={DetailsScreen}
       options={detailOpts}
     />
+  </Stack.Navigator>
+);
+const FreeStack = () => (
+  <Stack.Navigator screenOptions={stackOpts}>
+    <Stack.Screen name="FreeShows" component={FreeShowsScreen} />
+    <Stack.Screen name="FreeShow" component={FreeShowScreen} options={detailOpts} />
   </Stack.Navigator>
 );
 const WatchlistStack = () => (
@@ -339,6 +348,7 @@ const AppTabs = () => {
         >
           <Tab.Screen name="Home" component={HomeStack} />
           <Tab.Screen name="Search" component={SearchStack} />
+          <Tab.Screen name="Free" component={FreeStack} />
           <Tab.Screen name="Watchlist" component={WatchlistStack} />
           <Tab.Screen name="Settings" component={SettingsStack} />
         </Tab.Navigator>
