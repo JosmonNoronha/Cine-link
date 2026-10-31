@@ -2,7 +2,8 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { View, Text, FlatList, ScrollView, Pressable, TextInput, ActivityIndicator, Keyboard, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useTheme } from "@react-navigation/native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient"; // npx expo install expo-linear-gradient
 import { Ionicons } from "@expo/vector-icons";
 import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { useCustomTheme } from "../contexts/ThemeContext";
@@ -21,50 +22,82 @@ import {
   formatCount,
 } from "../utils/streamingHelpers";
 
-const SIDE = 20;
+const SIDE = 16;
+const BACKDROP_H = 400;
 
-// ─── Episode row ──────────────────────────────────────────────────────────────
-// Flat row: number · title/date · watched mark. No card backgrounds.
+// "#1a1a1a" / "rgb(26,26,26)" -> "rgba(26,26,26,a)" so gradients fade without a grey halo
+const withAlpha = (color, a) => {
+  if (!color) return `rgba(0,0,0,${a})`;
+  if (color.startsWith("#")) {
+    let h = color.slice(1);
+    if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+    const n = parseInt(h.slice(0, 6), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = color.match(/\d+(\.\d+)?/g);
+  return m ? `rgba(${m[0]},${m[1]},${m[2]},${a})` : color;
+};
 
-const EpisodeRow = React.memo(({ row, title, airDate, isWatched, isPlaying, onPlay, onToggleWatched, colors }) => {
+// ─── Episode card ─────────────────────────────────────────────────────────────
+
+const EpisodeRow = React.memo(({ row, title, airDate, isWatched, isPlaying, isNext, onPlay, onToggleWatched, colors, soft }) => {
   const date = formatAirDate(airDate);
   const accent = colors.primary;
+  const highlighted = isPlaying || isNext;
+
+  const status = isPlaying ? "Now playing" : isNext ? "Up next" : isWatched ? "Watched" : null;
+  const meta = [status, date].filter(Boolean);
 
   return (
     <Pressable
       onPress={() => onPlay(row)}
-      style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
+      style={({ pressed }) => [styles.card, { backgroundColor: soft, opacity: pressed ? 0.75 : 1 }]}
       accessibilityRole="button"
       accessibilityLabel={`Play episode ${row.n}${title ? `, ${title}` : ""}`}
     >
-      <View style={styles.rowNum}>
+      {highlighted ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: accent, opacity: isPlaying ? 0.16 : 0.09 }]} /> : null}
+      {isPlaying ? <View style={[styles.cardAccent, { backgroundColor: accent }]} /> : null}
+
+      <View style={[styles.numTile, isPlaying ? { backgroundColor: accent } : { backgroundColor: colors.background }]}>
         {isPlaying ? (
-          <Ionicons name="volume-high" size={16} color={accent} />
+          <Ionicons name="stats-chart" size={18} color="#fff" />
         ) : (
-          <Text style={[styles.rowNumText, { color: colors.text, opacity: isWatched ? 0.3 : 0.5 }]}>{row.n}</Text>
+          <Text style={[styles.numText, { color: colors.text, opacity: isWatched ? 0.35 : 0.9 }]}>{row.n}</Text>
         )}
       </View>
-      <View style={styles.rowBody}>
+
+      <View style={styles.cardBody}>
         <Text
-          style={[styles.rowTitle, { color: isPlaying ? accent : colors.text, opacity: isWatched && !isPlaying ? 0.5 : 1 }]}
-          numberOfLines={1}
+          style={[styles.cardTitle, { color: colors.text, opacity: isWatched && !isPlaying ? 0.5 : 1 }]}
+          numberOfLines={2}
         >
           {title || `Episode ${row.n}`}
         </Text>
-        {date ? <Text style={[styles.rowMeta, { color: colors.text }]}>{date}</Text> : null}
+        {meta.length ? (
+          <Text style={[styles.cardMeta, { color: colors.text }]} numberOfLines={1}>
+            {meta.map((m, i) => (
+              <Text key={m} style={m === status && (isPlaying || isNext) ? { color: accent, fontWeight: "700", opacity: 1 } : null}>
+                {i > 0 ? "  ·  " : ""}
+                {m}
+              </Text>
+            ))}
+          </Text>
+        ) : null}
       </View>
+
       <Pressable
         onPress={() => onToggleWatched(row.n, !isWatched)}
-        hitSlop={12}
+        hitSlop={10}
+        style={styles.checkBtn}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: isWatched }}
         accessibilityLabel={`Episode ${row.n} watched`}
       >
         <Ionicons
           name={isWatched ? "checkmark-circle" : "ellipse-outline"}
-          size={22}
+          size={24}
           color={isWatched ? accent : colors.text}
-          style={{ opacity: isWatched ? 0.9 : 0.2 }}
+          style={{ opacity: isWatched ? 1 : 0.22 }}
         />
       </Pressable>
     </Pressable>
@@ -79,6 +112,7 @@ const FreeShowScreen = ({ route, navigation }) => {
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
   const tabBarHeight = useTabBarHeight();
+  const insets = useSafeAreaInsets();
   const isDark = theme === "dark";
   const { status, rows, latest, names, watched, setEpisodeWatched, reload } = useFreeShow({ tmdbId, season });
 
@@ -95,8 +129,10 @@ const FreeShowScreen = ({ route, navigation }) => {
 
   const continueRow = useMemo(() => continueTarget(rows, watched, season), [rows, watched, season]);
   const latestRow = useMemo(() => (rows.length ? rows[rows.length - 1] : null), [rows]);
-  const firstRow = useMemo(() => (rows.length ? rows[0] : null), [rows]);
   const hasHistory = lastWatchedEpisode(watched, season) > 0;
+
+  const watchedCount = useMemo(() => rows.reduce((n, r) => (watched[`s${season}e${r.n}`] ? n + 1 : n), 0), [rows, watched, season]);
+  const progress = rows.length ? watchedCount / rows.length : 0;
 
   // First view: where you left off, or the newest episodes if you have not watched any.
   useEffect(() => {
@@ -141,8 +177,9 @@ const FreeShowScreen = ({ route, navigation }) => {
     listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
   }, []);
 
-  const soft = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const hairline = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)";
+  const soft = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.045)";
+  const hairline = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
+  const mutedText = { color: colors.text, opacity: 0.55 };
 
   const renderItem = useCallback(
     ({ item }) => (
@@ -152,72 +189,122 @@ const FreeShowScreen = ({ route, navigation }) => {
         airDate={names[item.n]?.airDate}
         isWatched={!!watched[`s${season}e${item.n}`]}
         isPlaying={playing?.n === item.n}
+        isNext={!playing && continueRow?.n === item.n}
         onPlay={play}
         onToggleWatched={setEpisodeWatched}
         colors={colors}
+        soft={soft}
       />
     ),
-    [names, watched, season, playing, play, setEpisodeWatched, colors],
+    [names, watched, season, playing, continueRow, play, setEpisodeWatched, colors, soft],
   );
 
   const header = (
     <View>
-      {/* Show summary + actions. Hidden while an episode is playing. */}
+      {/* Hero: blurred poster backdrop fading into the page (hidden while playing) */}
       {!playing ? (
-      <View style={styles.hero}>
-        <View style={[styles.heroPoster, { backgroundColor: soft }]}>
-          {poster ? (
-            <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
-          ) : (
-            <Ionicons name="tv-outline" size={24} color={colors.text} style={{ opacity: 0.3 }} />
-          )}
-        </View>
-        <View style={styles.heroBody}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={3}>
-            {title}
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.text }]}>
-            {formatCount(rows.length)} episodes{latest ? ` · up to #${formatCount(latest)}` : ""}
-          </Text>
+        <View style={[styles.hero, { paddingTop: insets.top + 64 }]}>
+          <View style={styles.backdrop} pointerEvents="none">
+            {poster ? (
+              <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={35} transition={300} />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: soft }]} />
+            )}
+            {/* even out the image so text and poster stay readable */}
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background, opacity: isDark ? 0.35 : 0.45 }]} />
+            {/* top scrim keeps the status bar and back button legible */}
+            <LinearGradient
+              colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0)"]}
+              style={[styles.topScrim, { height: insets.top + 90 }]}
+            />
+            {/* smooth, eased fade into the page */}
+            <LinearGradient
+              colors={[
+                withAlpha(colors.background, 0),
+                withAlpha(colors.background, 0.2),
+                withAlpha(colors.background, 0.55),
+                withAlpha(colors.background, 0.85),
+                withAlpha(colors.background, 1),
+              ]}
+              locations={[0, 0.3, 0.6, 0.85, 1]}
+              style={styles.fade}
+            />
+          </View>
+
+          <View style={styles.heroRow}>
+            <View style={[styles.heroPoster, { backgroundColor: soft }]}>
+              {poster ? (
+                <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+              ) : (
+                <Ionicons name="tv-outline" size={26} color={colors.text} style={{ opacity: 0.3 }} />
+              )}
+            </View>
+
+            <View style={styles.heroBody}>
+              <Text style={[styles.title, { color: colors.text }]} numberOfLines={3}>
+                {title}
+              </Text>
+              <Text style={[styles.subtitle, mutedText]}>
+                {formatCount(rows.length)} episodes{latest ? `  ·  up to #${formatCount(latest)}` : ""}
+              </Text>
+
+              {watchedCount > 0 ? (
+                <View style={styles.progressWrap}>
+                  <View style={[styles.progressTrack, { backgroundColor: hairline }]}>
+                    <View style={[styles.progressFill, { width: `${Math.max(progress * 100, 3)}%`, backgroundColor: colors.primary }]} />
+                  </View>
+                  <Text style={[styles.progressText, mutedText]}>
+                    {formatCount(watchedCount)} of {formatCount(rows.length)} watched
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
           {continueRow ? (
             <Pressable
               onPress={() => play(continueRow)}
               style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
               accessibilityRole="button"
             >
-              <Ionicons name="play" size={15} color="#fff" />
-              <Text style={styles.primaryText}>{hasHistory ? "Continue" : "Start"} · Ep {continueRow.n}</Text>
-            </Pressable>
-          ) : null}
-          {firstRow && firstRow.n !== continueRow?.n ? (
-            <Pressable
-              onPress={() => play(firstRow)}
-              hitSlop={8}
-              style={styles.secondary}
-              accessibilityRole="button"
-              accessibilityLabel={`Play from the first episode, episode ${firstRow.n}`}
-            >
-              <Ionicons name="refresh" size={14} color={colors.text} style={{ opacity: 0.6 }} />
-              <Text style={[styles.secondaryText, { color: colors.text }]}>Play from first episode</Text>
+              <Ionicons name="play" size={18} color="#fff" />
+              <Text style={styles.primaryText}>
+                {hasHistory ? "Continue" : "Start watching"} · Episode {continueRow.n}
+              </Text>
             </Pressable>
           ) : null}
         </View>
-      </View>
       ) : null}
 
-      {/* Section bar: current range + quiet tools */}
-      <View style={[styles.sectionBar, { borderTopColor: hairline }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          {activeRange ? `Episodes ${activeRange.from}–${activeRange.to}` : "Episodes"}
-        </Text>
+      {/* Section header */}
+      <View style={styles.sectionBar}>
+        <View>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Episodes</Text>
+          {activeRange ? (
+            <Text style={[styles.sectionSub, mutedText]}>
+              {activeRange.from}–{activeRange.to}
+            </Text>
+          ) : null}
+        </View>
         <View style={styles.tools}>
           {latestRow && latestRow.n !== continueRow?.n ? (
-            <Pressable onPress={() => play(latestRow)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Play latest, episode ${latestRow.n}`}>
-              <Text style={[styles.toolText, { color: colors.primary }]}>Latest</Text>
+            <Pressable
+              onPress={() => play(latestRow)}
+              style={[styles.toolPill, { backgroundColor: soft }]}
+              accessibilityRole="button"
+              accessibilityLabel={`Play latest, episode ${latestRow.n}`}
+            >
+              <Ionicons name="flash" size={13} color={colors.primary} />
+              <Text style={[styles.toolPillText, { color: colors.text }]}>Latest</Text>
             </Pressable>
           ) : null}
-          <Pressable onPress={toggleSearch} hitSlop={10} accessibilityRole="button" accessibilityLabel="Go to episode number">
-            <Ionicons name={searchOpen ? "close" : "search"} size={19} color={colors.text} style={{ opacity: 0.6 }} />
+          <Pressable
+            onPress={toggleSearch}
+            style={[styles.toolCircle, { backgroundColor: searchOpen ? colors.text : soft }]}
+            accessibilityRole="button"
+            accessibilityLabel="Go to episode number"
+          >
+            <Ionicons name={searchOpen ? "close" : "search"} size={17} color={searchOpen ? colors.background : colors.text} />
           </Pressable>
         </View>
       </View>
@@ -225,13 +312,14 @@ const FreeShowScreen = ({ route, navigation }) => {
       {searchOpen ? (
         <View style={styles.searchWrap}>
           <View style={[styles.jump, { backgroundColor: soft }]}>
+            <Text style={[styles.jumpHash, mutedText]}>#</Text>
             <TextInput
               value={jumpText}
               onChangeText={(t) => {
                 setJumpText(t.replace(/[^0-9]/g, ""));
                 setJumpMsg(null);
               }}
-              placeholder="Episode number"
+              placeholder="Go to episode"
               placeholderTextColor={isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)"}
               keyboardType="number-pad"
               returnKeyType="go"
@@ -241,11 +329,10 @@ const FreeShowScreen = ({ route, navigation }) => {
               autoFocus
             />
           </View>
-          {jumpMsg ? <Text style={[styles.jumpMsg, { color: colors.text }]}>{jumpMsg}</Text> : null}
+          {jumpMsg ? <Text style={[styles.jumpMsg, mutedText]}>{jumpMsg}</Text> : null}
         </View>
       ) : null}
 
-      {/* Range selector, only when there is more than one */}
       {ranges.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
           {ranges.map((r) => {
@@ -254,12 +341,12 @@ const FreeShowScreen = ({ route, navigation }) => {
               <Pressable
                 key={r.index}
                 onPress={() => selectRange(r.index)}
-                style={[styles.chip, { backgroundColor: selected ? colors.text : "transparent", borderColor: selected ? colors.text : hairline }]}
+                style={[styles.chip, { backgroundColor: selected ? colors.primary : soft }]}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 accessibilityLabel={`Episodes ${r.from} to ${r.to}, ${r.count} available`}
               >
-                <Text style={[styles.chipText, { color: selected ? colors.background : colors.text, opacity: selected ? 1 : 0.65 }]}>
+                <Text style={[styles.chipText, { color: selected ? "#fff" : colors.text, opacity: selected ? 1 : 0.7 }]}>
                   {r.from}–{r.to}
                 </Text>
               </Pressable>
@@ -277,17 +364,27 @@ const FreeShowScreen = ({ route, navigation }) => {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top", "left", "right"]}>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
-        </Pressable>
-        {playing ? (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["left", "right"]}>
+      {playing ? (
+        <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={[styles.back, { backgroundColor: soft }]} accessibilityRole="button" accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          </Pressable>
           <Text style={[styles.topTitle, { color: colors.text }]} numberOfLines={1}>
             {title}
           </Text>
-        ) : null}
-      </View>
+        </View>
+      ) : (
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={[styles.back, styles.backFloating, { top: insets.top + 6 }, poster ? styles.backOnImage : { backgroundColor: soft }]}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
+          <Ionicons name="chevron-back" size={22} color={poster ? "#fff" : colors.text} />
+        </Pressable>
+      )}
 
       {playing ? (
         <EpisodePlayer
@@ -329,10 +426,10 @@ const FreeShowScreen = ({ route, navigation }) => {
           ListHeaderComponent={header}
           ListFooterComponent={footer}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
-          ItemSeparatorComponent={() => <View style={[styles.divider, { backgroundColor: hairline }]} />}
+          ItemSeparatorComponent={Separator}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          initialNumToRender={14}
+          initialNumToRender={12}
           windowSize={7}
           removeClippedSubviews
         />
@@ -341,66 +438,80 @@ const FreeShowScreen = ({ route, navigation }) => {
   );
 };
 
+const Separator = () => <View style={{ height: 8 }} />;
+
 export default FreeShowScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: SIDE - 6, paddingTop: 4, height: 44 },
-  topTitle: { flex: 1, fontSize: 16, fontWeight: "700", letterSpacing: -0.2, paddingRight: SIDE },
-  back: { width: 40, height: 40, alignItems: "flex-start", justifyContent: "center" },
+  topBar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: SIDE, paddingTop: 6, paddingBottom: 8 },
+  back: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  backFloating: { position: "absolute", left: SIDE, zIndex: 10 },
+  backOnImage: { backgroundColor: "rgba(0,0,0,0.35)" },
+  topTitle: { flex: 1, fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 32 },
   stateText: { fontSize: 14, opacity: 0.65, textAlign: "center", lineHeight: 20 },
   retry: { paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, marginTop: 4 },
   retryText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
-  hero: { flexDirection: "row", gap: 16, paddingHorizontal: SIDE, paddingTop: 8, paddingBottom: 24 },
+  // Hero
+  hero: { paddingHorizontal: SIDE, paddingBottom: 22, paddingTop: 8 },
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, height: BACKDROP_H, overflow: "hidden" },
+  topScrim: { position: "absolute", top: 0, left: 0, right: 0 },
+  fade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 220 },
+  heroRow: { flexDirection: "row", gap: 16 },
   heroPoster: {
-    width: 104,
-    height: 156,
-    borderRadius: 10,
+    width: 112,
+    height: 168,
+    borderRadius: 12,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(128,128,128,0.35)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 8,
   },
-  heroBody: { flex: 1, justifyContent: "flex-end", gap: 4 },
-  title: { fontSize: 24, fontWeight: "800", letterSpacing: -0.6 },
-  subtitle: { fontSize: 13, opacity: 0.55 },
-  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 42, borderRadius: 21, marginTop: 14 },
-  secondary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, height: 32, marginTop: 4 },
-  secondaryText: { fontSize: 13, fontWeight: "600", opacity: 0.65 },
-  primaryText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  heroBody: { flex: 1, justifyContent: "flex-end", gap: 6, paddingBottom: 2 },
+  title: { fontSize: 26, fontWeight: "800", letterSpacing: -0.7, lineHeight: 30 },
+  subtitle: { fontSize: 13 },
+  progressWrap: { gap: 6, marginTop: 6 },
+  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden" },
+  progressFill: { height: 4, borderRadius: 2 },
+  progressText: { fontSize: 12 },
+  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, height: 50, borderRadius: 25, marginTop: 20 },
+  primaryText: { color: "#fff", fontSize: 15, fontWeight: "700", letterSpacing: -0.1 },
 
-  sectionBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SIDE,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  sectionTitle: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
-  tools: { flexDirection: "row", alignItems: "center", gap: 18 },
-  toolText: { fontSize: 14, fontWeight: "600" },
+  // Section header
+  sectionBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SIDE, paddingTop: 6, paddingBottom: 14 },
+  sectionTitle: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
+  sectionSub: { fontSize: 12.5, marginTop: 1 },
+  tools: { flexDirection: "row", alignItems: "center", gap: 8 },
+  toolPill: { flexDirection: "row", alignItems: "center", gap: 5, height: 34, paddingHorizontal: 12, borderRadius: 17 },
+  toolPillText: { fontSize: 13, fontWeight: "700" },
+  toolCircle: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
 
   searchWrap: { paddingHorizontal: SIDE, paddingBottom: 12, gap: 6 },
-  jump: { height: 40, borderRadius: 10, paddingHorizontal: 14, justifyContent: "center" },
-  jumpInput: { fontSize: 15, paddingVertical: 0 },
-  jumpMsg: { fontSize: 12.5, opacity: 0.6 },
+  jump: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, borderRadius: 14, paddingHorizontal: 14 },
+  jumpHash: { fontSize: 16, fontWeight: "700" },
+  jumpInput: { flex: 1, fontSize: 16, paddingVertical: 0 },
+  jumpMsg: { fontSize: 12.5, paddingHorizontal: 4 },
 
-  chips: { gap: 8, paddingHorizontal: SIDE, paddingBottom: 12 },
-  chip: { height: 32, borderRadius: 16, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth },
-  chipText: { fontSize: 13, fontWeight: "600" },
+  chips: { gap: 8, paddingHorizontal: SIDE, paddingBottom: 14 },
+  chip: { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
+  chipText: { fontSize: 13, fontWeight: "700" },
 
-  row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 60, paddingHorizontal: SIDE },
-  rowNum: { width: 32, alignItems: "center" },
-  rowNumText: { fontSize: 14, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  rowBody: { flex: 1, gap: 2 },
-  rowTitle: { fontSize: 15, fontWeight: "600" },
-  rowMeta: { fontSize: 12, opacity: 0.45 },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: SIDE + 32 + 14 },
+  // Episode card
+  card: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 68, padding: 10, paddingRight: 14, borderRadius: 16, marginHorizontal: SIDE, overflow: "hidden" },
+  cardAccent: { position: "absolute", left: 0, top: 12, bottom: 12, width: 3, borderRadius: 2 },
+  numTile: { width: 46, height: 46, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  numText: { fontSize: 16, fontWeight: "800", letterSpacing: -0.3, fontVariant: ["tabular-nums"] },
+  cardBody: { flex: 1, gap: 3 },
+  cardTitle: { fontSize: 15, fontWeight: "700", letterSpacing: -0.2, lineHeight: 20 },
+  cardMeta: { fontSize: 12.5, opacity: 0.55 },
+  checkBtn: { padding: 2 },
+
   note: { fontSize: 12, opacity: 0.4, textAlign: "center", marginTop: 28, paddingHorizontal: 32, lineHeight: 17 },
 });

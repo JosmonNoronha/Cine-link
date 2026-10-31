@@ -1,6 +1,6 @@
-// components/details/EpisodesSection.js  (NEW FILE)
+// components/details/EpisodesSection.js
 //
-// Replaces the old accordion (Season + EpisodeItem + nested FlatList).
+//   • Collapsible: starts minimized, tap the header to expand / minimize
 //   • Season chips (S1, S2, …): one season visible at a time
 //   • "Continue watching" shortcut to the episode after your last watched one
 //   • Compact episode rows, paged 20 at a time (prev/next + "go to #" for big seasons)
@@ -24,9 +24,18 @@ import {
   Platform,
   Linking,
   Dimensions,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import YoutubePlayer from "react-native-youtube-iframe";
+
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -339,10 +348,17 @@ const EpisodesSection = ({
   onTrailerPress, // null for non-TV
   onLayout,
   onPageChange, // called after the page changes so the screen can scroll up
+  defaultExpanded = false,
 }) => {
   const isDark = theme === "dark";
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [pages, setPages] = useState({}); // remembered per season
   const [jump, setJump] = useState(null); // pending "continue watching" jump
+
+  const toggleExpanded = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((e) => !e);
+  }, []);
 
   const { perSeason, last } = useWatchStats(watchedEpisodes);
 
@@ -454,196 +470,233 @@ const EpisodesSection = ({
   const showPager = total > PAGE_SIZE;
   const trackBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
 
+  // One-line summary shown in the header (most useful while minimized)
+  const summary = [
+    `${totalSeasons} ${totalSeasons === 1 ? "season" : "seasons"}`,
+    canContinue ? `Up to S${last.season} · E${last.episode}` : null,
+  ]
+    .filter(Boolean)
+    .join("  ·  ");
+
   return (
     <View style={[styles.card, { backgroundColor: colors.card }]} onLayout={onLayout}>
-      <View style={styles.headingRow}>
-        <Text style={[styles.heading, { color: colors.text }]}>Episodes</Text>
-        <Text style={[styles.headingMeta, { color: colors.text }]}>
-          {totalSeasons} {totalSeasons === 1 ? "season" : "seasons"}
-        </Text>
-      </View>
-
-      {totalSeasons > 1 ? (
-        <SeasonChips
-          totalSeasons={totalSeasons}
-          selectedSeason={selectedSeason}
-          onSelect={onSelectSeason}
-          perSeason={perSeason}
-          completeSeasons={completeSeasons}
-          colors={colors}
-          isDark={isDark}
-        />
-      ) : null}
-
-      {canContinue ? (
-        <Pressable
-          onPress={handleContinue}
-          style={({ pressed }) => [
-            styles.continue,
-            {
-              backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
-              opacity: pressed ? 0.85 : 1,
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Continue watching"
-        >
-          <Ionicons name="play-circle" size={26} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.continueTitle, { color: colors.text }]}>
-              Continue watching
-            </Text>
-            <Text style={[styles.continueSub, { color: colors.text }]}>
-              After S{last.season} · E{last.episode}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.text} style={{ opacity: 0.4 }} />
-        </Pressable>
-      ) : null}
-
-      {/* Season header */}
-      <View style={styles.seasonHead}>
+      {/* Header — tap to minimize / maximize */}
+      <Pressable
+        onPress={toggleExpanded}
+        style={({ pressed }) => [
+          styles.headingRow,
+          expanded && styles.headingRowOpen,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`Episodes, ${expanded ? "minimize" : "maximize"}`}
+      >
         <View style={{ flex: 1 }}>
-          <Text style={[styles.seasonTitle, { color: colors.text }]}>
-            Season {selectedSeason}
+          <Text style={[styles.heading, { color: colors.text }]}>Episodes</Text>
+          <Text style={[styles.headingMeta, { color: colors.text }]} numberOfLines={1}>
+            {summary}
           </Text>
-          {metaParts.length > 0 ? (
-            <Text style={[styles.seasonMeta, { color: colors.text }]}>
-              {metaParts.join("  ·  ")}
-            </Text>
-          ) : null}
         </View>
-
-        {onTrailerPress ? (
-          <Pressable
-            onPress={onTrailerPress}
-            disabled={isTrailerLoading}
-            style={[styles.trailerBtn, { borderColor: colors.primary }]}
-            accessibilityRole="button"
-            accessibilityLabel={isTrailerPlaying ? "Close trailer" : "Play season trailer"}
-          >
-            {isTrailerLoading ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <>
-                <Ionicons
-                  name={isTrailerPlaying ? "close-circle-outline" : "play-circle-outline"}
-                  size={18}
-                  color={colors.primary}
-                />
-                <Text style={[styles.trailerBtnText, { color: colors.primary }]}>
-                  {isTrailerPlaying ? "Close" : "Trailer"}
-                </Text>
-              </>
-            )}
-          </Pressable>
-        ) : null}
-      </View>
-
-      {total > 0 ? (
-        <View style={[styles.track, { backgroundColor: trackBg }]}>
-          <View
-            style={[
-              styles.fill,
-              {
-                width: `${Math.round(progress * 100)}%`,
-                backgroundColor: progress >= 1 ? WATCHED_GREEN : colors.primary,
-              },
-            ]}
+        <View
+          style={[
+            styles.toggleBtn,
+            { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
+          ]}
+        >
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={colors.text}
           />
         </View>
-      ) : null}
+      </Pressable>
 
-      {isTrailerPlaying && trailerVideoId ? (
-        Platform.OS === "web" ? (
-          <Pressable
-            style={[styles.webTrailer, { backgroundColor: colors.primary }]}
-            onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${trailerVideoId}`)}
-          >
-            <Ionicons name="logo-youtube" size={22} color="#fff" />
-            <Text style={styles.webTrailerText}>Watch on YouTube</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.player}>
-            <YoutubePlayer height={PLAYER_H} width={PLAYER_W} play videoId={trailerVideoId} />
-          </View>
-        )
-      ) : null}
-
-      {/* Episodes */}
-      {!selected && isLoading ? (
-        <View style={styles.list}>
-          {[0, 1, 2, 3].map((i) => (
-            <View
-              key={i}
-              style={[
-                styles.skeleton,
-                { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" },
-              ]}
-            />
-          ))}
-        </View>
-      ) : !selected && hasFailed ? (
-        <View style={styles.stateBox}>
-          <Ionicons name="alert-circle-outline" size={28} color={colors.text} style={{ opacity: 0.6 }} />
-          <Text style={[styles.stateText, { color: colors.text }]}>
-            Couldn't load this season.
-          </Text>
-          <Pressable
-            onPress={onRetry}
-            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
-          >
-            <Text style={styles.retryText}>Retry</Text>
-          </Pressable>
-        </View>
-      ) : selected && total === 0 ? (
-        <View style={styles.stateBox}>
-          <Text style={[styles.stateText, { color: colors.text }]}>
-            No episodes listed for this season.
-          </Text>
-        </View>
-      ) : selected ? (
+      {expanded ? (
         <>
-          {showPager ? (
-            <PagerBar
-              page={page}
-              pageCount={pageCount}
-              label={rangeLabel}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              showJump={total > JUMP_THRESHOLD}
-              onJump={handleJump}
+          {totalSeasons > 1 ? (
+            <SeasonChips
+              totalSeasons={totalSeasons}
+              selectedSeason={selectedSeason}
+              onSelect={onSelectSeason}
+              perSeason={perSeason}
+              completeSeasons={completeSeasons}
               colors={colors}
               isDark={isDark}
             />
           ) : null}
 
-          <View style={styles.list}>
-            {pageEpisodes.map((ep, i) => (
-              <EpisodeRow
-                key={`${selectedSeason}-${start + i}-${ep.episodeNumber}`}
-                episode={ep}
-                season={selectedSeason}
-                isWatched={!!watchedEpisodes[`s${selectedSeason}e${ep.episodeNumber}`]}
-                onToggle={onToggleWatch}
-                colors={colors}
-                isDark={isDark}
-              />
-            ))}
+          {canContinue ? (
+            <Pressable
+              onPress={handleContinue}
+              style={({ pressed }) => [
+                styles.continue,
+                {
+                  backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Continue watching"
+            >
+              <Ionicons name="play-circle" size={26} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.continueTitle, { color: colors.text }]}>
+                  Continue watching
+                </Text>
+                <Text style={[styles.continueSub, { color: colors.text }]}>
+                  After S{last.season} · E{last.episode}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.text} style={{ opacity: 0.4 }} />
+            </Pressable>
+          ) : null}
+
+          {/* Season header */}
+          <View style={styles.seasonHead}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.seasonTitle, { color: colors.text }]}>
+                Season {selectedSeason}
+              </Text>
+              {metaParts.length > 0 ? (
+                <Text style={[styles.seasonMeta, { color: colors.text }]}>
+                  {metaParts.join("  ·  ")}
+                </Text>
+              ) : null}
+            </View>
+
+            {onTrailerPress ? (
+              <Pressable
+                onPress={onTrailerPress}
+                disabled={isTrailerLoading}
+                style={[styles.trailerBtn, { borderColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel={isTrailerPlaying ? "Close trailer" : "Play season trailer"}
+              >
+                {isTrailerLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={isTrailerPlaying ? "close-circle-outline" : "play-circle-outline"}
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.trailerBtnText, { color: colors.primary }]}>
+                      {isTrailerPlaying ? "Close" : "Trailer"}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
           </View>
 
-          {showPager ? (
-            <PagerBar
-              page={page}
-              pageCount={pageCount}
-              label={rangeLabel}
-              onPrev={handlePrev}
-              onNext={handleNext}
-              showJump={false}
-              onJump={handleJump}
-              colors={colors}
-              isDark={isDark}
-            />
+          {total > 0 ? (
+            <View style={[styles.track, { backgroundColor: trackBg }]}>
+              <View
+                style={[
+                  styles.fill,
+                  {
+                    width: `${Math.round(progress * 100)}%`,
+                    backgroundColor: progress >= 1 ? WATCHED_GREEN : colors.primary,
+                  },
+                ]}
+              />
+            </View>
+          ) : null}
+
+          {isTrailerPlaying && trailerVideoId ? (
+            Platform.OS === "web" ? (
+              <Pressable
+                style={[styles.webTrailer, { backgroundColor: colors.primary }]}
+                onPress={() => Linking.openURL(`https://www.youtube.com/watch?v=${trailerVideoId}`)}
+              >
+                <Ionicons name="logo-youtube" size={22} color="#fff" />
+                <Text style={styles.webTrailerText}>Watch on YouTube</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.player}>
+                <YoutubePlayer height={PLAYER_H} width={PLAYER_W} play videoId={trailerVideoId} />
+              </View>
+            )
+          ) : null}
+
+          {/* Episodes */}
+          {!selected && isLoading ? (
+            <View style={styles.list}>
+              {[0, 1, 2, 3].map((i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.skeleton,
+                    { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)" },
+                  ]}
+                />
+              ))}
+            </View>
+          ) : !selected && hasFailed ? (
+            <View style={styles.stateBox}>
+              <Ionicons name="alert-circle-outline" size={28} color={colors.text} style={{ opacity: 0.6 }} />
+              <Text style={[styles.stateText, { color: colors.text }]}>
+                Couldn't load this season.
+              </Text>
+              <Pressable
+                onPress={onRetry}
+                style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.retryText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : selected && total === 0 ? (
+            <View style={styles.stateBox}>
+              <Text style={[styles.stateText, { color: colors.text }]}>
+                No episodes listed for this season.
+              </Text>
+            </View>
+          ) : selected ? (
+            <>
+              {showPager ? (
+                <PagerBar
+                  page={page}
+                  pageCount={pageCount}
+                  label={rangeLabel}
+                  onPrev={handlePrev}
+                  onNext={handleNext}
+                  showJump={total > JUMP_THRESHOLD}
+                  onJump={handleJump}
+                  colors={colors}
+                  isDark={isDark}
+                />
+              ) : null}
+
+              <View style={styles.list}>
+                {pageEpisodes.map((ep, i) => (
+                  <EpisodeRow
+                    key={`${selectedSeason}-${start + i}-${ep.episodeNumber}`}
+                    episode={ep}
+                    season={selectedSeason}
+                    isWatched={!!watchedEpisodes[`s${selectedSeason}e${ep.episodeNumber}`]}
+                    onToggle={onToggleWatch}
+                    colors={colors}
+                    isDark={isDark}
+                  />
+                ))}
+              </View>
+
+              {showPager ? (
+                <PagerBar
+                  page={page}
+                  pageCount={pageCount}
+                  label={rangeLabel}
+                  onPrev={handlePrev}
+                  onNext={handleNext}
+                  showJump={false}
+                  onJump={handleJump}
+                  colors={colors}
+                  isDark={isDark}
+                />
+              ) : null}
+            </>
           ) : null}
         </>
       ) : null}
@@ -666,13 +719,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
+    overflow: "hidden",
   },
   headingRow: {
     flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    marginBottom: 14,
+    alignItems: "center",
+    gap: 12,
   },
+  headingRowOpen: { marginBottom: 14 },
   heading: {
     fontSize: 13,
     fontWeight: "700",
@@ -680,7 +734,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     opacity: 0.45,
   },
-  headingMeta: { fontSize: 12, opacity: 0.45, fontWeight: "600" },
+  headingMeta: { fontSize: 14, opacity: 0.75, fontWeight: "600", marginTop: 4 },
+  toggleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   chipsRow: { gap: CHIP_GAP, paddingRight: 4, paddingBottom: 4 },
   chip: {

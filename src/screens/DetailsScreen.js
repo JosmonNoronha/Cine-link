@@ -59,6 +59,7 @@ import { StatusBar } from "expo-status-bar";
 import logger from "../services/logger";
 import useReviews from "../hooks/useReviews";
 import useCollection from "../hooks/useCollection";
+import useFreeShowLink from "../hooks/useFreeShowLink";
 import TimelineSection from "../components/details/TimelineSection";
 import { buildTmdbImageUrl } from "../utils/imageHelper";
 
@@ -664,6 +665,7 @@ const DetailsScreen = ({ route, navigation }) => {
 
   const reviewsState = useReviews(tmdbInfo);
   const collectionState = useCollection(movie, tmdbInfo);
+  const freeShow = useFreeShowLink(tmdbInfo);
 
   // ── Toast helpers ──────────────────────────────────────────────────────────
 
@@ -1144,6 +1146,25 @@ const DetailsScreen = ({ route, navigation }) => {
     [navigation],
   );
 
+  const openFreeShow = useCallback(() => {
+    if (!freeShow) return;
+    const poster =
+      typeof movie?.Poster === "string" && movie.Poster !== "N/A"
+        ? movie.Poster
+        : null;
+    navigation.navigate("Free", {
+      screen: "FreeShow",
+      // Keep the Free list underneath so Back returns to it, not to the home tab.
+      initial: false,
+      params: {
+        tmdbId: freeShow.tmdbId,
+        title: freeShow.title || movie?.Title,
+        season: freeShow.season || 1,
+        poster,
+      },
+    });
+  }, [freeShow, movie?.Poster, movie?.Title, navigation]);
+
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1351,6 +1372,8 @@ const DetailsScreen = ({ route, navigation }) => {
           providers={watchProviders}
           userSubscriptions={userSubscriptions}
           loading={loadingWatchProviders}
+          freeShow={freeShow}
+          onWatchFree={openFreeShow}
           colors={colors}
           theme={theme}
         />

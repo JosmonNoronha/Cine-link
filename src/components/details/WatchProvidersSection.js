@@ -12,12 +12,41 @@ import { Ionicons } from "@expo/vector-icons";
 import logger from "../../services/logger";
 
 const WatchProvidersSection = React.memo(
-  ({ providers, userSubscriptions, loading, colors, theme }) => {
+  ({
+    providers,
+    userSubscriptions,
+    loading,
+    freeShow,
+    onWatchFree,
+    colors,
+    theme,
+  }) => {
     logger.info("🎬 WatchProvidersSection render:", {
       loading,
       providers,
       userSubscriptions,
     });
+
+    // Shows we stream ourselves (full free episodes inside the app).
+    const freeRow = freeShow ? (
+      <TouchableOpacity
+        style={styles.freeRow}
+        onPress={onWatchFree}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Watch free episodes in CineLink"
+      >
+        <Ionicons name="play-circle" size={30} color="#fff" />
+        <View style={styles.freeTextWrap}>
+          <Text style={styles.freeTitle}>Watch free in CineLink</Text>
+          <Text style={styles.freeSub}>
+            {Number(freeShow.count || 0).toLocaleString()} full episodes, no
+            subscription
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color="#fff" />
+      </TouchableOpacity>
+    ) : null;
 
     if (loading) {
       return (
@@ -30,6 +59,7 @@ const WatchProvidersSection = React.memo(
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Where to Watch
           </Text>
+          {freeRow}
           <ActivityIndicator size="small" color={colors.text} />
         </View>
       );
@@ -54,9 +84,12 @@ const WatchProvidersSection = React.memo(
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Where to Watch
           </Text>
-          <Text style={[styles.cast, { color: colors.text, opacity: 0.6 }]}>
-            No streaming information available for this title
-          </Text>
+          {freeRow}
+          {!freeShow && (
+            <Text style={[styles.cast, { color: colors.text, opacity: 0.6 }]}>
+              No streaming information available for this title
+            </Text>
+          )}
         </View>
       );
     }
@@ -73,6 +106,8 @@ const WatchProvidersSection = React.memo(
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           Where to Watch
         </Text>
+
+        {freeRow}
 
         {availableOnSubs && (
           <View style={[styles.availableBadge, { backgroundColor: "#10b981" }]}>
@@ -238,6 +273,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  freeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#10b981",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  freeTextWrap: { flex: 1 },
+  freeTitle: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  freeSub: { color: "#fff", fontSize: 12, opacity: 0.9, marginTop: 2 },
   availableBadge: {
     flexDirection: "row",
     alignItems: "center",
