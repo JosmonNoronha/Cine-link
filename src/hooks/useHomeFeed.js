@@ -8,6 +8,11 @@ import {
   searchByGenre,
   getRecommendations,
 } from "../services/api";
+import {
+  getPopularTV,
+  getTopRatedTV,
+  getAiringTodayTV,
+} from "../services/api/discoveryTv";
 import logger from "../services/logger";
 
 /* ───────── module-level cache for the non-personalized feed ───────── */
@@ -49,18 +54,47 @@ const safe = (promise, label) =>
 
 const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
+// Alternate items from two lists (movie, series, movie, ...) so rows show a real mix.
+// The longer list's leftovers follow once the shorter one runs out.
+export const interleave = (a = [], b = []) => {
+  const out = [];
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i += 1) {
+    if (i < a.length) out.push(a[i]);
+    if (i < b.length) out.push(b[i]);
+  }
+  return out;
+};
+
 const fetchPublic = async () => {
-  const [trending, popular, releases, topRated] = await Promise.all([
+  const [
+    trending,
+    trendingTv,
+    popular,
+    releases,
+    topRated,
+    popularTv,
+    topRatedTv,
+    airingTv,
+  ] = await Promise.all([
     safe(getTrending("all", "week"), "Trending"),
+    safe(getTrending("tv", "week"), "Trending series"),
     safe(getPopular(), "Popular"),
     safe(getNewReleases("movie"), "New releases"),
     safe(getTopRated(), "Top rated"),
+    safe(getPopularTV(), "Popular series"),
+    safe(getTopRatedTV(), "Top rated series"),
+    safe(getAiringTodayTV(), "Airing today"),
   ]);
   return {
     trending: normList(trending),
+    trendingTv: normList(trendingTv),
     popular: normList(popular),
     releases: normList(releases),
     topRated: normList(topRated),
+    popularTv: normList(popularTv),
+    topRatedTv: normList(topRatedTv),
+    airingTv: normList(airingTv),
   };
 };
 
@@ -71,7 +105,7 @@ const fetchPersonal = async ({ seedTitle, topGenre, secondGenre, wantSeries }) =
     seedTitle
       ? safe(getRecommendations(seedTitle, { personalize: Boolean(auth.currentUser) }), "Recommendations")
       : [],
-    topGenre ? safe(searchByGenre(topGenre, "movie"), `Genre ${topGenre}`) : [],
+    topGenre ? safe(searchByGenre(topGenre, "all"), `Genre ${topGenre}`) : [],
     secondGenre ? safe(searchByGenre(secondGenre, "all"), `Genre ${secondGenre}`) : [],
     wantSeries ? safe(getTrending("tv", "week"), "Series") : [],
   ]);
@@ -86,10 +120,16 @@ const fetchPersonal = async ({ seedTitle, topGenre, secondGenre, wantSeries }) =
 
 /* ───────── pure feed composition (no network, no state) ───────── */
 
-const buildFeed = ({ pub, personal, watchlists, topGenre, secondGenre }) => {
+export const buildFeed = ({ pub, personal, watchlists, topGenre, secondGenre }) => {
   const seen = new Set();
-  const featured = (pub?.trending || []).slice(0, 6);
-  featured.forEach((m) => seen.add(m.imdbID));
+  // Featured: alternate overall trending with trending series so both always appear
+  const featured = [];
+  for (const m of interleave(pub?.trending, pub?.trendingTv)) {
+    if (!m?.imdbID || seen.has(m.imdbID)) continue;
+    seen.add(m.imdbID);
+    featured.push(m);
+    if (featured.length >= 6) break;
+  }
 
   // Pull up to n items, skipping anything already shown higher up the page
   const take = (list, n, { fresh = true } = {}) => {
@@ -128,10 +168,23 @@ const buildFeed = ({ pub, personal, watchlists, topGenre, secondGenre }) => {
   );
 
   // 2. Top 10 (ranked)
-  push("top10", "Top 10 Right Now", "Most popular today", "ranked", take(pub?.popular, 10, { fresh: false }), 5);
+  push(
+    "top10",
+    "Top 10 Right Now",
+    "Most popular movies and series",
+    "ranked",
+    take(interleave(pub?.popular, pub?.popularTv), 10, { fresh: false }),
+    5,
+  );
 
   // 3. Buzzing (wide backdrops)
-  push("buzzing", "Buzzing This Week", "Movies people are watching", "wide", take(pub?.releases, 10));
+  push(
+    "buzzing",
+    "Buzzing This Week",
+    "Movies and series people are watching",
+    "wide",
+    take(interleave(pub?.releases, (pub?.trendingTv || []).slice(0, 4)), 10),
+  );
 
   // 4. Spotlight (because you liked)
   if (personal.seedTitle) {
@@ -160,10 +213,37 @@ const buildFeed = ({ pub, personal, watchlists, topGenre, secondGenre }) => {
   // 6. Series (wide) when the user leans toward series
   push("series", "Series To Start", "Based on your taste", "wide", take(personal.series, 10));
 
-  // 7. Keep exploring (stacked list)
-  push("explore", "Keep Exploring", "More popular picks", "stacked", take(pub?.popular, 9), 3);
+  // 7. Trending series (posters)
+  push(
+    "trending-series",
+    "Trending Series",
+    "What everyone is binge-watching",
+    "poster",
+    take(pub?.trendingTv, 12),
+    4,
+  );
 
-  // 8. Second genre (posters)
+  // 8. Keep exploring (stacked list, movies and series mixed)
+  push(
+    "explore",
+    "Keep Exploring",
+    "More popular picks",
+    "stacked",
+    take(interleave(pub?.popular, pub?.popularTv), 9),
+    3,
+  );
+
+  // 9. New episodes today (wide)
+  push(
+    "airing-today",
+    "On Air Today",
+    "New episodes out today",
+    "wide",
+    take(pub?.airingTv, 10),
+    3,
+  );
+
+  // 10. Second genre (posters)
   if (secondGenre) {
     push(
       `genre-${secondGenre}`,
@@ -175,8 +255,24 @@ const buildFeed = ({ pub, personal, watchlists, topGenre, secondGenre }) => {
     );
   }
 
-  // 9. Critically acclaimed (wide)
-  push("top-rated", "Critically Acclaimed", "Highest rated of all time", "wide", take(pub?.topRated, 10));
+  // 11. Critically acclaimed (wide, movies and series mixed)
+  push(
+    "top-rated",
+    "Critically Acclaimed",
+    "Highest rated of all time",
+    "wide",
+    take(interleave(pub?.topRated, pub?.topRatedTv), 10),
+  );
+
+  // 12. Top rated series (stacked)
+  push(
+    "top-rated-series",
+    "Best Series Ever",
+    "Top rated TV shows",
+    "stacked",
+    take(pub?.topRatedTv, 9),
+    3,
+  );
 
   return { featured, sections };
 };

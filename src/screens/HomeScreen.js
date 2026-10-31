@@ -23,12 +23,15 @@ import { useCustomTheme } from "../contexts/ThemeContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import { useUserProfile } from "../hooks/useUserProfile";
 import useHomeFeed from "../hooks/useHomeFeed";
+import useLatestTrailers from "../hooks/useLatestTrailers";
 import { getWatchlists } from "../utils/storage";
 import HomeScreenSkeleton from "../components/home/HomeScreenSkeleton";
 import RetryState from "../components/shared/RetryState";
 import HomeHeader from "../components/home/HomeHeader";
 import FeaturedCarousel from "../components/home/FeaturedCarousel";
 import HomeSection from "../components/home/HomeSections";
+import TrailersSection from "../components/home/TrailersSection";
+import TrailerPlayerModal from "../components/home/TrailerPlayerModal";
 import { GenreChips } from "../components/home/HomeCards";
 import logger from "../services/logger";
 
@@ -79,6 +82,7 @@ const HomeScreen = ({ navigation }) => {
   const [watchlistsLoaded, setWatchlistsLoaded] = useState(false);
   const [watchlistError, setWatchlistError] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
+  const [playingTrailer, setPlayingTrailer] = useState(null);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -132,9 +136,33 @@ const HomeScreen = ({ navigation }) => {
     ready,
   });
 
+  const trailers = useLatestTrailers();
+
+  // "Latest Trailers" sits right under Continue Watching (or first when there is none)
+  const sections = useMemo(() => {
+    if (trailers.length < 3) return feed.sections;
+    const row = {
+      id: "latest-trailers",
+      type: "trailers",
+      title: "Latest Trailers",
+      subtitle: "New and coming soon",
+      data: trailers,
+    };
+    const at = feed.sections[0]?.id === "continue-watching" ? 1 : 0;
+    return [...feed.sections.slice(0, at), row, ...feed.sections.slice(at)];
+  }, [feed.sections, trailers]);
+
   const openDetails = useCallback(
     (item) => {
       if (item?.imdbID) navigation.navigate("Details", { imdbID: item.imdbID });
+    },
+    [navigation],
+  );
+  const closeTrailer = useCallback(() => setPlayingTrailer(null), []);
+  const openTrailerDetails = useCallback(
+    (t) => {
+      setPlayingTrailer(null);
+      navigation.navigate("Details", { imdbID: `tmdb:${t.mediaType}:${t.id}` });
     },
     [navigation],
   );
@@ -162,15 +190,23 @@ const HomeScreen = ({ navigation }) => {
   }, [feed, loadWatchlists, refreshFavorites]);
 
   const renderSection = useCallback(
-    ({ item }) => (
-      <HomeSection
-        section={item}
-        width={width}
-        colors={colors}
-        theme={theme}
-        onOpen={openDetails}
-      />
-    ),
+    ({ item }) =>
+      item.type === "trailers" ? (
+        <TrailersSection
+          section={item}
+          width={width}
+          colors={colors}
+          onPlay={setPlayingTrailer}
+        />
+      ) : (
+        <HomeSection
+          section={item}
+          width={width}
+          colors={colors}
+          theme={theme}
+          onOpen={openDetails}
+        />
+      ),
     [width, colors, theme, openDetails],
   );
 
@@ -233,7 +269,7 @@ const HomeScreen = ({ navigation }) => {
   } else {
     body = (
       <Animated.FlatList
-        data={feed.sections}
+        data={sections}
         keyExtractor={sectionKey}
         renderItem={renderSection}
         ListHeaderComponent={listHeader}
@@ -274,6 +310,12 @@ const HomeScreen = ({ navigation }) => {
         onHeight={setHeaderHeight}
       />
       {body}
+      <TrailerPlayerModal
+        trailer={playingTrailer}
+        onClose={closeTrailer}
+        onViewDetails={openTrailerDetails}
+        colors={colors}
+      />
     </SafeAreaView>
   );
 };
