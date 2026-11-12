@@ -5,7 +5,8 @@ import { deviceRegion } from "../utils/streamingHelpers";
 /**
  * For a TV title (tmdbInfo = { id, type }), returns the free-streaming show entry
  * ({ tmdbId, title, season, count, latest }) when CineLink streams it to this viewer's
- * region, otherwise null. Uses the same 5-minute cache as the Free tab.
+ * region, otherwise null. A show with several seasons has one list entry per season: the first
+ * season is returned, with `count` covering all of them. Uses the same 5-minute cache as the Free tab.
  */
 export default function useFreeShowLink(tmdbInfo) {
   const [show, setShow] = useState(null);
@@ -17,7 +18,13 @@ export default function useFreeShowLink(tmdbInfo) {
     if (!id) return undefined;
     getFreeShows(deviceRegion())
       .then((list) => {
-        if (!cancelled) setShow(list.find((s) => Number(s.tmdbId) === id) || null);
+        if (cancelled) return;
+        const mine = list.filter((s) => Number(s.tmdbId) === id);
+        setShow(
+          mine.length
+            ? { ...mine[0], count: mine.reduce((sum, s) => sum + Number(s.count || 0), 0) }
+            : null,
+        );
       })
       .catch(() => {});
     return () => {

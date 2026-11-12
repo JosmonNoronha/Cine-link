@@ -5,7 +5,8 @@ import { markEpisodeWatched, getWatchedEpisodes } from "../utils/storage";
 import { deviceRegion, toRows } from "../utils/streamingHelpers";
 import logger from "../services/logger";
 
-const namesCache = new Map(); // "tmdb:tv:8630" -> { [episode]: { title, airDate } }
+const EMPTY = [];
+const namesCache = new Map(); // "tmdb:tv:8630:1" (id + season) -> { [episode]: { title, airDate } }
 
 /**
  * Everything the show page needs: playable episodes for this viewer, TMDB names/dates,
@@ -13,22 +14,36 @@ const namesCache = new Map(); // "tmdb:tv:8630" -> { [episode]: { title, airDate
  */
 export default function useFreeShow({ tmdbId, season = 1 }) {
   const effId = `tmdb:tv:${tmdbId}`;
+  const namesKey = `${effId}:${season}`;
   const region = useMemo(() => deviceRegion(), []);
-  const [state, setState] = useState({ status: "loading", rows: [], latest: null });
-  const [names, setNames] = useState(() => namesCache.get(effId) || {});
+  const [state, setState] = useState({ season, status: "loading", rows: EMPTY, latest: null, seasons: EMPTY });
+  const [names, setNames] = useState(() => namesCache.get(namesKey) || {});
   const [watched, setWatched] = useState({});
   const watchedRef = useRef({});
+  const loadId = useRef(0);
 
   const load = useCallback(async () => {
-    setState((s) => ({ ...s, status: "loading" }));
+    const id = ++loadId.current; // a slower answer for a season we already left must not win
+    // `seasons` is kept, so the season switcher survives a season change; the old season's rows are dropped
+    setState((s) =>
+      s.season === season ? { ...s, status: "loading" } : { ...s, season, status: "loading", rows: EMPTY, latest: null },
+    );
     try {
-      const data = await getShowAvailability(tmdbId, region);
-      setState({ status: "ready", rows: toRows(data?.episodes), latest: data?.latest ?? null });
+      const data = await getShowAvailability(tmdbId, region, season);
+      if (id !== loadId.current) return;
+      setState({
+        season,
+        status: "ready",
+        rows: toRows(data?.episodes),
+        latest: data?.latest ?? null,
+        seasons: Array.isArray(data?.seasons) ? data.seasons : [], // [{ season, count, latest }] this viewer can watch
+      });
     } catch (err) {
+      if (id !== loadId.current) return;
       logger.error("Failed to load free episodes", err);
-      setState({ status: "error", rows: [], latest: null });
+      setState((s) => ({ season, status: "error", rows: EMPTY, latest: null, seasons: s.seasons }));
     }
-  }, [tmdbId, region]);
+  }, [tmdbId, region, season]);
 
   useEffect(() => {
     load();
@@ -36,6 +51,7 @@ export default function useFreeShow({ tmdbId, season = 1 }) {
 
   useEffect(() => {
     let cancelled = false;
+    setNames(namesCache.get(namesKey) || {}); // never show another season's episode names
 
     (async () => {
       try {
@@ -50,7 +66,7 @@ export default function useFreeShow({ tmdbId, season = 1 }) {
 
     (async () => {
       try {
-        let map = namesCache.get(effId);
+        let map = namesCache.get(namesKey);
         if (!map) {
           const data = await getSeasonDetails(effId, season);
           map = {};
@@ -60,7 +76,7 @@ export default function useFreeShow({ tmdbId, season = 1 }) {
               airDate: ep.Released && ep.Released !== "N/A" ? ep.Released : null,
             };
           }
-          namesCache.set(effId, map);
+          namesCache.set(namesKey, map);
         }
         if (!cancelled) setNames(map);
       } catch (err) {
@@ -71,7 +87,7 @@ export default function useFreeShow({ tmdbId, season = 1 }) {
     return () => {
       cancelled = true;
     };
-  }, [effId, season]);
+  }, [effId, namesKey, season]);
 
   const setEpisodeWatched = useCallback(
     async (n, value) => {
@@ -99,5 +115,18 @@ export default function useFreeShow({ tmdbId, season = 1 }) {
     load();
   }, [load]);
 
-  return { ...state, names, watched, setEpisodeWatched, reload, region, effId };
+  // Right after a season change, until its episodes arrive, show "loading" instead of the previous season's rows.
+  const current = state.season === season;
+  return {
+    status: current ? state.status : "loading",
+    rows: current ? state.rows : EMPTY,
+    latest: current ? state.latest : null,
+    seasons: state.seasons,
+    names,
+    watched,
+    setEpisodeWatched,
+    reload,
+    region,
+    effId,
+  };
 }

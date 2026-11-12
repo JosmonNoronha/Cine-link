@@ -108,13 +108,19 @@ EpisodeRow.displayName = "EpisodeRow";
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 const FreeShowScreen = ({ route, navigation }) => {
-  const { tmdbId, title, season = 1, poster = null } = route.params;
+  const { tmdbId, title, season: initialSeason = 1, poster = null } = route.params;
+  const [season, setSeason] = useState(initialSeason);
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
   const tabBarHeight = useTabBarHeight();
   const insets = useSafeAreaInsets();
   const isDark = theme === "dark";
-  const { status, rows, latest, names, watched, setEpisodeWatched, reload } = useFreeShow({ tmdbId, season });
+  const { status, rows, latest, seasons, names, watched, setEpisodeWatched, reload } = useFreeShow({ tmdbId, season });
+
+  // If the season we opened on has nothing to watch here (region), jump to one that does.
+  useEffect(() => {
+    if (status === "ready" && seasons.length && !seasons.some((s) => s.season === season)) setSeason(seasons[0].season);
+  }, [status, seasons, season]);
 
   const [playing, setPlaying] = useState(null);
   const [rangeIndex, setRangeIndex] = useState(null);
@@ -177,6 +183,19 @@ const FreeShowScreen = ({ route, navigation }) => {
     listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
   }, []);
 
+  const selectSeason = useCallback(
+    (next) => {
+      if (next === season) return;
+      setSeason(next);
+      setPlaying(null);
+      setRangeIndex(null); // picks the right starting range again once the new season has loaded
+      setSearchOpen(false);
+      setJumpText("");
+      setJumpMsg(null);
+    },
+    [season],
+  );
+
   const soft = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.045)";
   const hairline = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
   const mutedText = { color: colors.text, opacity: 0.55 };
@@ -198,6 +217,29 @@ const FreeShowScreen = ({ route, navigation }) => {
     ),
     [names, watched, season, playing, continueRow, play, setEpisodeWatched, colors, soft],
   );
+
+  const seasonBar =
+    seasons.length > 1 ? (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
+        {seasons.map((s) => {
+          const selected = s.season === season;
+          return (
+            <Pressable
+              key={s.season}
+              onPress={() => selectSeason(s.season)}
+              style={[styles.chip, { backgroundColor: selected ? colors.text : soft }]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`Season ${s.season}, ${s.count} episodes`}
+            >
+              <Text style={[styles.chipText, { color: selected ? colors.background : colors.text, opacity: selected ? 1 : 0.7 }]}>
+                Season {s.season}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    ) : null;
 
   const header = (
     <View>
@@ -245,7 +287,8 @@ const FreeShowScreen = ({ route, navigation }) => {
                 {title}
               </Text>
               <Text style={[styles.subtitle, mutedText]}>
-                {formatCount(rows.length)} episodes{latest ? `  ·  up to #${formatCount(latest)}` : ""}
+                {seasons.length > 1 ? `Season ${season}  ·  ` : ""}
+                {status === "ready" ? `${formatCount(rows.length)} episodes${latest ? `  ·  up to #${formatCount(latest)}` : ""}` : "Loading…"}
               </Text>
 
               {watchedCount > 0 ? (
@@ -333,6 +376,8 @@ const FreeShowScreen = ({ route, navigation }) => {
         </View>
       ) : null}
 
+      {seasonBar}
+
       {ranges.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
           {ranges.map((r) => {
@@ -401,7 +446,7 @@ const FreeShowScreen = ({ route, navigation }) => {
         />
       ) : null}
 
-      {status === "loading" ? (
+      {status === "loading" && seasons.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -413,17 +458,20 @@ const FreeShowScreen = ({ route, navigation }) => {
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
-      ) : rows.length === 0 ? (
+      ) : rows.length === 0 && status !== "loading" ? (
         <View style={styles.center}>
           <Text style={[styles.stateText, { color: colors.text }]}>No episodes are available in your region yet.</Text>
         </View>
       ) : (
         <FlatList
           ref={listRef}
-          data={visible}
+          data={status === "loading" ? [] : visible}
           keyExtractor={(r) => String(r.n)}
           renderItem={renderItem}
           ListHeaderComponent={header}
+          ListEmptyComponent={
+            status === "loading" ? <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 48 }} /> : null
+          }
           ListFooterComponent={footer}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
           ItemSeparatorComponent={Separator}
