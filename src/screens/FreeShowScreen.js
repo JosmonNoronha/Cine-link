@@ -430,7 +430,7 @@ const FreeShowScreen = ({ route, navigation }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           initialNumToRender={12}
-          windowSize={7}
+          windowSize={5}
           removeClippedSubviews
         />
       )}

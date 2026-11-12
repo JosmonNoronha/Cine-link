@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform, Linking, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import YoutubePlayer from "react-native-youtube-iframe";
@@ -7,6 +7,21 @@ import { youtubeWatchUrl } from "../../utils/streamingHelpers";
 const { width: SCREEN_W } = Dimensions.get("window");
 const PLAYER_W = SCREEN_W - 32;
 const PLAYER_H = Math.round(PLAYER_W * (9 / 16));
+
+// Keep the WebView isolated from the theme-dependent episode controls.
+const PlayerFrame = React.memo(({ videoId, playing, onState, onError }) => (
+  <View style={styles.player}>
+    <YoutubePlayer
+      height={PLAYER_H}
+      width={PLAYER_W}
+      play={playing}
+      videoId={videoId}
+      onChangeState={onState}
+      onError={onError}
+    />
+  </View>
+));
+PlayerFrame.displayName = "PlayerFrame";
 
 /**
  * Plays one episode with the official YouTube player. If the video cannot be embedded here,
@@ -28,21 +43,23 @@ const EpisodePlayer = ({ episode, title, nextEpisode, hasPrev, onPrev, onNext, o
 
   const videoId = useAlt && episode.altVideoId ? episode.altVideoId : episode.videoId;
 
-  const handleError = useCallback(() => {
-    if (!useAlt && episode.altVideoId) setUseAlt(true);
-    else setFailed(true);
-  }, [useAlt, episode.altVideoId]);
+  // Latest values in refs so the two handlers below keep one identity for the whole session
+  const latest = useRef({});
+  latest.current = { n: episode.n, alt: episode.altVideoId, useAlt, onEnded };
 
-  const handleState = useCallback(
-    (state) => {
-      if (state === "ended") {
-        setPlaying(false);
-        setEnded(true);
-        onEnded?.(episode.n);
-      }
-    },
-    [episode.n, onEnded],
-  );
+  const handleError = useCallback(() => {
+    const { alt, useAlt: usingAlt } = latest.current;
+    if (!usingAlt && alt) setUseAlt(true);
+    else setFailed(true);
+  }, []);
+
+  const handleState = useCallback((state) => {
+    if (state === "ended") {
+      setPlaying(false);
+      setEnded(true);
+      latest.current.onEnded?.(latest.current.n);
+    }
+  }, []);
 
   const openYouTube = useCallback(() => Linking.openURL(youtubeWatchUrl(videoId)), [videoId]);
   const soft = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
@@ -51,16 +68,12 @@ const EpisodePlayer = ({ episode, title, nextEpisode, hasPrev, onPrev, onNext, o
   return (
     <View style={styles.wrap}>
       {inApp ? (
-        <View style={styles.player}>
-          <YoutubePlayer
-            height={PLAYER_H}
-            width={PLAYER_W}
-            play={playing}
-            videoId={videoId}
-            onChangeState={handleState}
-            onError={handleError}
-          />
-        </View>
+        <PlayerFrame
+          videoId={videoId}
+          playing={playing}
+          onState={handleState}
+          onError={handleError}
+        />
       ) : (
         <View style={[styles.fallback, { backgroundColor: soft }]}>
           <Ionicons name="logo-youtube" size={34} color="#ff0033" />
@@ -116,7 +129,7 @@ export default React.memo(EpisodePlayer);
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingBottom: 8 },
-  player: { borderRadius: 14, overflow: "hidden", backgroundColor: "#000" },
+  player: { backgroundColor: "#000" },
   fallback: { height: PLAYER_H, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 10, padding: 16 },
   fallbackText: { fontSize: 14, textAlign: "center", opacity: 0.8 },
   openBtn: { paddingVertical: 10, paddingHorizontal: 22, borderRadius: 20 },
