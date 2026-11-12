@@ -364,7 +364,7 @@ const SettingsScreen = ({ navigation }) => {
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert("Terms of Service", "Feed me Shawarma and biryani")
+            Alert.alert("Terms of Service", "Feed me Shawarma and biryani plz")
           }
           style={styles.legalLink}
         >
