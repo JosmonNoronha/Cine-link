@@ -11,19 +11,17 @@ async function cached(key, load) {
   return data;
 }
 
-/** Free shows for this viewer, one entry per season: [{ tmdbId, title, season, count, latest }] */
+/** Shows with free full episodes for this viewer: [{ tmdbId, title, season, count, latest }] */
 export const getFreeShows = (region) =>
   cached(`shows:${region || ""}`, async () => {
     const data = await apiClient.get("/streaming/shows", { params: region ? { region } : undefined });
     return Array.isArray(data?.shows) ? data.shows : [];
   });
 
-/** One season's playable episodes: { count, latest, season, episodes: [[n, videoId, fallbackId|0], ...] } */
-export const getShowAvailability = (tmdbId, region, season) =>
-  cached(`show:${tmdbId}:${season || 1}:${region || ""}`, () =>
-    apiClient.get(`/streaming/shows/${tmdbId}`, {
-      params: { ...(region ? { region } : {}), ...(season ? { season } : {}) },
-    }),
+/** One show's playable episodes: { count, latest, episodes: [[n, videoId, fallbackId|0], ...] } */
+export const getShowAvailability = (tmdbId, region) =>
+  cached(`show:${tmdbId}:${region || ""}`, () =>
+    apiClient.get(`/streaming/shows/${tmdbId}`, { params: region ? { region } : undefined }),
   );
 
 export const clearStreamingCache = () => cache.clear();

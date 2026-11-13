@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { View, Text, FlatList, ScrollView, Pressable, TextInput, ActivityIndicator, Keyboard, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useTheme } from "@react-navigation/native";
@@ -105,22 +105,63 @@ const EpisodeRow = React.memo(({ row, title, airDate, isWatched, isPlaying, isNe
 });
 EpisodeRow.displayName = "EpisodeRow";
 
+// ─── Season switcher (only for shows with more than one season) ───────────────
+
+const SeasonSwitch = React.memo(({ seasons, value, onChange, colors, soft, isDark, tight }) => {
+  if (seasons.length < 2) return null;
+  const scrolls = seasons.length > 4; // up to four seasons share the width; more scroll sideways
+  const selectedBg = isDark ? "rgba(255,255,255,0.16)" : "#fff";
+
+  const segments = seasons.map((s) => {
+    const selected = s.season === value;
+    return (
+      <Pressable
+        key={s.season}
+        onPress={() => onChange(s.season)}
+        style={[styles.segment, scrolls ? styles.segmentScroll : styles.segmentFill, selected && [styles.segmentOn, { backgroundColor: selectedBg }]]}
+        accessibilityRole="tab"
+        accessibilityState={{ selected }}
+        accessibilityLabel={`Season ${s.season}, ${s.count} episodes`}
+      >
+        <Text style={[styles.segmentText, { color: colors.text, opacity: selected ? 1 : 0.55 }]} numberOfLines={1}>
+          Season {s.season}
+        </Text>
+      </Pressable>
+    );
+  });
+
+  return (
+    <View style={[styles.seasonWrap, tight && styles.seasonWrapTight]} accessibilityRole="tablist">
+      {scrolls ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.segmentTrack, { backgroundColor: soft }]}
+          contentContainerStyle={styles.segmentScrollContent}
+        >
+          {segments}
+        </ScrollView>
+      ) : (
+        <View style={[styles.segmentTrack, styles.segmentRow, { backgroundColor: soft }]}>{segments}</View>
+      )}
+    </View>
+  );
+});
+SeasonSwitch.displayName = "SeasonSwitch";
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 const FreeShowScreen = ({ route, navigation }) => {
   const { tmdbId, title, season: initialSeason = 1, poster = null } = route.params;
-  const [season, setSeason] = useState(initialSeason);
   const { colors } = useTheme();
   const { theme } = useCustomTheme();
   const tabBarHeight = useTabBarHeight();
   const insets = useSafeAreaInsets();
   const isDark = theme === "dark";
-  const { status, rows, latest, seasons, names, watched, setEpisodeWatched, reload } = useFreeShow({ tmdbId, season });
-
-  // If the season we opened on has nothing to watch here (region), jump to one that does.
-  useEffect(() => {
-    if (status === "ready" && seasons.length && !seasons.some((s) => s.season === season)) setSeason(seasons[0].season);
-  }, [status, seasons, season]);
+  const { status, rows, latest, season, seasons, setSeason, names, watched, setEpisodeWatched, reload } = useFreeShow({
+    tmdbId,
+    initialSeason,
+  });
 
   const [playing, setPlaying] = useState(null);
   const [rangeIndex, setRangeIndex] = useState(null);
@@ -141,7 +182,8 @@ const FreeShowScreen = ({ route, navigation }) => {
   const progress = rows.length ? watchedCount / rows.length : 0;
 
   // First view: where you left off, or the newest episodes if you have not watched any.
-  useEffect(() => {
+  // (Layout effect: after a season switch the right range is chosen before anything is painted.)
+  useLayoutEffect(() => {
     if (status !== "ready" || rangeIndex !== null || !ranges.length) return;
     const target = hasHistory ? continueRow || latestRow : latestRow;
     setRangeIndex(target ? rangeIndexOf(target.n) : ranges[ranges.length - 1].index);
@@ -188,7 +230,7 @@ const FreeShowScreen = ({ route, navigation }) => {
       if (next === season) return;
       setSeason(next);
       setPlaying(null);
-      setRangeIndex(null); // picks the right starting range again once the new season has loaded
+      setRangeIndex(null); // the first-view effect above picks this season's starting range
       setSearchOpen(false);
       setJumpText("");
       setJumpMsg(null);
@@ -217,29 +259,6 @@ const FreeShowScreen = ({ route, navigation }) => {
     ),
     [names, watched, season, playing, continueRow, play, setEpisodeWatched, colors, soft],
   );
-
-  const seasonBar =
-    seasons.length > 1 ? (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
-        {seasons.map((s) => {
-          const selected = s.season === season;
-          return (
-            <Pressable
-              key={s.season}
-              onPress={() => selectSeason(s.season)}
-              style={[styles.chip, { backgroundColor: selected ? colors.text : soft }]}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`Season ${s.season}, ${s.count} episodes`}
-            >
-              <Text style={[styles.chipText, { color: selected ? colors.background : colors.text, opacity: selected ? 1 : 0.7 }]}>
-                Season {s.season}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    ) : null;
 
   const header = (
     <View>
@@ -287,8 +306,7 @@ const FreeShowScreen = ({ route, navigation }) => {
                 {title}
               </Text>
               <Text style={[styles.subtitle, mutedText]}>
-                {seasons.length > 1 ? `Season ${season}  ·  ` : ""}
-                {status === "ready" ? `${formatCount(rows.length)} episodes${latest ? `  ·  up to #${formatCount(latest)}` : ""}` : "Loading…"}
+                {formatCount(rows.length)} episodes{latest ? `  ·  up to #${formatCount(latest)}` : ""}
               </Text>
 
               {watchedCount > 0 ? (
@@ -318,6 +336,8 @@ const FreeShowScreen = ({ route, navigation }) => {
           ) : null}
         </View>
       ) : null}
+
+      <SeasonSwitch seasons={seasons} value={season} onChange={selectSeason} colors={colors} soft={soft} isDark={isDark} tight={!!playing} />
 
       {/* Section header */}
       <View style={styles.sectionBar}>
@@ -375,8 +395,6 @@ const FreeShowScreen = ({ route, navigation }) => {
           {jumpMsg ? <Text style={[styles.jumpMsg, mutedText]}>{jumpMsg}</Text> : null}
         </View>
       ) : null}
-
-      {seasonBar}
 
       {ranges.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} keyboardShouldPersistTaps="handled">
@@ -446,7 +464,7 @@ const FreeShowScreen = ({ route, navigation }) => {
         />
       ) : null}
 
-      {status === "loading" && seasons.length === 0 ? (
+      {status === "loading" ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -458,20 +476,17 @@ const FreeShowScreen = ({ route, navigation }) => {
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
-      ) : rows.length === 0 && status !== "loading" ? (
+      ) : rows.length === 0 ? (
         <View style={styles.center}>
           <Text style={[styles.stateText, { color: colors.text }]}>No episodes are available in your region yet.</Text>
         </View>
       ) : (
         <FlatList
           ref={listRef}
-          data={status === "loading" ? [] : visible}
+          data={visible}
           keyExtractor={(r) => String(r.n)}
           renderItem={renderItem}
           ListHeaderComponent={header}
-          ListEmptyComponent={
-            status === "loading" ? <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 48 }} /> : null
-          }
           ListFooterComponent={footer}
           contentContainerStyle={{ paddingBottom: tabBarHeight + 24 }}
           ItemSeparatorComponent={Separator}
@@ -546,6 +561,17 @@ const styles = StyleSheet.create({
   jumpHash: { fontSize: 16, fontWeight: "700" },
   jumpInput: { flex: 1, fontSize: 16, paddingVertical: 0 },
   jumpMsg: { fontSize: 12.5, paddingHorizontal: 4 },
+
+  seasonWrap: { paddingHorizontal: SIDE, paddingBottom: 14 },
+  seasonWrapTight: { paddingTop: 4 },
+  segmentTrack: { borderRadius: 14, padding: 3 },
+  segmentRow: { flexDirection: "row" },
+  segmentScrollContent: { gap: 2 },
+  segment: { height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  segmentFill: { flex: 1 },
+  segmentScroll: { minWidth: 96, paddingHorizontal: 16 },
+  segmentOn: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2 },
+  segmentText: { fontSize: 13, fontWeight: "700" },
 
   chips: { gap: 8, paddingHorizontal: SIDE, paddingBottom: 14 },
   chip: { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
