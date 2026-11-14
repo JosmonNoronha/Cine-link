@@ -7,16 +7,10 @@ import Animated, {
   withDelay,
   withSequence,
   withSpring,
-  withTiming,
-  Easing,
   FadeOut,
 } from "react-native-reanimated";
 
-/* ───────────────────────── one popping kernel ─────────────────────────
- * A tiny cluster of overlapping gold circles — the same construction as
- * the icon's own baked-in kernels, just three native Views instead of an
- * image, so each one is practically free to animate.
- */
+/* ───────────────────────── one popping kernel ───────────────────────── */
 const Kernel = ({ x, y, delay, scale = 1 }) => {
   const pop = useSharedValue(0);
 
@@ -25,8 +19,8 @@ const Kernel = ({ x, y, delay, scale = 1 }) => {
       delay,
       withSequence(
         withSpring(1.15, { damping: 7, stiffness: 260, mass: 0.5 }),
-        withSpring(1, { damping: 9, stiffness: 220 }),
-      ),
+        withSpring(1, { damping: 9, stiffness: 220 })
+      )
     );
   }, [pop, delay]);
 
@@ -39,30 +33,43 @@ const Kernel = ({ x, y, delay, scale = 1 }) => {
   }));
 
   const s = 26 * scale;
+
   return (
     <Animated.View style={[styles.kernelWrap, { left: x, top: y }, style]}>
-      <View style={[styles.kernelLobe, { width: s, height: s, left: -s * 0.35 }]} />
-      <View style={[styles.kernelLobe, { width: s, height: s, left: s * 0.35 }]} />
-      <View style={[styles.kernelLobe, { width: s * 1.05, height: s * 1.05, top: -s * 0.35 }]} />
+      <View
+        style={[
+          styles.kernelLobe,
+          { width: s, height: s, left: -s * 0.25, top: s * 0.1 },
+        ]}
+      />
+      <View
+        style={[
+          styles.kernelLobe,
+          { width: s, height: s, left: s * 0.25, top: s * 0.15 },
+        ]}
+      />
+      <View
+        style={[
+          styles.kernelLobe,
+          { width: s * 1.15, height: s * 1.15, top: -s * 0.2, left: -s * 0.05 },
+        ]}
+      />
     </Animated.View>
   );
 };
 
-// Positions are tuned to the splash-box.png artwork's rim, in a size-independent
-// (0-1) coordinate space so they scale with BOX_SIZE below.
+// Tuned to the updated splash-box.png rim
 const KERNEL_LAYOUT = [
-  { x: 0.05, y: -0.03, delay: 0, scale: 0.65 },
-  { x: 0.18, y: -0.11, delay: 60, scale: 0.85 },
-  { x: 0.32, y: -0.14, delay: 110, scale: 0.95 },
-  { x: 0.45, y: -0.12, delay: 60, scale: 0.85 },
-  { x: 0.58, y: -0.05, delay: 0, scale: 0.65 },
+  { x: 0.12, y: 0.06, delay: 0, scale: 0.68 },
+  { x: 0.24, y: -0.02, delay: 60, scale: 0.88 },
+  { x: 0.38, y: -0.05, delay: 110, scale: 0.98 },
+  { x: 0.52, y: -0.02, delay: 60, scale: 0.88 },
+  { x: 0.65, y: 0.05, delay: 0, scale: 0.68 },
 ];
 
-const BOX_SIZE = 110;
+const BOX_SIZE = 120;
 
-/* ───────────────────────── splash loader ─────────────────────────
- * Per your last note: just the animation, nothing else on screen.
- */
+/* ───────────────────────── splash loader ───────────────────────── */
 const SplashLoader = () => {
   const pop = useSharedValue(0);
 
@@ -74,7 +81,7 @@ const SplashLoader = () => {
     opacity: Math.min(pop.value * 1.6, 1),
     transform: [
       { scale: pop.value },
-      { rotate: `${(1 - pop.value) * -8}deg` },
+      { rotate: `${(1 - pop.value) * -6}deg` },
     ],
   }));
 
@@ -114,14 +121,14 @@ const styles = StyleSheet.create({
   },
   kernelWrap: {
     position: "absolute",
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
   },
   kernelLobe: {
     position: "absolute",
-    backgroundColor: "#FFC93C",
-    borderColor: "#16202E",
-    borderWidth: 3,
+    backgroundColor: "#FAD054",
+    borderColor: "#0C182B",
+    borderWidth: 2.5,
     borderRadius: 999,
   },
 });
