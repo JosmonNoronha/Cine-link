@@ -39,6 +39,7 @@ import logger from "../services/logger";
 import PublicWatchlistScreen from "../screens/PublicWatchlistScreen";
 import FreeShowsScreen from "../screens/FreeShowsScreen";
 import FreeShowScreen from "../screens/FreeShowScreen";
+import NewsScreen from "../screens/NewsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -92,6 +93,7 @@ const detailOpts = { presentation: "card", gestureEnabled: true };
 const HomeStack = () => (
   <Stack.Navigator screenOptions={stackOpts}>
     <Stack.Screen name="Home" component={HomeScreen} />
+    <Stack.Screen name="News" component={NewsScreen} options={detailOpts} />
     <Stack.Screen
       name="Details"
       component={DetailsScreen}

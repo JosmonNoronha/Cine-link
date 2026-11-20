@@ -24,6 +24,7 @@ import { useFavorites } from "../contexts/FavoritesContext";
 import { useUserProfile } from "../hooks/useUserProfile";
 import useHomeFeed from "../hooks/useHomeFeed";
 import useLatestTrailers from "../hooks/useLatestTrailers";
+import { useLatestNews } from "../hooks/useNews";
 import { getWatchlists } from "../utils/storage";
 import HomeScreenSkeleton from "../components/home/HomeScreenSkeleton";
 import RetryState from "../components/shared/RetryState";
@@ -31,6 +32,7 @@ import HomeHeader from "../components/home/HomeHeader";
 import FeaturedCarousel from "../components/home/FeaturedCarousel";
 import HomeSection from "../components/home/HomeSections";
 import TrailersSection from "../components/home/TrailersSection";
+import NewsSection from "../components/news/NewsSection";
 import TrailerPlayerModal from "../components/home/TrailerPlayerModal";
 import { GenreChips } from "../components/home/HomeCards";
 import logger from "../services/logger";
@@ -137,20 +139,34 @@ const HomeScreen = ({ navigation }) => {
   });
 
   const trailers = useLatestTrailers();
+  const news = useLatestNews(10);
 
-  // "Latest Trailers" sits right under Continue Watching (or first when there is none)
+  // "Latest Trailers" sits right under Continue Watching (or first when there is none),
+  // then "Movie & TV News". Either row is left out when it has too little to show.
   const sections = useMemo(() => {
-    if (trailers.length < 3) return feed.sections;
-    const row = {
-      id: "latest-trailers",
-      type: "trailers",
-      title: "Latest Trailers",
-      subtitle: "New and coming soon",
-      data: trailers,
-    };
+    const extra = [];
+    if (trailers.length >= 3) {
+      extra.push({
+        id: "latest-trailers",
+        type: "trailers",
+        title: "Latest Trailers",
+        subtitle: "New and coming soon",
+        data: trailers,
+      });
+    }
+    if (news.length >= 3) {
+      extra.push({
+        id: "latest-news",
+        type: "news",
+        title: "Movie & TV News",
+        subtitle: "From around the world",
+        data: news,
+      });
+    }
+    if (!extra.length) return feed.sections;
     const at = feed.sections[0]?.id === "continue-watching" ? 1 : 0;
-    return [...feed.sections.slice(0, at), row, ...feed.sections.slice(at)];
-  }, [feed.sections, trailers]);
+    return [...feed.sections.slice(0, at), ...extra, ...feed.sections.slice(at)];
+  }, [feed.sections, trailers, news]);
 
   const openDetails = useCallback(
     (item) => {
@@ -166,6 +182,7 @@ const HomeScreen = ({ navigation }) => {
     },
     [navigation],
   );
+  const openNews = useCallback(() => navigation.navigate("News"), [navigation]);
   const openGenre = useCallback(
     (genre) => navigation.navigate("Search", { genre }),
     [navigation],
@@ -191,7 +208,14 @@ const HomeScreen = ({ navigation }) => {
 
   const renderSection = useCallback(
     ({ item }) =>
-      item.type === "trailers" ? (
+      item.type === "news" ? (
+        <NewsSection
+          section={item}
+          width={width}
+          colors={colors}
+          onSeeAll={openNews}
+        />
+      ) : item.type === "trailers" ? (
         <TrailersSection
           section={item}
           width={width}
@@ -207,7 +231,7 @@ const HomeScreen = ({ navigation }) => {
           onOpen={openDetails}
         />
       ),
-    [width, colors, theme, openDetails],
+    [width, colors, theme, openDetails, openNews],
   );
 
   const topGenres = profile.topGenres;
