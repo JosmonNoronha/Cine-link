@@ -267,12 +267,6 @@ const HomeScreen = ({ navigation }) => {
     ],
   );
 
-  const tagline = isNewUser
-    ? "Your Movie Heaven"
-    : ready
-      ? `${favorites.length} favorites • ${profile.watchProgress.total} in watchlist`
-      : "Loading...";
-
   let body;
   if (watchlistError || feed.status === "error") {
     body = (
@@ -327,7 +321,6 @@ const HomeScreen = ({ navigation }) => {
         backgroundColor={colors.background}
       />
       <HomeHeader
-        tagline={tagline}
         theme={theme}
         colors={colors}
         scrollY={scrollY}

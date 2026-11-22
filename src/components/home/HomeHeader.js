@@ -7,12 +7,10 @@ import { BlurView } from "expo-blur";
 // with the page background" to "floating translucent glass bar".
 const FADE_RANGE = 50;
 
-const HomeHeader = ({ tagline, theme, colors, scrollY, onHeight }) => {
+const HomeHeader = ({ theme, colors, scrollY, onHeight }) => {
   const isFocused = useIsFocused();
   const nameOpacity = useRef(new Animated.Value(0)).current;
   const nameY = useRef(new Animated.Value(10)).current;
-  const tagOpacity = useRef(new Animated.Value(0)).current;
-  const tagY = useRef(new Animated.Value(6)).current;
   const sheen = useRef(new Animated.Value(0)).current;
 
   // Entrance: once
@@ -22,14 +20,10 @@ const HomeHeader = ({ tagline, theme, colors, scrollY, onHeight }) => {
         Animated.timing(nameOpacity, { toValue: 1, duration: 550, useNativeDriver: true }),
         Animated.spring(nameY, { toValue: 0, friction: 8, tension: 65, useNativeDriver: true }),
       ]),
-      Animated.parallel([
-        Animated.timing(tagOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
-        Animated.spring(tagY, { toValue: 0, friction: 9, tension: 70, useNativeDriver: true }),
-      ]),
     ]);
     anim.start();
     return () => anim.stop();
-  }, [nameOpacity, nameY, tagOpacity, tagY]);
+  }, [nameOpacity, nameY]);
 
   // Sheen: only while the screen is visible
   useEffect(() => {
@@ -116,14 +110,6 @@ const HomeHeader = ({ tagline, theme, colors, scrollY, onHeight }) => {
             style={[styles.sheen, { transform: [{ translateX: sheenX }, { skewX: "-18deg" }] }]}
           />
         </Animated.View>
-        <Animated.Text
-          style={[
-            styles.tagline,
-            { color: colors.text, opacity: tagOpacity, transform: [{ translateY: tagY }] },
-          ]}
-        >
-          {tagline}
-        </Animated.Text>
       </View>
     </View>
   );
@@ -160,5 +146,4 @@ const styles = StyleSheet.create({
     width: 36,
     backgroundColor: "rgba(255,255,255,0.18)",
   },
-  tagline: { fontSize: 13, opacity: 0.7, marginTop: 2 },
 });
