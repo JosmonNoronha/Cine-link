@@ -115,6 +115,7 @@ const FreeStack = () => (
   <Stack.Navigator screenOptions={stackOpts}>
     <Stack.Screen name="FreeShows" component={FreeShowsScreen} />
     <Stack.Screen name="FreeShow" component={FreeShowScreen} options={detailOpts} />
+    <Stack.Screen name="Details" component={DetailsScreen} options={detailOpts} />
   </Stack.Navigator>
 );
 const WatchlistStack = () => (

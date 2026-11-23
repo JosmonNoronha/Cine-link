@@ -214,6 +214,10 @@ const FreeShowScreen = ({ route, navigation }) => {
     }
   }, [jumpText, rows, play]);
 
+  const openDetails = useCallback(() => {
+    navigation.navigate("Details", { imdbID: `tmdb:tv:${tmdbId}` });
+  }, [navigation, tmdbId]);
+
   const toggleSearch = useCallback(() => {
     setSearchOpen((o) => !o);
     setJumpText("");
@@ -235,7 +239,7 @@ const FreeShowScreen = ({ route, navigation }) => {
       setJumpText("");
       setJumpMsg(null);
     },
-    [season],
+    [season, setSeason],
   );
 
   const soft = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.045)";
@@ -322,18 +326,31 @@ const FreeShowScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {continueRow ? (
+          <View style={styles.heroActions}>
+            {continueRow ? (
+              <Pressable
+                onPress={() => play(continueRow)}
+                style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="play" size={18} color="#fff" />
+                <Text style={styles.primaryText}>
+                  {hasHistory ? "Continue" : "Start watching"} · Episode {continueRow.n}
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
-              onPress={() => play(continueRow)}
-              style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+              onPress={openDetails}
+              style={({ pressed }) => [
+                styles.detailsButton,
+                { backgroundColor: soft, borderColor: hairline, opacity: pressed ? 0.75 : 1 },
+              ]}
               accessibilityRole="button"
+              accessibilityLabel={`View details for ${title}`}
             >
-              <Ionicons name="play" size={18} color="#fff" />
-              <Text style={styles.primaryText}>
-                {hasHistory ? "Continue" : "Start watching"} · Episode {continueRow.n}
-              </Text>
+              <Ionicons name="information-circle-outline" size={20} color={colors.text} />
             </Pressable>
-          ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -544,8 +561,10 @@ const styles = StyleSheet.create({
   progressTrack: { height: 4, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: 4, borderRadius: 2 },
   progressText: { fontSize: 12 },
-  primary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, height: 50, borderRadius: 25, marginTop: 20 },
+  heroActions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 20 },
+  primary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, height: 50, borderRadius: 25 },
   primaryText: { color: "#fff", fontSize: 15, fontWeight: "700", letterSpacing: -0.1 },
+  detailsButton: { width: 50, height: 50, borderRadius: 25, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
 
   // Section header
   sectionBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SIDE, paddingTop: 6, paddingBottom: 14 },
