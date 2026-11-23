@@ -1,5 +1,5 @@
 // components/SearchWelcome.js
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,25 +8,48 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import ActionMenu from "../shared/ActionMenu";
 
 const SearchChip = ({ item, onPress, onDelete, showDelete, colors, theme }) => {
+  const [menuVisible, setMenuVisible] = useState(false);
+
   return (
-    <TouchableOpacity
-      style={[
-        styles.chip,
-        {
-          backgroundColor:
-            theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
-        },
-      ]}
-      onPress={() => onPress(item)}
-      onLongPress={showDelete ? () => onDelete(item) : undefined}
-      activeOpacity={0.7}
-    >
-      <Text style={[styles.chipText, { color: colors.text }]} numberOfLines={1}>
-        {item}
-      </Text>
-    </TouchableOpacity>
+    <>
+      <TouchableOpacity
+        style={[
+          styles.chip,
+          {
+            backgroundColor:
+              theme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)",
+          },
+        ]}
+        onPress={() => onPress(item)}
+        onLongPress={showDelete ? () => setMenuVisible(true) : undefined}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.chipText, { color: colors.text }]} numberOfLines={1}>
+          {item}
+        </Text>
+      </TouchableOpacity>
+      <ActionMenu
+        visible={menuVisible}
+        title={item}
+        items={[
+          {
+            label: "Search again",
+            icon: "search-outline",
+            onPress: () => onPress(item),
+          },
+          {
+            label: "Delete from history",
+            icon: "trash-outline",
+            destructive: true,
+            onPress: () => onDelete(item),
+          },
+        ]}
+        onClose={() => setMenuVisible(false)}
+      />
+    </>
   );
 };
 

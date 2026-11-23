@@ -14,8 +14,6 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  ActionSheetIOS,
-  Platform,
   Alert,
   Dimensions,
 } from "react-native";
@@ -27,6 +25,7 @@ import { useTabBarHeight } from "../hooks/useTabBarHeight";
 import { Ionicons } from "@expo/vector-icons";
 import AppLoader from "../components/shared/AppLoader";
 import RetryState from "../components/shared/RetryState";
+import ActionMenu from "../components/shared/ActionMenu";
 import { getBackendStatus } from "../services/api";
 import IconToggleButton from "../components/shared/IconToggleButton";
 import LibraryPageHeader from "../components/shared/LibraryPageHeader";
@@ -67,6 +66,7 @@ const FavoritesScreen = ({
   const [favoritesLoadMessage, setFavoritesLoadMessage] = useState(
     "Unable to load favorites. Please check your internet connection.",
   );
+  const [contextMenuItem, setContextMenuItem] = useState(null);
   const [viewTypeState, setViewTypeState] = useState("list");
   const viewType = embedded ? (viewTypeProp ?? "list") : viewTypeState;
   const setViewType = embedded
@@ -196,53 +196,7 @@ const FavoritesScreen = ({
 
   // Long press context menu
   const showContextMenu = (item) => {
-    const options = [
-      "Remove from Favorites",
-      "View Details",
-      "Share",
-      "Cancel",
-    ];
-    const destructiveButtonIndex = 0;
-    const cancelButtonIndex = 3;
-
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          destructiveButtonIndex,
-          cancelButtonIndex,
-        },
-        (buttonIndex) => {
-          handleContextMenuAction(item, buttonIndex);
-        },
-      );
-    } else {
-      // Android fallback
-      Alert.alert(
-        item.Title,
-        "Choose an action",
-        [
-          {
-            text: "Remove from Favorites",
-            onPress: () => handleContextMenuAction(item, 0),
-            style: "destructive",
-          },
-          {
-            text: "View Details",
-            onPress: () => handleContextMenuAction(item, 1),
-          },
-          {
-            text: "Share",
-            onPress: () => handleContextMenuAction(item, 2),
-          },
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-        ],
-        { cancelable: true },
-      );
-    }
+    setContextMenuItem(item);
   };
 
   const handleContextMenuAction = async (item, actionIndex) => {
@@ -577,6 +531,29 @@ const FavoritesScreen = ({
               columnWrapperStyle={
                 viewType === "grid" ? styles.gridRow : undefined
               }
+            />
+            <ActionMenu
+              visible={Boolean(contextMenuItem)}
+              title={contextMenuItem?.Title}
+              items={[
+                {
+                  label: "View details",
+                  icon: "information-circle-outline",
+                  onPress: () => handleContextMenuAction(contextMenuItem, 1),
+                },
+                {
+                  label: "Share",
+                  icon: "share-social-outline",
+                  onPress: () => handleContextMenuAction(contextMenuItem, 2),
+                },
+                {
+                  label: "Remove from Favorites",
+                  icon: "heart-dislike-outline",
+                  destructive: true,
+                  onPress: () => handleContextMenuAction(contextMenuItem, 0),
+                },
+              ]}
+              onClose={() => setContextMenuItem(null)}
             />
           </>
         )}

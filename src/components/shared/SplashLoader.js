@@ -60,11 +60,11 @@ const Kernel = ({ x, y, delay, scale = 1 }) => {
 
 // Tuned to the updated splash-box.png rim
 const KERNEL_LAYOUT = [
-  { x: 0.12, y: 0.06, delay: 0, scale: 0.68 },
-  { x: 0.24, y: -0.02, delay: 60, scale: 0.88 },
-  { x: 0.38, y: -0.05, delay: 110, scale: 0.98 },
-  { x: 0.52, y: -0.02, delay: 60, scale: 0.88 },
-  { x: 0.65, y: 0.05, delay: 0, scale: 0.68 },
+  { x: 0.15, y: 0.06, delay: 0, scale: 0.68 },
+  { x: 0.24, y: -0.01, delay: 60, scale: 0.88 },
+  { x: 0.38, y: -0.03, delay: 110, scale: 0.98 },
+  { x: 0.52, y: -0.01, delay: 60, scale: 0.88 },
+  { x: 0.62, y: 0.05, delay: 0, scale: 0.68 },
 ];
 
 const BOX_SIZE = 120;

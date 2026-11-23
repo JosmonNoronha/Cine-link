@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import RetryState from "../components/shared/RetryState";
+import ActionMenu from "../components/shared/ActionMenu";
 import AddTitlesModal from "../components/publicWatchlists/AddTitlesModal";
 import {
   getPublicList,
@@ -52,6 +53,8 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [addVisible, setAddVisible] = useState(false);
+  const [actionMenu, setActionMenu] = useState(null);
+  const [removeItem, setRemoveItem] = useState(null);
   const cursorRef = useRef(null);
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
@@ -152,26 +155,7 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
   const confirmRemove = useCallback(
     (item) => {
       if (!isOwner) return;
-      Alert.alert("Remove title", `Remove "${item.title}" from this list?`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            const snapshot = items;
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
-            setList((l) => ({ ...l, itemCount: Math.max(0, (l.itemCount || 1) - 1) }));
-            try {
-              await removePublicListItem(id, item.id);
-              publicListEvents.emit({ type: "patch", id, patch: { itemCount: Math.max(0, (list?.itemCount || 1) - 1) } });
-            } catch {
-              setItems(snapshot);
-              setList((l) => ({ ...l, itemCount: (l.itemCount || 0) + 1 }));
-              Alert.alert("Couldn't remove", "Please try again.");
-            }
-          },
-        },
-      ]);
+      setRemoveItem(item);
     },
     [id, isOwner, items],
   );
@@ -227,24 +211,33 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
   };
 
   const openReportMenu = () =>
-    Alert.alert("Report this list", "Why are you reporting it?", [
-      ...REPORT_REASONS.map(([reason, label]) => ({ text: label, onPress: () => sendReport(reason) })),
-      { text: "Cancel", style: "cancel" },
-    ]);
+    setActionMenu({
+      title: "Why are you reporting it?",
+      items: REPORT_REASONS.map(([reason, label]) => ({
+        label,
+        icon: "flag-outline",
+        destructive: true,
+        onPress: () => sendReport(reason),
+      })),
+    });
 
   const openMenu = () => {
     if (isOwner) {
-      Alert.alert(list?.name || "List", undefined, [
-        { text: "Add titles", onPress: () => setAddVisible(true) },
-        { text: "Delete list", style: "destructive", onPress: confirmDelete },
-        { text: "Cancel", style: "cancel" },
-      ]);
+      setActionMenu({
+        title: list?.name || "List",
+        items: [
+          { label: "Add titles", icon: "add-circle-outline", onPress: () => setAddVisible(true) },
+          { label: "Delete list", icon: "trash-outline", destructive: true, onPress: confirmDelete },
+        ],
+      });
     } else {
-      Alert.alert(list?.name || "List", undefined, [
-        { text: "Report this list", onPress: openReportMenu },
-        { text: `Block ${list?.ownerName || "this user"}`, style: "destructive", onPress: confirmBlock },
-        { text: "Cancel", style: "cancel" },
-      ]);
+      setActionMenu({
+        title: list?.name || "List",
+        items: [
+          { label: "Report this list", icon: "flag-outline", onPress: openReportMenu },
+          { label: `Block ${list?.ownerName || "this user"}`, icon: "ban-outline", destructive: true, onPress: confirmBlock },
+        ],
+      });
     }
   };
 
@@ -425,6 +418,45 @@ const PublicWatchlistScreen = ({ route, navigation }) => {
         ) : null}
       </View>
 
+      <ActionMenu
+        visible={Boolean(actionMenu)}
+        title={actionMenu?.title}
+        items={actionMenu?.items || []}
+        onClose={() => setActionMenu(null)}
+      />
+      <ActionMenu
+        visible={Boolean(removeItem)}
+        title={removeItem ? `Remove "${removeItem.title}"?` : undefined}
+        items={[
+          {
+            label: "Remove from list",
+            icon: "remove-circle-outline",
+            destructive: true,
+            onPress: async () => {
+              if (!removeItem) return;
+              const item = removeItem;
+              const snapshot = items;
+              setItems((prev) => prev.filter((i) => i.id !== item.id));
+              setList((l) => ({ ...l, itemCount: Math.max(0, (l.itemCount || 1) - 1) }));
+              try {
+                await removePublicListItem(id, item.id);
+                publicListEvents.emit({
+                  type: "patch",
+                  id,
+                  patch: { itemCount: Math.max(0, (list?.itemCount || 1) - 1) },
+                });
+              } catch {
+                setItems(snapshot);
+                setList((l) => ({ ...l, itemCount: (l.itemCount || 0) + 1 }));
+                Alert.alert("Couldn't remove", "Please try again.");
+              } finally {
+                setRemoveItem(null);
+              }
+            },
+          },
+        ]}
+        onClose={() => setRemoveItem(null)}
+      />
       <AddTitlesModal
         visible={addVisible}
         listId={id}
