@@ -80,6 +80,7 @@ const getSettingsScreen = () => require("../screens/SettingsScreen").default;
 const getManageSubscriptionsScreen = () =>
   require("../screens/ManageSubscriptionsScreen").default;
 const getAuthScreen = () => require("../screens/AuthScreen").default;
+const getWatchedScreen = () => require("../screens/WatchedScreen").default;
 
 // ─── Shared stack screen options ───────────────────────────────────────────────
 const stackOpts = {
@@ -136,10 +137,9 @@ const WatchlistStack = () => (
 const SettingsStack = () => (
   <Stack.Navigator screenOptions={{ ...stackOpts, animation: undefined }}>
     <Stack.Screen name="Settings" getComponent={getSettingsScreen} />
-    <Stack.Screen
-      name="ManageSubscriptions"
-      getComponent={getManageSubscriptionsScreen}
-    />
+    <Stack.Screen name="ManageSubscriptions" getComponent={getManageSubscriptionsScreen} />
+    <Stack.Screen name="Watched" getComponent={getWatchedScreen} options={{ animation: "slide_from_right" }} />
+    <Stack.Screen name="Details" component={DetailsScreen} options={detailOpts} />
   </Stack.Navigator>
 );
 const AuthStack = () => (

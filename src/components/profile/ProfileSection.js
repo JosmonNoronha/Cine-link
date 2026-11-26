@@ -10,6 +10,7 @@
  *   insightsLoading      – bool
  *   onSignOut            – () => void
  *   onBadgesPress        – () => void
+ *   onWatchedPress       – () => void   (opens the Watched screen)
  *   theme                – "dark" | "light"
  *   colors               – react-navigation colors object
  */
@@ -243,6 +244,7 @@ const ProfileSection = ({
   insightsLoading,
   onSignOut,
   onBadgesPress,
+  onWatchedPress,
   theme,
 }) => {
   const dark = theme === "dark";
@@ -278,8 +280,15 @@ const ProfileSection = ({
     );
   }
 
-  const { level, xpProgressText, favorites, watchlists, streak, badges } =
-    profileInsights;
+  const {
+    level,
+    xpProgressText,
+    favorites,
+    watchlists,
+    watched = 0,
+    streak,
+    badges,
+  } = profileInsights;
 
   const initial = user.displayName?.charAt(0)?.toUpperCase() || "?";
   const levelMeta = LEVEL_META[level] || LEVEL_META[1];
@@ -413,6 +422,14 @@ const ProfileSection = ({
             label="Lists"
             dark={dark}
             delay={50}
+          />
+          <StatTile
+            icon="checkmark-done-outline"
+            value={String(watched)}
+            label="Watched"
+            dark={dark}
+            delay={75}
+            onPress={onWatchedPress}
           />
           <StatTile
             icon="flame-outline"

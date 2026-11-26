@@ -17,6 +17,7 @@ import {
   Modal,
   Platform,
   Linking,
+  Alert,
 } from "react-native";
 import { useTheme } from "@react-navigation/native";
 import { useTabBarHeight } from "../hooks/useTabBarHeight";
@@ -37,7 +38,12 @@ import {
   getWatchProviders,
   getUserSubscriptions,
 } from "../services/api";
-import { markEpisodeWatched, getWatchedEpisodes } from "../utils/storage";
+import {
+  markEpisodeWatched,
+  getWatchedEpisodes,
+  getTitleWatchState,
+  markTitleWatched,
+} from "../utils/storage";
 import useAddToList from "../hooks/useAddToList";
 import AddToListSheet from "../components/details/AddToListSheet";
 import { formatWatchProviders } from "../config/streamingProviders";
@@ -450,12 +456,16 @@ const ActionButtons = React.memo(
     inWatchlist,
     onFavoritePress,
     onWatchlistPress,
+    watched,
+    watchedBusy,
+    onWatchedPress,
     colors,
     theme,
   }) => {
     const btnBg =
       theme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)";
     return (
+      <View>
       <View style={styles.actionButtonsContainer}>
         <TouchableOpacity
           style={[
@@ -494,6 +504,41 @@ const ActionButtons = React.memo(
             {inWatchlist ? "In List" : "Watchlist"}
           </Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Watched works on its own: no watchlist needed */}
+      <View style={[styles.actionButtonsContainer, { marginTop: 12 }]}>
+        <TouchableOpacity
+          style={[
+            styles.actionButton,
+            watched && {
+              backgroundColor: "rgba(76,175,80,0.15)",
+              borderColor: "rgba(76,175,80,0.45)",
+            },
+            { backgroundColor: watched ? "rgba(76,175,80,0.15)" : btnBg },
+            watchedBusy && { opacity: 0.6 },
+          ]}
+          onPress={onWatchedPress}
+          disabled={watchedBusy}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityState={{ selected: !!watched, busy: !!watchedBusy }}
+          accessibilityLabel={watched ? "Watched. Tap to unmark" : "Mark as watched"}
+        >
+          {watchedBusy ? (
+            <ActivityIndicator size="small" color={colors.text} />
+          ) : (
+            <Ionicons
+              name={watched ? "checkmark-circle" : "checkmark-circle-outline"}
+              size={24}
+              color={watched ? "#4caf50" : colors.text}
+            />
+          )}
+          <Text style={[styles.actionButtonText, { color: colors.text }]}>
+            {watched ? "Watched" : "Mark as watched"}
+          </Text>
+        </TouchableOpacity>
+      </View>
       </View>
     );
   },
@@ -616,6 +661,8 @@ const DetailsScreen = ({ route, navigation }) => {
   const [failedSeasons, setFailedSeasons] = useState({});
   const [loadingEpisodes, setLoadingEpisodes] = useState({});
   const [watchedEpisodes, setWatchedEpisodes] = useState({});
+  const [titleWatched, setTitleWatchedState] = useState(false);
+  const [watchedBusy, setWatchedBusy] = useState(false);
   const [watchProviders, setWatchProviders] = useState(null);
   const [loadingWatchProviders, setLoadingWatchProviders] = useState(false);
   const [userSubscriptions, setUserSubscriptions] = useState([]);
@@ -896,6 +943,12 @@ const DetailsScreen = ({ route, navigation }) => {
 
         fetchSecondaryData(data, resolvedTmdb, eff);
 
+        getTitleWatchState(eff)
+          .then((st) => {
+            if (!cancelled) setTitleWatchedState(!!st?.watched);
+          })
+          .catch(() => {});
+
         if (data.Type === "series") {
           try {
             const watched = await getWatchedEpisodes(eff);
@@ -1097,6 +1150,48 @@ const DetailsScreen = ({ route, navigation }) => {
     [playingSeasonTrailer, seasonTrailers, fetchSeasonTrailer],
   );
 
+  // ── Title info stored with the watched record (shown on the Watched screen) ─
+
+  const buildTitleMeta = useCallback(
+    (seasonsOverride) => {
+      if (!movie) return undefined;
+      const meta = {};
+      if (movie.Title) meta.title = String(movie.Title);
+      if (
+        typeof movie.Poster === "string" &&
+        movie.Poster &&
+        movie.Poster !== "N/A"
+      ) {
+        meta.poster = movie.Poster;
+      }
+      const year = String(movie.Year || "").match(/\d{4}/);
+      if (year) meta.year = year[0];
+
+      if (movie.Type === "series") {
+        const totalSeasons = seriesDetails?.totalSeasons;
+        if (totalSeasons) meta.totalSeasons = totalSeasons;
+        // Episode totals are only known once every season has loaded.
+        const loaded = seasonsOverride || seriesDetails?.seasons || [];
+        if (
+          totalSeasons &&
+          loaded.length >= totalSeasons &&
+          loaded.every((x) => x.episodeCount > 0)
+        ) {
+          const seasonCounts = {};
+          let totalEpisodes = 0;
+          for (const x of loaded) {
+            seasonCounts[x.seasonNumber] = x.episodeCount;
+            totalEpisodes += x.episodeCount;
+          }
+          meta.seasonCounts = seasonCounts;
+          meta.totalEpisodes = totalEpisodes;
+        }
+      }
+      return meta;
+    },
+    [movie, seriesDetails],
+  );
+
   // ── Episode watched toggle ─────────────────────────────────────────────────
 
   const toggleEpisodeWatched = useCallback(
@@ -1117,12 +1212,20 @@ const DetailsScreen = ({ route, navigation }) => {
       watchedRef.current = nextMap;
       setWatchedEpisodes(nextMap);
       try {
-        await markEpisodeWatched(
+        const res = await markEpisodeWatched(
           effectiveImdbID,
           season,
           episodeNumber,
           !wasWatched,
+          buildTitleMeta(),
         );
+        if (res) {
+          // The last episode finishes the series; un-ticking one reopens it.
+          setTitleWatchedState(!!res.completed);
+          if (res.xp?.xpGained > 0) {
+            showToast(`Series finished! +${res.xp.xpGained} XP`, "success");
+          }
+        }
       } catch (error) {
         logger.error("Failed to update watch status", error);
         const reverted = { ...watchedRef.current };
@@ -1133,8 +1236,126 @@ const DetailsScreen = ({ route, navigation }) => {
         showToast("Failed to update watch status", "error");
       }
     },
-    [effectiveImdbID, showToast],
+    [effectiveImdbID, showToast, buildTitleMeta],
   );
+
+  // ── Mark the whole movie / series watched (no watchlist needed) ─────────────
+
+  const toggleTitleWatched = useCallback(async () => {
+    if (!movie || watchedBusy) return;
+    const isSeries = movie.Type === "series";
+    const next = !titleWatched;
+
+    if (isSeries && !next && Object.keys(watchedRef.current).length > 0) {
+      const confirmed = await new Promise((resolve) =>
+        Alert.alert(
+          "Clear watch progress?",
+          "This unmarks every episode you have ticked for this series.",
+          [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: "Unmark", style: "destructive", onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) },
+        ),
+      );
+      if (!confirmed) return;
+    }
+
+    setWatchedBusy(true);
+    setTitleWatchedState(next);
+    try {
+      let episodes;
+      let loadedSeasons = null;
+
+      // TMDB series: the server knows every episode, so nothing needs loading here.
+      // Older imdb-style ids can't be looked up by the server, so those load the seasons themselves.
+      const serverFills = String(effectiveImdbID).startsWith("tmdb:tv:");
+
+      if (isSeries && next && !serverFills) {
+        const total = seriesDetails?.totalSeasons || 0;
+        if (!total) throw new Error("Seasons are not loaded yet");
+        const results = await Promise.all(
+          Array.from({ length: total }, (_, i) =>
+            fetchSeasonDetails(imdbID, i + 1).catch(() => null),
+          ),
+        );
+        episodes = [];
+        results.forEach((sd, i) => {
+          for (const ep of sd?.episodes || []) {
+            const n = Number(ep.episodeNumber);
+            if (n >= 1) episodes.push({ season: i + 1, episode: n });
+          }
+        });
+        if (!episodes.length) throw new Error("No episodes found");
+        loadedSeasons = results.filter(Boolean);
+      }
+
+      const res = await markTitleWatched(effectiveImdbID, {
+        type: isSeries ? "series" : "movie",
+        watched: next,
+        meta: buildTitleMeta(loadedSeasons || undefined),
+        ...(episodes ? { episodes } : {}),
+      });
+
+      if (isSeries) {
+        let map = {};
+        if (next && episodes) {
+          const at = new Date().toISOString();
+          for (const e of episodes) {
+            map[`s${e.season}e${e.episode}`] = {
+              watchedAt: at,
+              season: e.season,
+              episode: e.episode,
+            };
+          }
+        } else if (next) {
+          // the server ticked the episodes: read them back so the list matches
+          map = await getWatchedEpisodes(effectiveImdbID);
+        }
+        watchedRef.current = map;
+        setWatchedEpisodes(map);
+        if (loadedSeasons) {
+          setSeriesDetails((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  seasons: [
+                    ...prev.seasons.filter(
+                      (x) =>
+                        !loadedSeasons.some((l) => l.seasonNumber === x.seasonNumber),
+                    ),
+                    ...loadedSeasons,
+                  ].sort((a, b) => a.seasonNumber - b.seasonNumber),
+                }
+              : prev,
+          );
+        }
+      }
+
+      if (!next) showToast("Removed from watched", "info");
+      else if (res?.xp?.leveledUp?.title)
+        showToast(`Level up! ${res.xp.leveledUp.title}`, "success");
+      else if (res?.xp?.xpGained > 0)
+        showToast(`Marked as watched · +${res.xp.xpGained} XP`, "success");
+      else showToast("Marked as watched", "success");
+    } catch (error) {
+      logger.error("Failed to update watched status", error);
+      setTitleWatchedState(!next);
+      showToast("Couldn't update watched status", "error");
+    } finally {
+      setWatchedBusy(false);
+    }
+  }, [
+    movie,
+    watchedBusy,
+    titleWatched,
+    seriesDetails,
+    fetchSeasonDetails,
+    imdbID,
+    effectiveImdbID,
+    buildTitleMeta,
+    showToast,
+  ]);
 
   // ── Collection ─────────────────────────────────────────────────────────────
 
@@ -1270,6 +1491,9 @@ const DetailsScreen = ({ route, navigation }) => {
             inWatchlist={inWatchlist}
             onFavoritePress={toggleFavorite}
             onWatchlistPress={handleWatchlistButton}
+            watched={titleWatched}
+            watchedBusy={watchedBusy}
+            onWatchedPress={toggleTitleWatched}
             colors={colors}
             theme={theme}
           />

@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth } from "../../firebaseConfig";
 import { getBackendStatus, retestBackendConnection } from "../services/api";
 import { useFavorites } from "../contexts/FavoritesContext";
-import { getWatchlists } from "../utils/storage";
+import { getWatchlists, getWatchedTitles } from "../utils/storage";
 import { getGamificationState, getLevelInfo } from "../utils/gamification";
 import BadgesModal from "../components/profile/BadgesModal";
 import DeleteAccountModal from "../components/profile/DeleteAccountModal";
@@ -52,6 +52,7 @@ const SettingsScreen = ({ navigation }) => {
     xpProgressText: "0/50",
     favorites: 0,
     watchlists: 0,
+    watched: 0,
     streak: 0,
     badges: 0,
     unlockedAchievements: [],
@@ -78,10 +79,15 @@ const SettingsScreen = ({ navigation }) => {
   const loadProfileInsights = useCallback(async () => {
     setInsightsLoading(true);
     try {
-      const [lists, gamificationState] = await Promise.all([
+      const [lists, gamificationState, watchedTitles] = await Promise.all([
         getWatchlists(),
         getGamificationState(),
+        getWatchedTitles().catch(() => null),
       ]);
+
+      // Titles fully watched (series still in progress are not counted)
+      const wc = watchedTitles?.counts;
+      const watchedCount = wc ? wc.movies + wc.series - wc.inProgress : 0;
 
       const watchlistsMap = lists || {};
       const watchlistCount = Object.keys(watchlistsMap).length;
@@ -96,6 +102,7 @@ const SettingsScreen = ({ navigation }) => {
           : "MAX",
         favorites: favorites.length,
         watchlists: watchlistCount,
+        watched: watchedCount,
         streak: gamificationState?.currentStreak || 0,
         badges: gamificationState?.unlockedAchievements?.length || 0,
         unlockedAchievements: gamificationState?.unlockedAchievements || [],
@@ -459,6 +466,7 @@ const SettingsScreen = ({ navigation }) => {
           insightsLoading={insightsLoading}
           onSignOut={handleSignOut}
           onBadgesPress={() => setBadgesModalVisible(true)}
+          onWatchedPress={() => navigation.navigate("Watched")}
           theme={theme}
           colors={colors}
         />

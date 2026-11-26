@@ -13,6 +13,12 @@ import {
   getWatchedEpisodes as apiGetWatchedEpisodes,
   setEpisodeWatched as apiSetEpisodeWatched,
 } from "../services/api";
+import {
+  getWatchedTitles as apiGetWatchedTitles,
+  getTitleWatchState as apiGetTitleWatchState,
+  setTitleWatched as apiSetTitleWatched,
+  trackEpisode as apiTrackEpisode,
+} from "../services/api/watchedTitles";
 import logger from "../services/logger";
 
 logger.info("Storage.js loaded - auth:", auth); // Debug log
@@ -189,23 +195,26 @@ export const markEpisodeWatched = async (
   season,
   episode,
   watched = true,
+  meta = null,
 ) => {
   try {
     if (!auth) {
       logger.warn("Authentication not initialized, skipping episode tracking");
-      return;
+      return null;
     }
     const user = auth.currentUser;
     if (!user) {
       logger.warn("No user logged in, skipping episode tracking");
-      return;
+      return null;
     }
-    await apiSetEpisodeWatched(imdbID, season, episode, watched);
+    // Also stores the title info and tells us when this episode finished the series.
+    return await apiTrackEpisode(imdbID, season, episode, watched, meta);
   } catch (error) {
     logger.warn(
       "Could not track episode watch status (non-critical):",
       error.message,
     );
+    return null;
   }
 };
 
@@ -253,4 +262,22 @@ export const getSeriesProgress = async (imdbID, totalEpisodes) => {
   } catch {
     return { watchedCount: 0, totalEpisodes, percentage: 0, lastWatched: null };
   }
+};
+
+// ---------- Watched titles (independent of any watchlist) ----------
+
+export const getWatchedTitles = async () => {
+  if (!auth?.currentUser) return { items: [], counts: { movies: 0, series: 0, inProgress: 0 } };
+  return apiGetWatchedTitles();
+};
+
+export const getTitleWatchState = async (contentId) => {
+  if (!auth?.currentUser) return { watched: false, summary: null };
+  return apiGetTitleWatchState(contentId);
+};
+
+// Throws on failure so the caller can roll back its optimistic UI.
+export const markTitleWatched = async (contentId, payload) => {
+  if (!auth?.currentUser) throw new Error("Please sign in to track watched titles");
+  return apiSetTitleWatched(contentId, payload);
 };
