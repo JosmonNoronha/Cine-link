@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet, Platform } from "react-native";
+import { View, Text, Image, Animated, StyleSheet, Platform } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 
@@ -102,6 +102,12 @@ const HomeHeader = ({ theme, colors, scrollY, onHeight }) => {
         <Animated.View
           style={[styles.badge, { opacity: nameOpacity, transform: [{ translateY: nameY }] }]}
         >
+          <Image
+            source={require("../../../assets/app-icon.png")}
+            style={styles.appIcon}
+            resizeMode="contain"
+            accessible={false}
+          />
           <Text style={[styles.name, { color: theme === "dark" ? "#42a5f5" : "#1976d2" }]}>
             CineLink
           </Text>
@@ -137,7 +143,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
-  badge: { alignSelf: "flex-start", overflow: "hidden", borderRadius: 10, paddingRight: 8 },
+  badge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1,
+    overflow: "hidden",
+    borderRadius: 10,
+    paddingRight: 8,
+  },
+  appIcon: { width: 34, height: 34, borderRadius: 9 },
   name: { fontSize: 30, fontWeight: "800", letterSpacing: 0.55 },
   sheen: {
     position: "absolute",
