@@ -81,6 +81,8 @@ const getManageSubscriptionsScreen = () =>
   require("../screens/ManageSubscriptionsScreen").default;
 const getAuthScreen = () => require("../screens/AuthScreen").default;
 const getWatchedScreen = () => require("../screens/WatchedScreen").default;
+const getFeedScreen = () => require("../screens/FeedScreen").default;
+const getCalendarScreen = () => require("../screens/CalendarScreen").default;
 
 // ─── Shared stack screen options ───────────────────────────────────────────────
 const stackOpts = {
@@ -95,6 +97,8 @@ const HomeStack = () => (
   <Stack.Navigator screenOptions={stackOpts}>
     <Stack.Screen name="Home" component={HomeScreen} />
     <Stack.Screen name="News" component={NewsScreen} options={detailOpts} />
+    <Stack.Screen name="Feed" getComponent={getFeedScreen} options={detailOpts} />
+    <Stack.Screen name="Calendar" getComponent={getCalendarScreen} options={detailOpts} />
     <Stack.Screen
       name="Details"
       component={DetailsScreen}

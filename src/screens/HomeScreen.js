@@ -34,6 +34,7 @@ import HomeSection from "../components/home/HomeSections";
 import TrailersSection from "../components/home/TrailersSection";
 import NewsSection from "../components/news/NewsSection";
 import TrailerPlayerModal from "../components/home/TrailerPlayerModal";
+import DiscoverHubSheet from "../components/discover/DiscoverHubSheet";
 import { GenreChips } from "../components/home/HomeCards";
 import logger from "../services/logger";
 
@@ -85,6 +86,7 @@ const HomeScreen = ({ navigation }) => {
   const [watchlistError, setWatchlistError] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
   const [playingTrailer, setPlayingTrailer] = useState(null);
+  const [hubAnchor, setHubAnchor] = useState(null);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -158,7 +160,7 @@ const HomeScreen = ({ navigation }) => {
       extra.push({
         id: "latest-news",
         type: "news",
-        title: "Movie & TV News",
+        title: "News",
         subtitle: "From around the world",
         data: news,
       });
@@ -175,6 +177,15 @@ const HomeScreen = ({ navigation }) => {
     [navigation],
   );
   const closeTrailer = useCallback(() => setPlayingTrailer(null), []);
+  const openHub = useCallback((anchor) => setHubAnchor(anchor), []);
+  const closeHub = useCallback(() => setHubAnchor(null), []);
+  const selectHubFeature = useCallback(
+    (feature) => {
+      setHubAnchor(null);
+      if (feature?.route) navigation.navigate(feature.route, feature.params);
+    },
+    [navigation],
+  );
   const openTrailerDetails = useCallback(
     (t) => {
       setPlayingTrailer(null);
@@ -325,8 +336,17 @@ const HomeScreen = ({ navigation }) => {
         colors={colors}
         scrollY={scrollY}
         onHeight={setHeaderHeight}
+        onHubPress={openHub}
+        hubActive={Boolean(hubAnchor)}
       />
       {body}
+      <DiscoverHubSheet
+        visible={Boolean(hubAnchor)}
+        anchor={hubAnchor}
+        onClose={closeHub}
+        onSelect={selectHubFeature}
+        colors={colors}
+      />
       <TrailerPlayerModal
         trailer={playingTrailer}
         onClose={closeTrailer}

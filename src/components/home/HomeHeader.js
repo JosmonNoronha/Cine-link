@@ -2,12 +2,13 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, Image, Animated, StyleSheet, Platform } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
+import HubButton from "./HubButton";
 
 // Scroll distance (px) over which the header crosses from "solid, blends
 // with the page background" to "floating translucent glass bar".
 const FADE_RANGE = 50;
 
-const HomeHeader = ({ theme, colors, scrollY, onHeight }) => {
+const HomeHeader = ({ theme, colors, scrollY, onHeight, onHubPress, hubActive }) => {
   const isFocused = useIsFocused();
   const nameOpacity = useRef(new Animated.Value(0)).current;
   const nameY = useRef(new Animated.Value(10)).current;
@@ -99,6 +100,11 @@ const HomeHeader = ({ theme, colors, scrollY, onHeight }) => {
 
       {/* Content, always on top of both backdrop layers */}
       <View style={styles.content}>
+        {onHubPress ? (
+          <View style={styles.hub}>
+            <HubButton colors={colors} onPress={onHubPress} active={hubActive} />
+          </View>
+        ) : null}
         <Animated.View
           style={[styles.badge, { opacity: nameOpacity, transform: [{ translateY: nameY }] }]}
         >
@@ -152,8 +158,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingRight: 8,
   },
-  appIcon: { width: 34, height: 34, borderRadius: 9 },
-  name: { fontSize: 30, fontWeight: "800", letterSpacing: 0.55 },
+  appIcon: { width: 28, height: 28, borderRadius: 7 },
+  hub: {
+    position: "absolute",
+    right: 20,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  name: { fontSize: 24, fontWeight: "800", letterSpacing: 0.4 },
   sheen: {
     position: "absolute",
     top: 0,

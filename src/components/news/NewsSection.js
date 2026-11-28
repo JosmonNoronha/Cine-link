@@ -18,7 +18,7 @@ const NewsCard = React.memo(({ item, width }) => {
       accessibilityLabel={`${item.title}. ${item.sourceName}`}
       style={({ pressed }) => [
         styles.card,
-        { width, height: Math.round((width * 9) / 16) },
+        { width, height: Math.round((width * 10) / 16) },
         pressed && { opacity: 0.88, transform: [{ scale: 0.98 }] },
       ]}
     >
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rail: { paddingHorizontal: PAD },
-  card: { borderRadius: 18, overflow: "hidden", backgroundColor: "#1c1f26" },
+  card: { borderRadius: 2, overflow: "hidden", backgroundColor: "#1c1f26" },
   newsBadge: {
     position: "absolute",
     top: 10,

@@ -1,5 +1,11 @@
 // screens/SearchScreen.js
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   Animated,
@@ -25,21 +31,27 @@ import useAutocomplete from "../hooks/useAutocomplete";
 import useSearchHistory from "../hooks/useSearchHistory";
 
 const SearchScreen = ({ navigation }) => {
-  const [query, setQuery]                     = useState("");
-  const [searchQuery, setSearchQuery]         = useState("");
-  const [filterType, setFilterType]           = useState("all");
-  const [isFocused, setIsFocused]             = useState(false);
-  const [showDropdown, setShowDropdown]       = useState(false);
-  const [hasSearched, setHasSearched]         = useState(false);
-  const [headerHeight, setHeaderHeight]       = useState(0);
+  const [query, setQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [isFocused, setIsFocused] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   const { colors } = useTheme();
-  const { theme }  = useCustomTheme();
+  const { theme } = useCustomTheme();
 
   const {
-    results, isLoading, error, totalResults,
-    isLoadingMore, hasMorePages, isTotalExact,
-    performSearch, loadMoreResults,
+    results,
+    isLoading,
+    error,
+    totalResults,
+    isLoadingMore,
+    hasMorePages,
+    isTotalExact,
+    performSearch,
+    loadMoreResults,
     clearSearch: clearSearchResults,
   } = useSearchLogic();
 
@@ -67,24 +79,26 @@ const SearchScreen = ({ navigation }) => {
 
   const handleScroll = useMemo(
     () =>
-      Animated.event(
-        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-        { useNativeDriver: false },
-      ),
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+      }),
     [scrollY],
   );
 
   // ── Input handlers ─────────────────────────────────────────────────────
 
-  const handleChangeText = useCallback((text) => {
-    setQuery(text);
-    update(text);          // drives autocomplete
-  }, [update]);
+  const handleChangeText = useCallback(
+    (text) => {
+      setQuery(text);
+      update(text); // drives autocomplete
+    },
+    [update],
+  );
 
   const handleFocus = useCallback(() => {
     setIsFocused(true);
     setShowDropdown(true);
-    update(query);         // populate immediately on focus
+    update(query); // populate immediately on focus
   }, [update, query]);
 
   const handleBlur = useCallback(() => {
@@ -95,56 +109,71 @@ const SearchScreen = ({ navigation }) => {
 
   // ── Search execution ───────────────────────────────────────────────────
 
-  const executeSearch = useCallback(async (text, type = filterType) => {
-    if (!text?.trim()) return;
-    const trimmed = text.trim();
-    setSearchQuery(trimmed);
-    setShowDropdown(false);
-    setHasSearched(true);
-    Keyboard.dismiss();
-    clear();
-    try {
-      await performSearch(trimmed, type);
-      await saveToHistory(trimmed);
-    } catch (e) {
-      logger.warn("Search failed", e);
-    }
-  }, [filterType, performSearch, saveToHistory, clear]);
+  const executeSearch = useCallback(
+    async (text, type = filterType) => {
+      if (!text?.trim()) return;
+      const trimmed = text.trim();
+      setSearchQuery(trimmed);
+      setShowDropdown(false);
+      setHasSearched(true);
+      Keyboard.dismiss();
+      clear();
+      try {
+        await performSearch(trimmed, type);
+        await saveToHistory(trimmed);
+      } catch (e) {
+        logger.warn("Search failed", e);
+      }
+    },
+    [filterType, performSearch, saveToHistory, clear],
+  );
 
   const handleSubmit = useCallback(() => {
     executeSearch(query);
   }, [query, executeSearch]);
 
   // Called when user taps a history or trending suggestion (plain text)
-  const handleSelectText = useCallback((text) => {
-    setQuery(text);
-    executeSearch(text);
-  }, [executeSearch]);
+  const handleSelectText = useCallback(
+    (text) => {
+      setQuery(text);
+      executeSearch(text);
+    },
+    [executeSearch],
+  );
 
   // Called when user taps a rich title result from autocomplete
-  const handleSelectTitle = useCallback((item) => {
-    if (item.imdbID) {
-      // Navigate directly to details — no need to search
-      setShowDropdown(false);
-      Keyboard.dismiss();
-      clear();
-      navigation.navigate("Details", { imdbID: item.imdbID });
-    } else {
-      // Person or result without imdbID — run a text search
-      handleSelectText(item.text);
-    }
-  }, [navigation, handleSelectText, clear]);
+  const handleSelectTitle = useCallback(
+    (item) => {
+      if (item.imdbID) {
+        // Navigate directly to details — no need to search
+        setShowDropdown(false);
+        Keyboard.dismiss();
+        clear();
+        navigation.navigate("Details", { imdbID: item.imdbID });
+      } else {
+        // Person or result without imdbID — run a text search
+        handleSelectText(item.text);
+      }
+    },
+    [navigation, handleSelectText, clear],
+  );
 
   // ── Filter ─────────────────────────────────────────────────────────────
 
-  const handleFilterChange = useCallback(async (type) => {
-    if (filterType === type) return;
-    setFilterType(type);
-    if (searchQuery && hasSearched) {
-      try { await performSearch(searchQuery, type); }
-      catch (e) { logger.warn("Filter change failed", e); }
-    }
-  }, [filterType, searchQuery, hasSearched, performSearch]);
+  const handleFilterChange = useCallback(
+    async (type) => {
+      if (filterType === type) return;
+      setFilterType(type);
+      if (searchQuery && hasSearched) {
+        try {
+          await performSearch(searchQuery, type);
+        } catch (e) {
+          logger.warn("Filter change failed", e);
+        }
+      }
+    },
+    [filterType, searchQuery, hasSearched, performSearch],
+  );
 
   // ── Clear ──────────────────────────────────────────────────────────────
 
@@ -159,9 +188,12 @@ const SearchScreen = ({ navigation }) => {
 
   // ── History ────────────────────────────────────────────────────────────
 
-  const handleDeleteHistory = useCallback(async (text) => {
-    await deleteHistoryItem(text);
-  }, [deleteHistoryItem]);
+  const handleDeleteHistory = useCallback(
+    async (text) => {
+      await deleteHistoryItem(text);
+    },
+    [deleteHistoryItem],
+  );
 
   const handleClearHistory = useCallback(async () => {
     await clearAllHistory();
@@ -195,8 +227,17 @@ const SearchScreen = ({ navigation }) => {
           theme={theme}
           colors={colors}
           onHeight={setHeaderHeight}
+          collapsible={
+            hasSearched && !showDropdown ? (
+              <SearchFilters
+                filterType={filterType}
+                onFilterChange={handleFilterChange}
+                colors={colors}
+                theme={theme}
+              />
+            ) : null
+          }
         >
-
           {/* Title */}
           <View style={styles.titleRow}>
             <Text style={[styles.title, { color: colors.text }]}>Search</Text>
@@ -221,14 +262,26 @@ const SearchScreen = ({ navigation }) => {
             {/* Current search label */}
             {searchQuery && searchQuery !== query && !showDropdown && (
               <View style={styles.currentSearchRow}>
-                <Text style={[styles.currentSearchLabel, { color: theme === "dark" ? "#888" : "#666" }]}>
+                <Text
+                  style={[
+                    styles.currentSearchLabel,
+                    { color: theme === "dark" ? "#888" : "#666" },
+                  ]}
+                >
                   Results for:
                 </Text>
-                <Text style={[styles.currentSearchText, { color: colors.text }]}>
+                <Text
+                  style={[styles.currentSearchText, { color: colors.text }]}
+                >
                   "{searchQuery}"
                 </Text>
                 {totalResults > 0 && isTotalExact && (
-                  <Text style={[styles.resultCount, { color: theme === "dark" ? "#888" : "#666" }]}>
+                  <Text
+                    style={[
+                      styles.resultCount,
+                      { color: theme === "dark" ? "#888" : "#666" },
+                    ]}
+                  >
                     ({totalResults})
                   </Text>
                 )}
@@ -250,17 +303,6 @@ const SearchScreen = ({ navigation }) => {
               />
             )}
           </View>
-
-          {/* Filters — only visible when not in dropdown mode */}
-          {hasSearched && !showDropdown && (
-            <SearchFilters
-              filterType={filterType}
-              onFilterChange={handleFilterChange}
-              colors={colors}
-              theme={theme}
-            />
-          )}
-
         </FloatingGlassHeader>
 
         {/* Results */}
@@ -315,8 +357,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   currentSearchLabel: { fontSize: 12 },
-  currentSearchText:  { fontSize: 12, fontWeight: "600" },
-  resultCount:        { fontSize: 12, fontStyle: "italic" },
+  currentSearchText: { fontSize: 12, fontWeight: "600" },
+  resultCount: { fontSize: 12, fontStyle: "italic" },
 });
 
 export default SearchScreen;
